@@ -1,0 +1,6 @@
+.ipynb_checkpoints/ 
+**.py.swp
+**.py.swn
+**.py.swm
+**.py.swo
+**.pyc
