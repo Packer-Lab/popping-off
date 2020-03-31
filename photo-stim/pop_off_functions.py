@@ -816,3 +816,89 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
         for mouse in mouse_list:
             print(f'Corrected number of trials for mouse {mouse}: {len(new_df[1.0][new_df[1.0]["mouse"] == mouse])}')
     return new_df
+
+def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
+    """Compute difference df/f response between a post-stim window and a pre_stim 
+    baseline window average. Computes the average window acitivty per neuron and per 
+    trial, and then returns the average of the elementwise difference between 
+    all neurons and trials.
+    
+    Parameters:
+    ---------------
+        ss: Session
+            session to evaluate
+        xx: str, default='hit'
+            trial type
+        reg: str, default='s1'
+            region
+        duration_window_: float
+            length of  window
+            
+    Returns:
+    ---------------
+        metric: float
+            difference
+        
+    """
+    inds_pre_stim = np.logical_and(ss.filter_ps_time < 0, ss.filter_ps_time >= (-1 * duration_window))
+    inds_post_stim = np.logical_and(ss.filter_ps_time < (ss.filter_ps_time[ss.filter_ps_time > 0][0] + duration_window), 
+                                    ss.filter_ps_time >= ss.filter_ps_time[ss.filter_ps_time > 0][0])
+
+    if reg == 's1':
+        reg_inds = ss.s1_bool
+    elif reg == 's2':
+        reg_inds = ss.s2_bool
+
+    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
+
+    pre_met = np.mean(pre_stim_act, 2)
+    post_met = np.mean(post_stim_act, 2)
+
+    metric = np.mean(post_met - pre_met)
+    return metric
+
+def difference_pre_post_dynamic(ss, xx='hit', reg='s1', 
+                                duration_window_pre=1.2, tp_post=1.0):
+    """Compute difference df/f response between a post-stim timepoint tp_post and a pre_stim 
+    baseline window average. Returns the average of the elementwise difference between 
+    all neurons and trials.
+    
+    Parameters:
+    ---------------
+        ss: Session
+            session to evaluate
+        xx: str, default='hit'
+            trial type
+        reg: str, default='s1'
+            region
+        duration_window_pre: float
+            lenght of baseline window, taken <= 0
+        tp_post: float
+            post stim time point
+            
+    Returns:
+    ---------------
+        metric: float
+            difference
+        
+    """
+    inds_pre_stim = np.logical_and(ss.filter_ps_time <= 0, ss.filter_ps_time >= (-1 * duration_window_pre))
+    frame_post = ss.filter_ps_array[np.where(ss.filter_ps_time == tp_post)[0]]  # corresponding frame
+    if reg == 's1':
+        reg_inds = ss.s1_bool
+    elif reg == 's2':
+        reg_inds = ss.s2_bool
+
+    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+                                         ss.outcome==xx), :][:, :, frame_post][reg_inds, :, :]
+
+    pre_met = np.mean(pre_stim_act, 2)
+    post_met = np.squeeze(post_stim_act)
+    assert pre_met.shape == post_met.shape
+    metric = np.mean(post_met - pre_met)
+    return metric
