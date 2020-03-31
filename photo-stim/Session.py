@@ -225,7 +225,7 @@ class Session:
         # with e.g. the first trials spanning (galvo_ms[0] - pre_frames) : (galvo_ms[0] + post_frames)
         self.behaviour_trials = utils.build_flu_array(self.run, self.galvo_ms,
                                                       pre_frames=self.pre_frames, post_frames=self.post_frames)
-        self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
+#         self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
         if vverbose >= 2:
             print(f'Shape new array : {self.behaviour_trials.shape}')
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0]
@@ -243,7 +243,7 @@ class Session:
         # array of fluoresence through behavioural trials (n_cells x n_trials x n_frames)
         # with e.g. the first trials spanning (galvo_ms[0] - pre_frames) : (galvo_ms[0] + post_frames)
         self.behaviour_trials = build_flu_array_single(self.run, pre_frames=self.pre_frames, post_frames=self.post_frames, fs=30)
-        self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
+#         self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
         if vverbose >= 2:
             print(f'Shape new array : {self.behaviour_trials.shape}')
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0], '{} {}'.format(self.behaviour_trials.shape[1], self.outcome.shape[0])

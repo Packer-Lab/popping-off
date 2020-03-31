@@ -131,15 +131,15 @@ def create_dict_pred(nl, train_proj, lt):
         dictionary for test data
 
     """
-        dict_predictions_test = {x + '_test': np.array([]) for x in nl}  # make dicts to save
-        dict_predictions_train = {x + '_train': np.array([]) for x in nl}
-        if train_proj:
-            for x in lt:
-                dict_predictions_train[f'pred_{x}_train_proj'] = np.array([])
-                dict_predictions_test[f'pred_{x}_test_proj'] = np.array([])
-        if len(lt) == 2:
-            dict_predictions_train['angle_decoders'] = np.array([])
-        return dict_predictions_train, dict_predictions_test
+    dict_predictions_test = {x + '_test': np.array([]) for x in nl}  # make dicts to save
+    dict_predictions_train = {x + '_train': np.array([]) for x in nl}
+    if train_proj:
+        for x in lt:
+            dict_predictions_train[f'pred_{x}_train_proj'] = np.array([])
+            dict_predictions_test[f'pred_{x}_test_proj'] = np.array([])
+    if len(lt) == 2:
+        dict_predictions_train['angle_decoders'] = np.array([])
+    return dict_predictions_train, dict_predictions_test
 
 def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test = ['dec', 'stim'],
                             hitmiss_only=False, include_150 = False, return_decoder_weights=False,
