@@ -24,6 +24,23 @@ plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def beh_metric(sessions, metric='accuracy',
                stim_array=[0, 5, 10, 20, 30, 40, 50]):
+    """Compute metric to quantify behavioural performance for sessions.
+
+    Parameters
+    ----------
+    sessions : dict of Sessions
+        all sessions.
+    metric : str, default='accuracy'
+        what metric to compute. possibilities; 'accuracy' and 'sensitivity'.
+    stim_array : list, default=[0, 5, 10, 20, 30, 40, 50]
+        list of number of cells PS.
+
+    Returns
+    -------
+    acc: np.array of size (n_sessions x n_stims)
+        Array with metric per stim.
+
+    """
     acc = np.zeros((len(sessions), len(stim_array)))
     for i_session, session in sessions.items():
         for i_stim, stim in enumerate(stim_array):
@@ -40,9 +57,37 @@ def beh_metric(sessions, metric='accuracy',
     return acc
 
 def fun_return_2d(data):  # possibly add fancy stuff
+    """Function that determines how multiple time points are handled in train_test_all_sessions().
+
+    Parameters
+    ----------
+    data : 3D np array, last dim = Time
+        neural data.
+
+    Returns
+    -------
+    2D np.array
+        where Time is averaged out.
+
+    """
     return np.mean(data, 2)
 
 def angle_vecs(v1, v2):
+    """Compute angle between two vectors with cosine similarity.
+
+    Parameters
+    ----------
+    v1 : np.array
+        vector 1.
+    v2 : np.array
+        vector 2.
+
+    Returns
+    -------
+    deg: float
+        angle in degrees .
+
+    """
     assert v1.shape == v2.shape
     v1, v2 = np.squeeze(v1), np.squeeze(v2)
     tmp = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
@@ -51,9 +96,41 @@ def angle_vecs(v1, v2):
     return deg
 
 def mean_angle(deg):
+    """Average angles (take periodicity into account).
+
+    Parameters
+    ----------
+    deg : np.array of floats
+        angles
+
+    Returns
+    -------
+    mean
+        mean of angles .
+
+    """
     return math.degrees(cmath.phase(sum([cmath.rect(1, math.radians(d)) for d in deg])/len(deg)))
 
 def create_dict_pred(nl, train_proj, lt):
+    """Create dictionaries to save decoders predictions (used in train_test_all_sessions()).
+
+    Parameters
+    ----------
+    nl : list
+        name list of items to save.
+    train_proj : bool
+        whether to create dictionary keys for projected data.
+    lt : list
+        list of decoder names (e.g. ['stim', 'dec']).
+
+    Returns
+    -------
+    dict_predictions_train
+        dictionary for training data
+    dict_predictions_test
+        dictionary for test data
+
+    """
         dict_predictions_test = {x + '_test': np.array([]) for x in nl}  # make dicts to save
         dict_predictions_train = {x + '_train': np.array([]) for x in nl}
         if train_proj:
@@ -68,18 +145,66 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             hitmiss_only=False, include_150 = False, return_decoder_weights=False,
                             n_split = 4, include_autoreward=True, neurons_selection='all',
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
+    """Major function that trains the decoders. It trains the decoders specified in
+    list_test, for the time trial_times_use, for all sessions in sessions. The trials
+    are folded n_split times (stratified over session.outcome), new decoders
+    are trained for each fold and the test results  for each fold are concatenated.
+    It returns pd.Dataframes with predictions, and optionally the decoder weights (if return_decoder_weights is True)
+
+    Parameters
+    ----------
+    sessions : dict
+        dictionary of sessions
+    trial_times_use : np.array
+        np.array of time points to use. len(trial_times_use) > 1, its elements are averaged with fun_return_2d()
+    verbose : int, default=2
+        verbosiness
+    list_test : list, default=['dec' ,'stim']
+        list of decoder names
+    hitmiss_only : bool, default=False
+        if true, only evaluate hit miss trials.
+    include_150 : bool, default=False
+        if true, include n_PS=150 trials
+    return_decoder_weights : bool, default=False
+        if True, also return decoder weights
+    n_split : int, default=4
+        number of data Folds
+    include_autoreward : bool, default=True
+        if True, include autoreward trials
+    neurons_selection : str:, default='all'
+        which neurons to include. possibilities: 'all', 's1', 's2'
+    C_value : float, default=0.2
+        regularisation value (if reg_type is an adeqaute regulariser type for sklearn.linear_model.LogisticRegression)
+    reg_type : str, default='l2'
+        regulariser type, possibilities: 'l2', 'l1', 'none' (and elastic net I think)
+    train_projected : bool, default=False
+        if True, also evaluate decoders on projected data
+    proj_dir : str. default'different
+        if train_projected is True, specifies on which axis to project. possibilities: 'different' or 'same'
+
+    Returns
+    -------
+    df_prediction_train: pd.DataFrame
+        train data predictions
+    df_prediction_test: pd.DataFrame
+        test data predictions
+    if return_decoder_weights:
+        dec_weights: dict
+            weights of all decoders
+
+    """
     if hitmiss_only:
         if verbose >= 1:
             print('Using hit/miss trials only.')
         if 'stim' in list_test:
             list_test.remove('stim')  # no point in estimating stim, because only PS
-            
+
     name_list = ['autorewarded']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
         name_list.append('pred_' + nn)  # prediction
     for nn in ['dec', 'stim']:
         name_list.append('true_' + nn)  # ground truth
-        
+
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     df_prediction_train, df_prediction_test = dict(), dict()
     if verbose >= 2:
@@ -145,7 +270,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_use = fun_return_2d(data_use)
                 stand_scale = sklearn.preprocessing.StandardScaler()
                 data_use = stand_scale.fit_transform(data_use)
-  
+
                 sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
                 if verbose == 2:
                     print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
@@ -153,7 +278,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     print(f'Possible trial outcomes: {dict_outcomes}')
                     dict_n_ps = {x: np.sum(session.trial_subsets[trial_inds] == x) for x in np.unique(session.trial_subsets[trial_inds])}
                     print(f'Possible stimulations: {dict_n_ps}')
-                               
+
                 i_loop = 0
                 if return_decoder_weights:
                     for x in list_test:
@@ -167,7 +292,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     ## Get labels and categories of trials
                     train_labels = {'stim': session.photostim[trial_inds[train_inds]],
                                     'dec': session.decision[trial_inds[train_inds]]}
-                    test_labels = {'stim': session.photostim[trial_inds[test_inds]], 
+                    test_labels = {'stim': session.photostim[trial_inds[test_inds]],
                                    'dec': session.decision[trial_inds[test_inds]]}
                     if verbose == 2:
                         print(f' Number of test licks {np.sum(test_labels["dec"])}')
@@ -183,7 +308,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                                         X=train_data.transpose(), y=train_labels[x])
                         if return_decoder_weights:
                             dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
-                        
+
                     if len(list_test) == 2:
                         angle_decoders[i_session, i_loop] = angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
 
@@ -211,7 +336,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         pred_proba_test_proj = {x: dec_proj[x].predict_proba(X=test_data_proj)[:, 1] for x in list_test}
 
                     ## Save results
-                    for x in list_test: 
+                    for x in list_test:
                         dict_predictions_train[f'pred_{x}_train'] = np.concatenate((dict_predictions_train[f'pred_{x}_train'], pred_proba_train[x]))
                         dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], pred_proba_test[x]))
                         if train_projected:
@@ -231,20 +356,41 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         ## Put dictionary results into dataframes:
         df_prediction_train[mouse] = pd.DataFrame(dict_predictions_train)
         df_prediction_test[mouse] = pd.DataFrame(dict_predictions_test)
-        
+
     if return_decoder_weights is False:
         return df_prediction_train, df_prediction_test
     elif return_decoder_weights:
         return df_prediction_train, df_prediction_test, dec_weights
-    
-def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
-                  type_scatter='strip', ccolor='grey', aalpha=1):
-    """Plot individual trials
-    
-    Parameters:
-    -------------
-        type_scatter: str, default='strip
-            'strip' for stripplot, 'violin' for violin plot
+
+def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None, type_scatter='strip', ccolor='grey', aalpha=1):
+    """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        df containing predictions
+    xx : str
+        x axis
+    yy : str
+        y axis
+    hh : str
+        hue
+    plot_line : bool, default=True
+        if True, plot line of means
+    xticklabels : list, default=None
+        if not None, defines x axis tick labels
+    type_scatter : str, dfeault='strip'
+        possibiltiies: 'swarm', 'violin', 'strip'
+    ccolor : str or tuple, default=;grey
+        color`.
+    aalpha : float 0<aalpha<1
+        transparency
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
     """
 #     yy = yy + '_proj'
     if plot_line and hh is None:
@@ -257,18 +403,18 @@ def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
         trial_plot_fun = sns.violinplot
     elif type_scatter == 'swarm':
         trial_plot_fun = sns.swarmplot
-    if hh is None:  
+    if hh is None:
         tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, label=None, color=ccolor, alpha=aalpha)
-    else:  
+    else:
         tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, label=None, alpha=aalpha)
     if type_scatter == 'violin':
         plt.setp(tmp.collections, alpha=aalpha)
     if xticklabels is not None:
         tmp.set_xticklabels(xticklabels)
-        
 
-## Some functions that can be used as accuracy assessment 
-def prob_correct(binary_truth, estimate):    
+
+## Some functions that can be used as accuracy assessment
+def prob_correct(binary_truth, estimate):
     """Return probability of correct estimate, where bt = {0, 1} and est = (0, 1)"""
     prob = (binary_truth * estimate + (1 - binary_truth) * (1 - estimate))
     return prob
@@ -294,7 +440,7 @@ def llh(binary_truth, estimate):
 def r2_acc(binary_truth, estimate):
     """R2, plainly averaged over all trials (not variance-weighted)"""
     return sklearn.metrics.r2_score(y_true=binary_truth, y_pred=estimate), 0
-                  
+
 def separability(binary_truth, estimate):
     """Measure difference between averages P(1) and P(0)."""
     av_pred_0 = np.mean(estimate[binary_truth == 0])
@@ -320,7 +466,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)"""
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
-    dec_list = [0, 1]  # hard_coded!! 
+    dec_list = [0, 1]  # hard_coded!!
     mouse_s_list = []
     for mouse in mouse_list:
         for reg in region_list:
@@ -330,7 +476,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
     lick_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} #mean, std
     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
     lick_half = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}  # naive with P=0.5 for 2 options (lick={0, 1})
-    ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} 
+    ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
     ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per lick conditoin
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
@@ -339,7 +485,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
                        's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
         for reg in region_list:
-            df_prediction_train, df_prediction_test, dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]), 
+            df_prediction_train, df_prediction_test, dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
                                                           verbose=0, hitmiss_only=False, include_150=False,
                                                           include_autoreward=True, C_value=regularizer, reg_type=reg_type,
                                                           train_projected=projected_data, return_decoder_weights=True,
@@ -353,32 +499,32 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
                 if projected_data is False:
                     pred_lick = df_prediction_test[mouse]['pred_dec_test'].copy()
                 else:
-                    pred_lick = df_prediction_test[mouse]['pred_dec_test_proj']  
+                    pred_lick = df_prediction_test[mouse]['pred_dec_test_proj']
                 lick_half[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick, estimate=(np.zeros_like(lick) + 0.5))  # control for P=0.5
                 lick_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick, estimate=pred_lick)
 #                 lick_acc[mouse + '_' + reg][i_tp, :] = 0
 #                 for i_lick in np.unique(lick):
 #                     lick_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=lick[lick == i_lick], estimate=pred_lick[lick == i_lick])) / len(np.unique(lick))
-                
+
                 for x, arr in lick_acc_split.items():
-                    arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['true_stim_test'] == x)[0]], 
+                    arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['true_stim_test'] == x)[0]],
                                               estimate=pred_lick[np.where(df_prediction_test[mouse]['true_stim_test'] == x)[0]])
 
                 if 'pred_stim_test' in df_prediction_test[mouse].columns:
                     if projected_data is False:
-                        pred_ps = df_prediction_test[mouse]['pred_stim_test'] 
+                        pred_ps = df_prediction_test[mouse]['pred_stim_test']
                     else:
-                        pred_ps = df_prediction_test[mouse]['pred_stim_test_proj'] 
+                        pred_ps = df_prediction_test[mouse]['pred_stim_test_proj']
                     ps_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps, estimate=pred_ps)
 #                     ps_acc[mouse + '_' + reg][i_tp, :] = 0
 #                     for i_ps in np.unique(lick):
 #                         ps_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=ps[lick == i_ps], estimate=pred_ps[lick == i_ps])) / len(np.unique(lick))
 
                     for x, arr in ps_acc_split.items():
-                        arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[lick == x], 
+                        arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
                                                   estimate=pred_ps[lick == x])
                 angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
-                
+
     return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
 
 ## Create list with standard colors:
@@ -387,7 +533,7 @@ for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
     color_dict_stand[ii] = x['color']
     if ii > 8:
         break  # after 8 it repeats (for ever)
-    
+
 def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor='grey',
                                  linest='-', aalpha=1, zero_mean=False, llinewidth=3):
     """Plot plot_array vs time_array, where time_array has 1 gap, which is not plotted."""
@@ -395,14 +541,14 @@ def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor=
     breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     if zero_mean:
         plot_array = plot_array - np.mean(plot_array)
-    ax.plot(time_array[:breakpoint], plot_array[:breakpoint],  linewidth=llinewidth, linestyle=linest, 
+    ax.plot(time_array[:breakpoint], plot_array[:breakpoint],  linewidth=llinewidth, linestyle=linest,
                 markersize=12, color=ccolor, label=llabel, alpha=aalpha)
-    ax.plot(time_array[breakpoint:], plot_array[breakpoint:],  linewidth=llinewidth, linestyle=linest, 
+    ax.plot(time_array[breakpoint:], plot_array[breakpoint:],  linewidth=llinewidth, linestyle=linest,
                 markersize=12, color=ccolor, alpha=aalpha, label=None)
     return ax
-    
-    
-    
+
+
+
 def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=False,
                            plot_laser=True, ccolor='grey', plot_indiv=True,
                            plot_groupav=True, individual_mouse_list=None,
@@ -434,39 +580,39 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
             all_means[mouse[-2:]][count_means[reg] ,:] = plot_mean.copy()  # save data for std
             count_means[reg] += 1
             if plot_indiv and mouse in individual_mouse_list and not plot_diff_s1s2:  # plot individual traces
-                ax.plot(time_1, plot_mean[:breakpoint],  linewidth=2, linestyle=linest[reg], 
+                ax.plot(time_1, plot_mean[:breakpoint],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, label=None, alpha=0.2)
-                ax.plot(time_2, plot_mean[breakpoint:],  linewidth=2, linestyle=linest[reg], 
+                ax.plot(time_2, plot_mean[breakpoint:],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, alpha=0.2, label=None)
-    if plot_groupav: 
+    if plot_groupav:
         #         region_hatch = {'s1': '/', 's2': "\ " }
         if plot_diff_s1s2 is False:
             for rr, av_mean in average_mean.items():
                 if rr in region_list:
                     std_means = np.std(all_means[rr], 0)
                     if plot_errorbar is False:  # plot gruup means
-                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr], 
+                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr], 
+                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr], 
+                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr], 
+                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
                         ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                        y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1, 
+                                        y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
                                         label=f'Group std {llabel}')#, hatch=region_hatch[rr])
                         ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
-                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1, 
+                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
         elif plot_diff_s1s2:
             assert (region_list == np.array(['s1', 's2'])).all() and len(region_list) == len(average_mean)
             diff_mean = average_mean['s1'] - average_mean['s2']
-            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-', 
+            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, label=f'S1 - S2 diff. {llabel}', alpha=0.9)
-            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-', 
+            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if len(region_list) == 2:
         assert count_means[region_list[0]] == count_means[region_list[1]]
@@ -482,7 +628,7 @@ def wilcoxon_test(acc_dict):
     reg_list = ['s1', 's2']
     mouse_s1_list = [mouse + '_s1' for mouse in mouse_list]
     mouse_s2_list = [mouse + '_s2' for mouse in mouse_list]
-    
+
     n_tp = acc_dict[reg_mouse_list[0]].shape[0]
     p_vals = np.zeros(n_tp)
     for tp in range(n_tp):
@@ -499,19 +645,19 @@ def wilcoxon_test(acc_dict):
 
 def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0):
     """Function to turn my custom dictionary structure of DF to a single DF, suitable for a violin plot.
-    
+
     Parameters:
     ---------------
         input_dict_df: dcit with structure [reg][tp][mouse]
             Assuming all mice/tp/reg combinations (regular grid)
         flat_normalise_ntrials: bool, default=False
             whether to normalise mice by number of trials. This can be required by the group averaging
-            of decoders also ignores number of trials per mouse. If true, this is achieved by 
+            of decoders also ignores number of trials per mouse. If true, this is achieved by
             creating multiple copies of each mouse such that in the end each mouse has approximately
             the same number of trials
         verbose: int, default=0
             verbosity index
-    
+
     Returns:
     ---------------
     new_df: dict with structure [tp]
@@ -534,27 +680,18 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
                     n_multi[mouse] = np.round(10000 / len(dict_df[reg][tp][mouse])).astype('int')
                     assert n_multi[mouse] >= 10  # require at least 10 multiplications (so that relative error <10% for 1 mouse)
                     if verbose:
-                        print(f'Number of trials for mouse {mouse}: {len(dict_df[reg][tp][mouse])}, multiplications: {np.round(10000 / len(dict_df[reg][tp][mouse]), 2)}')               
+                        print(f'Number of trials for mouse {mouse}: {len(dict_df[reg][tp][mouse])}, multiplications: {np.round(10000 / len(dict_df[reg][tp][mouse]), 2)}')
             mouse_multi = 0 #  after first iteration
     ## Concatenate:
     new_df = {}
     for tp in timepoints:
         if flat_normalise_ntrials is False:
-            new_df[tp] = pd.concat([dict_df['s1'][tp][mouse] for mouse in mouse_list] + 
+            new_df[tp] = pd.concat([dict_df['s1'][tp][mouse] for mouse in mouse_list] +
                                    [dict_df['s2'][tp][mouse] for mouse in mouse_list])
         elif flat_normalise_ntrials:
-            new_df[tp] = pd.concat([pd.concat([dict_df['s1'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list] + 
-                                   [pd.concat([dict_df['s2'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])  
+            new_df[tp] = pd.concat([pd.concat([dict_df['s1'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list] +
+                                   [pd.concat([dict_df['s2'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])
     if verbose:
         for mouse in mouse_list:
             print(f'Corrected number of trials for mouse {mouse}: {len(new_df[1.0][new_df[1.0]["mouse"] == mouse])}')
     return new_df
-
-
-
-
-
-
-
-
-
