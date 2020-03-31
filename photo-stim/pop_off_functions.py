@@ -415,47 +415,167 @@ def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None, type_scatter
 
 ## Some functions that can be used as accuracy assessment
 def prob_correct(binary_truth, estimate):
-    """Return probability of correct estimate, where bt = {0, 1} and est = (0, 1)"""
+    """Return probability of correct estimate, where bt = {0, 1} and est = (0, 1).
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    prob, np.array of floats
+        Accuracy (probability of being correct for each element)
+
+    """
     prob = (binary_truth * estimate + (1 - binary_truth) * (1 - estimate))
     return prob
 
 def mean_accuracy(binary_truth, estimate):
-    """Mean accuracy (average over all trials)"""
+    """Mean accuracy (average over all trials)
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    mean, float
+        Mean of accuracies
+    std, float
+        std of accuracies
+
+    """
     assert len(binary_truth) == len(estimate)
     pp = prob_correct(binary_truth=binary_truth, estimate=estimate)
     return np.mean(pp), np.std(pp)
 
 def mean_accuracy_pred(binary_truth, estimate):
-    """Mean accuracy with hard >0.5 threshold (average of all trials)"""
+    """Mean accuracy with hard >0.5 threshold (average of all trials)
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    mean_pred, float
+        mean accuracy of thresholded predictions
+    0
+
+    """
     round_est = np.round(estimate)
     return sklearn.metrics.accuracy_score(binary_truth, round_est), 0
 
 def llh(binary_truth, estimate):
-    """Log likelihood of all trials"""
+    """Log likelihood of all trials.
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    llh, float
+        Log likelihood of accuracies
+    0
+
+    """
     assert len(binary_truth) == len(estimate)
     pp = prob_correct(binary_truth=binary_truth, estimate=estimate)
     llh = np.mean(np.log(np.clip(pp, a_min=1e-3, a_max=1)))
     return llh, 0
 
 def r2_acc(binary_truth, estimate):
-    """R2, plainly averaged over all trials (not variance-weighted)"""
+    """R2, plainly averaged over all trials (not variance-weighted).
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    r2, float
+        R2 score of accuracies
+    0
+
+    """
     return sklearn.metrics.r2_score(y_true=binary_truth, y_pred=estimate), 0
 
 def separability(binary_truth, estimate):
-    """Measure difference between averages P(1) and P(0)."""
+    """Measure difference between averages P(1) and P(0).
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    sep, float
+        Separability between average class predictions
+    0
+
+    """
     av_pred_0 = np.mean(estimate[binary_truth == 0])
     av_pred_1 = np.mean(estimate[binary_truth == 1])
     sep = av_pred_1 - av_pred_0
     return sep, 0
 
 def min_mean_accuracy(binary_truth, estimate):
-    """Minimum of averages P(1) and P(0)"""
+    """Minimum of averages P(1) and P(0).
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    min_mean, float
+        class-minimum of accuracies
+    0
+
+    """
     mean_acc_true = np.mean(estimate[binary_truth == 1])
     mean_acc_false = 1 - np.mean(estimate[binary_truth == 0])
     return np.minimum(mean_acc_true, mean_acc_false), 0
 
 def class_av_mean_accuracy(binary_truth, estimate):
-    """Mean of averages P(1) and P(0)"""
+    """Mean of averages P(1) and P(0).
+
+    Parameters
+    ----------
+    binary_truth : np.array of 1s and 0s
+        Binary ground truth array.
+    estimate : np.array of floats 0 < f < 1
+        Predictions of numbers in binary_truth.
+
+    Returns
+    -------
+    class_av_mean, float
+        Average accuracy where classes are weighted equally (indep of number of elements per class)
+    0
+
+    """
     mean_acc_true = np.mean(estimate[binary_truth == 1])
     mean_acc_false = 1 - np.mean(estimate[binary_truth == 0])
     return 0.5 * (mean_acc_true + mean_acc_false), 0
