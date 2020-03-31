@@ -143,7 +143,7 @@ class Session:
         self.define_s1_s2()
         self.label_trials(vverbose=self.verbose)
         self.remove_nan_trials_inplace(vverbose=self.verbose)
-        delattr(self.run, ‘x_galvo_uncaging’)   # to free memory
+        delattr(self.run, 'x_galvo_uncaging')   # to free memory
 
     def __str__(self):
         """Define name"""
