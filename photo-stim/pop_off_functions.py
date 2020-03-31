@@ -269,8 +269,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_use = data_use[:, trial_inds, :]
                 data_use = fun_return_2d(data_use)
                 stand_scale = sklearn.preprocessing.StandardScaler()
+                data_use = data_use.T
                 data_use = stand_scale.fit_transform(data_use)
-
+                data_use = data_use.T
                 sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
                 if verbose == 2:
                     print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
