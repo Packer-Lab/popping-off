@@ -892,9 +892,9 @@ def difference_pre_post_dynamic(ss, xx='hit', reg='s1',
     elif reg == 's2':
         reg_inds = ss.s2_bool
 
-    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                          ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
-    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                          ss.outcome==xx), :][:, :, frame_post][reg_inds, :, :]
 
     pre_met = np.mean(pre_stim_act, 2)
