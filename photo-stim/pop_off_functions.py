@@ -722,9 +722,13 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
                         ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
+#                         if len(region_list) == 1:
+                        std_label = f'Group std {llabel} {rr.upper()}'
+#                         elif len(region_list) == 2:
+#                             std_label = f'Group std {rr.upper()}'
                         ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                        y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
-                                        label=f'Group std {llabel}')#, hatch=region_hatch[rr])
+                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
+                                        label=std_label)#, hatch=region_hatch[rr])
                         ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
                                        y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
@@ -814,7 +818,7 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
                                    [pd.concat([dict_df['s2'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])
     if verbose:
         for mouse in mouse_list:
-            print(f'Corrected number of trials for mouse {mouse}: {len(new_df[1.0][new_df[1.0]["mouse"] == mouse])}')
+            print(f'Corrected number of trials for mouse {mouse}: {len(new_df[timepoints[0]][new_df[timepoints[0]]["mouse"] == mouse])}')
     return new_df
 
 def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
