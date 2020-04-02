@@ -13,6 +13,10 @@ miscellaneous: replicate Marshel ea 2019, PCA stuff
 
 ## Additional info:
 
+To use code in the photo-stim folder, one requires the data pre-processing repo VAPE. Furthermore some routines in `photo-stim/Session.py` were taken from VAPE. https://github.com/neuromantic99/Vape
+
+-------------
+
 To use demixing PCA, you must install their package. To do so, clone this repo: https://github.com/machenslab/dPCA/tree/master/python/
 and follow their python installation instruction. 
 
