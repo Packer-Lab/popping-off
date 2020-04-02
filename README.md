@@ -5,7 +5,7 @@ Code for rotation in Packerlab.
 
 ## info folders:
 
-photo-stim: Jimmy's data, vape preprocessing, demixing PCA
+photo-stim: Jimmy's data, vape preprocessing, demixing PCA, decoding analysis
 
 subspaces: Sarah's data, preprocessing, subspace analysis
 
