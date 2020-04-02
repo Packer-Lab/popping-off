@@ -741,12 +741,12 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
 #                         if len(region_list) == 1:
-                        std_label = f'Std {llabel} {rr.upper()}'
+#                         std_label = f'Std {llabel} {rr.upper()}'
 #                         elif len(region_list) == 2:
 #                             std_label = f'Group std {rr.upper()}'
                         ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
                                                 y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
-                                        label=std_label)#, hatch=region_hatch[rr])
+                                        label=None)#, hatch=region_hatch[rr])
                         ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
                                        y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
@@ -872,9 +872,9 @@ def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
     elif reg == 's2':
         reg_inds = ss.s2_bool
 
-    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                          ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
-    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim == 1,
+    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                          ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
 
     pre_met = np.mean(pre_stim_act, 2)
