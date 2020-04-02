@@ -199,7 +199,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         if 'stim' in list_test:
             list_test.remove('stim')  # no point in estimating stim, because only PS
 
-    name_list = ['autorewarded']  # names of details to save - whether autorewrd trial or not
+    name_list = ['autorewarded', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
         name_list.append('pred_' + nn)  # prediction
     for nn in ['dec', 'stim']:
@@ -299,6 +299,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         print(f' Number of test licks {np.sum(test_labels["dec"])}')
                     detailed_ps_labels = session.trial_subsets[trial_inds].astype('int')
                     autorewarded = session.autorewarded[trial_inds]
+                    trial_outcomes = session.outcome[trial_inds]
                     assert len(train_labels['dec']) == train_data.shape[1]
                     assert len(test_labels['stim']) == test_data.shape[1]
 
@@ -347,6 +348,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         dict_predictions_train['angle_decoders'] = np.concatenate((dict_predictions_train['angle_decoders'], np.zeros_like(pred_proba_train[x]) + angle_decoders[i_session, i_loop]))
                     dict_predictions_train['true_stim_train'] = np.concatenate((dict_predictions_train['true_stim_train'], detailed_ps_labels[train_inds]))
                     dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], detailed_ps_labels[test_inds]))
+                    dict_predictions_train['outcome_train'] = np.concatenate((dict_predictions_train['outcome_train'], trial_outcomes[train_inds]))
+                    dict_predictions_test['outcome_test'] = np.concatenate((dict_predictions_test['outcome_test'], trial_outcomes[test_inds]))
                     dict_predictions_train['autorewarded_train'] = np.concatenate((dict_predictions_train['autorewarded_train'], autorewarded[train_inds]))
                     dict_predictions_test['autorewarded_test'] = np.concatenate((dict_predictions_test['autorewarded_test'], autorewarded[test_inds]))
                     dict_predictions_train['true_dec_train'] = np.concatenate((dict_predictions_train['true_dec_train'], train_labels['dec']))
@@ -577,16 +580,30 @@ def class_av_mean_accuracy(binary_truth, estimate):
     0
 
     """
-    mean_acc_true = np.mean(estimate[binary_truth == 1])
-    mean_acc_false = 1 - np.mean(estimate[binary_truth == 0])
-    return 0.5 * (mean_acc_true + mean_acc_false), 0
-
+    if np.sum(binary_truth == 1) > 0:
+        mean_acc_true = np.mean(estimate[binary_truth == 1])
+        bin_truth_1 = True
+    else:  # no BT == 1
+        bin_truth_1 = False
+    if np.sum(binary_truth == 0) > 0:
+        mean_acc_false = 1 - np.mean(estimate[binary_truth == 0])
+        bin_truth_0 = True
+    else:  # no BT == 0
+        bin_truth_0 = False
+    if bin_truth_1 and bin_truth_0:
+        return 0.5 * (mean_acc_true + mean_acc_false), 0
+    elif bin_truth_1 and not bin_truth_0:  # if only 1 is present, return that accuracy only
+        return mean_acc_true, 0
+    elif not bin_truth_1 and bin_truth_0:
+        return mean_acc_false, 0
+    
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
                                 region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)"""
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
+    tt_list = ['hit', 'fp', 'miss', 'cr']
     dec_list = [0, 1]  # hard_coded!!
     mouse_s_list = []
     for mouse in mouse_list:
@@ -595,7 +612,8 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
     n_timepoints = len(time_array)
     signature_list = [session.signature for _, session in sessions.items()]
     lick_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} #mean, std
-    lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
+#     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
+    lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
     lick_half = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}  # naive with P=0.5 for 2 options (lick={0, 1})
     ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
     ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per lick conditoin
@@ -628,8 +646,8 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
 #                     lick_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=lick[lick == i_lick], estimate=pred_lick[lick == i_lick])) / len(np.unique(lick))
 
                 for x, arr in lick_acc_split.items():
-                    arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['true_stim_test'] == x)[0]],
-                                              estimate=pred_lick[np.where(df_prediction_test[mouse]['true_stim_test'] == x)[0]])
+                    arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
+                                              estimate=pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
 
                 if 'pred_stim_test' in df_prediction_test[mouse].columns:
                     if projected_data is False:
@@ -723,7 +741,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
 #                         if len(region_list) == 1:
-                        std_label = f'Group std {llabel} {rr.upper()}'
+                        std_label = f'Std {llabel} {rr.upper()}'
 #                         elif len(region_list) == 2:
 #                             std_label = f'Group std {rr.upper()}'
                         ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
@@ -742,7 +760,8 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
     if len(region_list) == 2:
         assert count_means[region_list[0]] == count_means[region_list[1]]
     if plot_laser:  # plot laser
-        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1, ymax=0.9, alpha=0.2, label=None)
+        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1, 
+                   ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
     return ax, average_mean
 
 def wilcoxon_test(acc_dict):
