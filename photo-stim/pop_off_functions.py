@@ -199,7 +199,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         if 'stim' in list_test:
             list_test.remove('stim')  # no point in estimating stim, because only PS
 
-    name_list = ['autorewarded', 'outcome']  # names of details to save - whether autorewrd trial or not
+    name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
         name_list.append('pred_' + nn)  # prediction
     for nn in ['dec', 'stim']:
@@ -299,6 +299,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         print(f' Number of test licks {np.sum(test_labels["dec"])}')
                     detailed_ps_labels = session.trial_subsets[trial_inds].astype('int')
                     autorewarded = session.autorewarded[trial_inds]
+                    unrewarded_hits = session.unrewarded_hits[trial_inds]
                     trial_outcomes = session.outcome[trial_inds]
                     assert len(train_labels['dec']) == train_data.shape[1]
                     assert len(test_labels['stim']) == test_data.shape[1]
@@ -350,8 +351,10 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], detailed_ps_labels[test_inds]))
                     dict_predictions_train['outcome_train'] = np.concatenate((dict_predictions_train['outcome_train'], trial_outcomes[train_inds]))
                     dict_predictions_test['outcome_test'] = np.concatenate((dict_predictions_test['outcome_test'], trial_outcomes[test_inds]))
-                    dict_predictions_train['autorewarded_train'] = np.concatenate((dict_predictions_train['autorewarded_train'], autorewarded[train_inds]))
-                    dict_predictions_test['autorewarded_test'] = np.concatenate((dict_predictions_test['autorewarded_test'], autorewarded[test_inds]))
+                    dict_predictions_train['autorewarded_miss_train'] = np.concatenate((dict_predictions_train['autorewarded_miss_train'], autorewarded[train_inds]))
+                    dict_predictions_test['autorewarded_miss_test'] = np.concatenate((dict_predictions_test['autorewarded_miss_test'], autorewarded[test_inds]))
+                    dict_predictions_train['unrewarded_hit_train'] = np.concatenate((dict_predictions_train['unrewarded_hit_train'], unrewarded_hits[train_inds]))
+                    dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], unrewarded_hits[test_inds]))
                     dict_predictions_train['true_dec_train'] = np.concatenate((dict_predictions_train['true_dec_train'], train_labels['dec']))
                     dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], test_labels['dec']))
                     i_loop += 1
@@ -883,8 +886,8 @@ def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
     metric = np.mean(post_met - pre_met)
     return metric
 
-def difference_pre_post_dynamic(ss, xx='hit', reg='s1', 
-                                duration_window_pre=1.2, tp_post=1.0):
+def difference_pre_post_dynamic(ss, general_tt='hit', reg='s1', duration_window_pre=1.2, 
+                                tp_post=1.0, odd_tt_only=None, return_trials_separate=False):
     """Compute difference df/f response between a post-stim timepoint tp_post and a pre_stim 
     baseline window average. Returns the average of the elementwise difference between 
     all neurons and trials.
@@ -893,7 +896,7 @@ def difference_pre_post_dynamic(ss, xx='hit', reg='s1',
     ---------------
         ss: Session
             session to evaluate
-        xx: str, default='hit'
+        general_tt: str, default='hit'
             trial type
         reg: str, default='s1'
             region
@@ -901,6 +904,9 @@ def difference_pre_post_dynamic(ss, xx='hit', reg='s1',
             lenght of baseline window, taken <= 0
         tp_post: float
             post stim time point
+        odd_tt_only: bool or None, default=None
+            if True; only eval unrew_hit / autorew miss; if False; only evaluate non UH/AM; if None; evaluate all
+            i.e. bundles boolean for unrewarded_hits and autorewarded trial types.
             
     Returns:
     ---------------
@@ -914,14 +920,33 @@ def difference_pre_post_dynamic(ss, xx='hit', reg='s1',
         reg_inds = ss.s1_bool
     elif reg == 's2':
         reg_inds = ss.s2_bool
+    if odd_tt_only is None or general_tt == 'fp' or general_tt == 'cr': # if special tt do not apply
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
+                                             ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
+                                             ss.outcome==general_tt), :][:, :, frame_post][reg_inds, :, :]
+    elif general_tt =='hit' and odd_tt_only is not None:  # if specified hit type (unrewarded or rewarded)
+        if odd_tt_only is True:
+            general_tt = 'miss'  # unrewarded hits are registered as misses
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
+    elif general_tt =='miss' and odd_tt_only is not None:  # if specified miss type (autorewarded or not autorewarded)
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
 
-    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
-                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
-    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
-                                         ss.outcome==xx), :][:, :, frame_post][reg_inds, :, :]
-
-    pre_met = np.mean(pre_stim_act, 2)
+    pre_met = np.squeeze(np.mean(pre_stim_act, 2))  # take mean over time points
     post_met = np.squeeze(post_stim_act)
-    assert pre_met.shape == post_met.shape
-    metric = np.mean(post_met - pre_met)
+    assert pre_met.shape == post_met.shape  # should now both be n_neurons x n_trials
+    if return_trials_separate is False:
+        metric = np.mean(post_met - pre_met)  # mean over neurons & trials,
+    elif return_trials_separate:
+        metric = np.mean(post_met - pre_met, 0)  # mean over neurons, not trials
+    if metric.shape == ():  # if only 1 element it is not yet an array, while the separate trial output can be, so change for consistency
+        metric = np.array([metric]) #  pack into 1D array
     return metric
+
+

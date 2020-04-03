@@ -272,6 +272,19 @@ class Session:
             else:
                 print('No neurons filtered')
 
+    def find_unrewarded_hits(self):
+        spiral_lick = self.run.spiral_licks  # [self.run.spiral_licks[x] for x in self.nonnan_trials]
+        lick_trials = np.zeros(len(spiral_lick))
+        for x in range(len(spiral_lick)):
+            if len(spiral_lick[x] > 0):  # if licks present
+                lick_trials[x] = (spiral_lick[x] < 1000)[0]  # True if first lick < 1000ms
+            else:
+                lick_trials[x] = False  # if no licks, always False
+        mismatch = self.decision - lick_trials.astype('int')
+        ind_unrew_hits = np.where(mismatch == -1)[0]
+        self.unrewarded_hits = np.zeros_like(self.decision, dtype='bool')
+        self.unrewarded_hits[ind_unrew_hits] = True
+        
     def label_trials(self, vverbose=1):
         """Construct the trial labels (PS & lick), and occurence table."""
         self.decision = np.logical_or(self.outcome == 'hit', self.outcome == 'fp').astype('int')
@@ -282,7 +295,8 @@ class Session:
         if vverbose >= 1:
             print(f'photo stim occurences: {self.photostim_occ}')
         self.autorewarded = np.array(rf.autoreward(self.run))  # array of bools whether an autoreward (after 3 consecutive misses) has occurred
-
+        self.find_unrewarded_hits()  # adds unrewarded hits, requires self.decision to be defined
+        
         assert self.photostim.shape == self.decision.shape
         self.n_unique_stims = len(np.unique(self.photostim))
         self.n_neurons = self.behaviour_trials.shape[0]
@@ -297,7 +311,7 @@ class Session:
         if vverbose >= 1:
             print('Occurence table:')
             print(self.occ_table)
-
+            
     def remove_nan_trials_inplace(self, vverbose=1):
         """Identify trials for which NaN values occur in the neural activity and remove those."""
         self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
@@ -307,6 +321,7 @@ class Session:
         self.trial_subsets = self.trial_subsets[self.nonnan_trials]
         self.outcome = self.outcome[self.nonnan_trials]
         self.autorewarded = self.autorewarded[self.nonnan_trials]
+        self.unrewarded_hits = self.unrewarded_hits[self.nonnan_trials]
         self.n_trials = len(self.nonnan_trials)
 
         if vverbose >= 1:
@@ -324,6 +339,7 @@ class Session:
         self.trial_subsets = self.trial_subsets[random_inds]
         self.outcome = self.outcome[random_inds]
         self.autorewarded = self.autorewarded[random_inds]
+        self.unrewarded_hits = self.unrewarded_hits[random_inds]
         self.shuffled_trial_labels_indicator = True
 
     def shuffle_s1s2_labels(self):
