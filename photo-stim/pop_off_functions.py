@@ -886,7 +886,7 @@ def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
     metric = np.mean(post_met - pre_met)
     return metric
 
-def difference_pre_post_dynamic(ss, general_tt='hit', reg='s1', duration_window_pre=1.2, 
+def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2, 
                                 tp_post=1.0, odd_tt_only=None, return_trials_separate=False):
     """Compute difference df/f response between a post-stim timepoint tp_post and a pre_stim 
     baseline window average. Returns the average of the elementwise difference between 
@@ -896,7 +896,7 @@ def difference_pre_post_dynamic(ss, general_tt='hit', reg='s1', duration_window_
     ---------------
         ss: Session
             session to evaluate
-        general_tt: str, default='hit'
+        tt: str, default='hit'
             trial type
         reg: str, default='s1'
             region
@@ -920,23 +920,37 @@ def difference_pre_post_dynamic(ss, general_tt='hit', reg='s1', duration_window_
         reg_inds = ss.s1_bool
     elif reg == 's2':
         reg_inds = ss.s2_bool
+        
+    if tt == 'ur_hit':  # unrewarded hit
+        general_tt = 'hit' # WILL be changed later, but this is more efficient I think with lines of code
+        odd_tt_only = True
+    elif tt == 'ar_miss':  # autorewarded miss
+        general_tt = 'miss'
+        odd_tt_only = True
+    else:  # regular cases
+        general_tt = tt
+        if tt == 'hit' or tt == 'miss':
+            odd_tt_only = False  # only use regular ones
+        elif tt == 'fp' or tt == 'cr':
+            odd_tt_only = None  # does not matter
+        
     if odd_tt_only is None or general_tt == 'fp' or general_tt == 'cr': # if special tt do not apply
         pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                              ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
         post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                              ss.outcome==general_tt), :][:, :, frame_post][reg_inds, :, :]
-    elif general_tt =='hit' and odd_tt_only is not None:  # if specified hit type (unrewarded or rewarded)
-        if odd_tt_only is True:
-            general_tt = 'miss'  # unrewarded hits are registered as misses
-        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
-                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
-        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
-                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
     elif general_tt =='miss' and odd_tt_only is not None:  # if specified miss type (autorewarded or not autorewarded)
         pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
                                                  ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
         post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
                                                  ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
+    elif general_tt =='hit' and odd_tt_only is not None:  # if specified hit type (unrewarded or rewarded)
+        if odd_tt_only is True:  # unrewarded hit
+            general_tt = 'miss'   # unrewarded hits are registered as misssess
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
 
     pre_met = np.squeeze(np.mean(pre_stim_act, 2))  # take mean over time points
     post_met = np.squeeze(post_stim_act)
