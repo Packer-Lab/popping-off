@@ -281,7 +281,8 @@ class Session:
             else:
                 lick_trials[x] = False  # if no licks, always False
         mismatch = self.decision - lick_trials.astype('int')
-        ind_unrew_hits = np.where(mismatch == -1)[0]
+        assert len(mismatch) == len(self.autorewarded)
+        ind_unrew_hits = np.where(np.logical_and(mismatch == -1, self.autorewarded == False))[0]
         self.unrewarded_hits = np.zeros_like(self.decision, dtype='bool')
         self.unrewarded_hits[ind_unrew_hits] = True
         

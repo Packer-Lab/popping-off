@@ -707,7 +707,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
         assert len(region_list) == 2
     if individual_mouse_list is None:
         individual_mouse_list = mouse_list
-    linest = {'s1': '-', 's2': '--'}
+    linest = {'s1': '-', 's2': '-'}
     average_mean = {x: np.zeros(plot_array[mouse_list[0]].shape[0]) for x in region_list}
     all_means = {x: np.zeros((int(len(mouse_list) / 2), plot_array[mouse_list[0]].shape[0])) for x in region_list}
     count_means = {x: 0 for x in region_list}
@@ -734,7 +734,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
                     std_means = np.std(all_means[rr], 0)
                     if plot_errorbar is False:  # plot gruup means
                         ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
+                                        markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
                         ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     elif plot_errorbar is True:  # plot group means with error bars
@@ -757,7 +757,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
             assert (region_list == np.array(['s1', 's2'])).all() and len(region_list) == len(average_mean)
             diff_mean = average_mean['s1'] - average_mean['s2']
             ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, label=f'S1 - S2 diff. {llabel}', alpha=0.9)
+                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff. 
             ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if len(region_list) == 2:
