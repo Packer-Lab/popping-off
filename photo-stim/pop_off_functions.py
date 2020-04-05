@@ -992,12 +992,12 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
             print(f'Corrected number of trials for mouse {mouse}: {len(new_df[timepoints[0]][new_df[timepoints[0]]["mouse"] == mouse])}')
     return new_df
 
-def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
+def difference_pre_post(ss, tt='hit', reg='s1', duration_window=1.2):
     """Compute difference df/f response between a post-stim window and a pre_stim 
     baseline window average. Computes the average window acitivty per neuron and per 
     trial, and then returns the average of the elementwise difference between 
     all neurons and trials.
-    
+    #TODO: merge with dynamic equivalent
     Parameters:
     ---------------
         ss: Session
@@ -1015,24 +1015,53 @@ def difference_pre_post(ss, xx='hit', reg='s1', duration_window=1.2):
             difference
         
     """
-    inds_pre_stim = np.logical_and(ss.filter_ps_time < 0, ss.filter_ps_time >= (-1 * duration_window))
+    inds_pre_stim = np.logical_and(ss.filter_ps_time < 0, ss.filter_ps_time >= -2) # hard-set 2 second pre stimulus baseline
     inds_post_stim = np.logical_and(ss.filter_ps_time < (ss.filter_ps_time[ss.filter_ps_time > 0][0] + duration_window), 
-                                    ss.filter_ps_time >= ss.filter_ps_time[ss.filter_ps_time > 0][0])
+                                    ss.filter_ps_time >= ss.filter_ps_time[ss.filter_ps_time > 0][0])  # post stimulus window
 
     if reg == 's1':
         reg_inds = ss.s1_bool
     elif reg == 's2':
         reg_inds = ss.s2_bool
+        
+           
+    if tt == 'ur_hit':  # unrewarded hit
+        general_tt = 'hit' # WILL be changed later, but this is more efficient I think with lines of code
+        odd_tt_only = True
+    elif tt == 'ar_miss':  # autorewarded miss
+        general_tt = 'miss'
+        odd_tt_only = True
+    else:  # regular cases
+        general_tt = tt
+        if tt == 'hit' or tt == 'miss':
+            odd_tt_only = False  # only use regular ones
+        elif tt == 'fp' or tt == 'cr':
+            odd_tt_only = None  # does not matter
 
-    pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
-                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
-    post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
-                                         ss.outcome==xx), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
-
+    if odd_tt_only is None or general_tt == 'fp' or general_tt == 'cr': # if special tt do not apply
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
+                                             ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
+                                             ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
+    elif general_tt =='miss' and odd_tt_only is not None:  # if specified miss type (autorewarded or not autorewarded)
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.autorewarded==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
+    elif general_tt =='hit' and odd_tt_only is not None:  # if specified hit type (unrewarded or rewarded)
+        if odd_tt_only is True:  # unrewarded hit
+            general_tt = 'miss'   # unrewarded hits are registered as misssess
+        pre_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
+                                                 ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
+            
     pre_met = np.mean(pre_stim_act, 2)
     post_met = np.mean(post_stim_act, 2)
 
     metric = np.mean(post_met - pre_met)
+    if metric.shape == ():  # if only 1 element it is not yet an array, while the separate trial output can be, so change for consistency
+        metric = np.array([metric]) #  pack into 1D array
     return metric
 
 def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2, 
