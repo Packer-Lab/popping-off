@@ -568,6 +568,7 @@ def min_mean_accuracy(binary_truth, estimate):
 
 def class_av_mean_accuracy(binary_truth, estimate):
     """Mean of averages P(1) and P(0).
+    #TODO: should we use sample correct (n-1)/n for std calculation?
 
     Parameters
     ----------
@@ -584,21 +585,26 @@ def class_av_mean_accuracy(binary_truth, estimate):
 
     """
     if np.sum(binary_truth == 1) > 0:
+        n_true = np.sum(binary_truth == 1)
         mean_acc_true = np.mean(estimate[binary_truth == 1])
+        std_acc_true = np.std(estimate[binary_truth == 1])
         bin_truth_1 = True
     else:  # no BT == 1
         bin_truth_1 = False
     if np.sum(binary_truth == 0) > 0:
+        n_false = np.sum(binary_truth == 0)
         mean_acc_false = 1 - np.mean(estimate[binary_truth == 0])
+        std_acc_false = np.std(estimate[binary_truth == 0])
         bin_truth_0 = True
     else:  # no BT == 0
         bin_truth_0 = False
     if bin_truth_1 and bin_truth_0:
-        return 0.5 * (mean_acc_true + mean_acc_false), 0
+        comp_std = np.sqrt((n_true * (std_acc_true ** 2) + n_false * (std_acc_false ** 2)) / (n_true + n_false))
+        return 0.5 * (mean_acc_true + mean_acc_false), comp_std
     elif bin_truth_1 and not bin_truth_0:  # if only 1 is present, return that accuracy only
-        return mean_acc_true, 0
+        return mean_acc_true, std_acc_true
     elif not bin_truth_1 and bin_truth_0:
-        return mean_acc_false, 0
+        return mean_acc_false, std_acc_false
     
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
@@ -614,6 +620,80 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
             mouse_s_list.append(mouse + '_' + reg)
     n_timepoints = len(time_array)
     signature_list = [session.signature for _, session in sessions.items()]
+    
+    lick_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list} #mean, std
+#     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in stim_list}  # split per ps conditoin
+    lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in tt_list}  # split per tt
+    lick_half = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}  # naive with P=0.5 for 2 options (lick={0, 1})
+    ps_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
+    ps_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in dec_list}  # split per lick conditoin
+    angle_dec = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
+    decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+                       's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
+                       's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+                       's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
+
+    for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
+        
+        for reg in region_list:
+            df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
+            df_prediction_train, df_prediction_test[reg][tp], dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+                                                          verbose=0, hitmiss_only=False, include_150=False,
+                                                          include_autoreward=False, C_value=regularizer, reg_type=reg_type,
+                                                          train_projected=projected_data, return_decoder_weights=True,
+                                                          neurons_selection=reg)
+            for xx in ['stim', 'dec']:
+                for signat in signature_list:
+                    decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
+                    
+            tmp_dict = make_violin_df_custom(input_dict_df=df_prediction_test, 
+                                           flat_normalise_ntrials=False, verbose=0) 
+            total_df_test = tmp_dict[tp]
+            lick = total_df_test['true_dec_test'].copy()
+            ps = (total_df_test['true_stim_test'] > 0).astype('int').copy()
+            if projected_data is False:
+                pred_lick = total_df_test['pred_dec_test'].copy()
+            else:
+                pred_lick = total_df_test['pred_dec_test_proj']
+            lick_half[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=(np.zeros_like(lick) + 0.5))  # control for P=0.5
+            lick_acc[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=pred_lick)
+
+            for x, arr in lick_acc_split.items():
+                arr[reg][i_tp, :] = average_fun(binary_truth=lick[np.where(total_df_test['outcome_test'] == x)[0]],
+                                          estimate=pred_lick[np.where(total_df_test['outcome_test'] == x)[0]])
+
+            if 'pred_stim_test' in total_df_test.columns:
+                if projected_data is False:
+                    pred_ps = total_df_test['pred_stim_test']
+                else:
+                    pred_ps = total_df_test['pred_stim_test_proj']
+                ps_acc[reg][i_tp, :] = average_fun(binary_truth=ps, estimate=pred_ps)
+
+                for x, arr in ps_acc_split.items():
+                    arr[reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
+                                              estimate=pred_ps[lick == x])
+            tmp_all_angles = np.array([])
+            for mouse in df_prediction_train.keys():
+                tmp_all_angles = np.concatenate((tmp_all_angles, df_prediction_train[mouse]['angle_decoders']))
+            angle_dec[reg][i_tp, 0] = mean_angle(tmp_all_angles)  # not sure about periodic std???? 
+
+    return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
+
+## Main function to compute accuracy of decoders per time point
+def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
+                                region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
+    """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)"""
+    mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+    stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
+    tt_list = ['hit', 'fp', 'miss', 'cr']
+    dec_list = [0, 1]  # hard_coded!!
+    mouse_s_list = []
+    for mouse in mouse_list:
+        for reg in region_list:
+            mouse_s_list.append(mouse + '_' + reg)
+    n_timepoints = len(time_array)
+    signature_list = [session.signature for _, session in sessions.items()]
+    
     lick_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} #mean, std
 #     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
@@ -629,12 +709,13 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
         for reg in region_list:
             df_prediction_train, df_prediction_test, dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
                                                           verbose=0, hitmiss_only=False, include_150=False,
-                                                          include_autoreward=True, C_value=regularizer, reg_type=reg_type,
+                                                          include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                           train_projected=projected_data, return_decoder_weights=True,
                                                           neurons_selection=reg)
             for xx in ['stim', 'dec']:
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
+                    
             for mouse in df_prediction_train.keys():
                 lick = df_prediction_test[mouse]['true_dec_test'].copy()
                 ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
@@ -692,7 +773,66 @@ def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor=
 
 
 def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=False,
-                           plot_laser=True, ccolor='grey', plot_indiv=True,
+                           plot_laser=True, ccolor='grey', 
+                           plot_groupav=True, 
+                           plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
+                           plot_diff_s1s2=False, freq=5):
+    """Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
+    of individual mouse traces. Can plot individual traces & group average."""
+    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
+    time_1 = time_array[:breakpoint]  # time before & after PS
+    time_2 = time_array[breakpoint:]
+    region_list = np.array(region_list)
+    if plot_diff_s1s2:
+        assert len(region_list) == 2
+    linest = {'s1': '-', 's2': '-'}
+    if plot_groupav:
+        #         region_hatch = {'s1': '/', 's2': "\ " }
+        if plot_diff_s1s2 is False:
+            for rr, data in plot_array.items():
+                if rr in region_list:
+                    assert data.ndim == 2
+                    av_mean = data[:, 0]
+                    std_means = data[:, 1]
+                    if plot_errorbar is False:  # plot gruup means
+                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
+                                        markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
+                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
+                                    markersize=12, color=ccolor, alpha=0.9, label=None)
+                    elif plot_errorbar is True:  # plot group means with error bars
+                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
+                                        markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
+                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
+                                    markersize=12, color=ccolor, alpha=0.9, label=None)
+                    if plot_std_area:  # plot std area
+#                         if len(region_list) == 1:
+#                         std_label = f'Std {llabel} {rr.upper()}'
+#                         elif len(region_list) == 2:
+#                             std_label = f'Group std {rr.upper()}'
+                        ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
+                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
+                                        label=None)#, hatch=region_hatch[rr])
+                        ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
+                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
+                                        label=None)#, hatch=region_hatch[rr])
+        elif plot_diff_s1s2:
+            assert (region_list == np.array(['s1', 's2'])).all() and len(plot_array) == len(average_mean)
+            diff_data = plot_array['s1'] - plot_array['s2']
+            assert diff_data.ndim == 2 and diff_data.shape[1] == 2
+            diff_mean = diff_data[:, 0]
+            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
+                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff. 
+            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
+                        markersize=12, color=ccolor, alpha=0.9, label=None)
+    if plot_laser:  # plot laser
+        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1, 
+                   ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
+    return ax, None
+
+
+
+def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='', bool_plot_std=False,
+                           plot_laser=True, ccolor='grey', plot_indiv=False,
                            plot_groupav=True, individual_mouse_list=None,
                            plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
                            plot_diff_s1s2=False, freq=5):
@@ -767,6 +907,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
                    ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
     return ax, average_mean
 
+
 def wilcoxon_test(acc_dict):
     """Perform wilcoxon signed rank test for dictionoary of S1/S2 measurements. Each
     S1/S2 pair per mouse is a paired sample for the test. Perform test on each time point."""
@@ -811,7 +952,9 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
     """
     dict_df = input_dict_df.copy()
     region_list = list(dict_df.keys())
-    assert (region_list == ['s1', 's2'])
+    bool_two_regions = (region_list == ['s1', 's2'])
+    if not bool_two_regions:
+        assert (region_list == ['s1']) or (region_list == ['s2'])
     timepoints = list(dict_df[region_list[0]].keys())
     mouse_list = list(dict_df[region_list[0]][timepoints[0]].keys())
     n_multi = {}
@@ -833,11 +976,17 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
     new_df = {}
     for tp in timepoints:
         if flat_normalise_ntrials is False:
-            new_df[tp] = pd.concat([dict_df['s1'][tp][mouse] for mouse in mouse_list] +
-                                   [dict_df['s2'][tp][mouse] for mouse in mouse_list])
+            if bool_two_regions:
+                new_df[tp] = pd.concat([dict_df['s1'][tp][mouse] for mouse in mouse_list] +
+                                       [dict_df['s2'][tp][mouse] for mouse in mouse_list])
+            else:
+                new_df[tp] = pd.concat([dict_df[region_list[0]][tp][mouse] for mouse in mouse_list])
         elif flat_normalise_ntrials:
-            new_df[tp] = pd.concat([pd.concat([dict_df['s1'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list] +
-                                   [pd.concat([dict_df['s2'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])
+            if bool_two_regions:
+                new_df[tp] = pd.concat([pd.concat([dict_df['s1'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list] +
+                                       [pd.concat([dict_df['s2'][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])
+            else:
+                new_df[tp] = pd.concat([pd.concat([dict_df[region_list[0]][tp][mouse] for x in range(n_multi[mouse])]) for mouse in mouse_list])
     if verbose:
         for mouse in mouse_list:
             print(f'Corrected number of trials for mouse {mouse}: {len(new_df[timepoints[0]][new_df[timepoints[0]]["mouse"] == mouse])}')
