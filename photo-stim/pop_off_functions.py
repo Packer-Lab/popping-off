@@ -45,6 +45,8 @@ def beh_metric(sessions, metric='accuracy',
     for i_session, session in sessions.items():
         for i_stim, stim in enumerate(stim_array):
             trial_inds = np.where(session.trial_subsets == stim)[0]
+#             if len(trial_inds) == 0:  # if no trials have this stimulus
+#                 continue
             tp = np.sum(session.outcome[trial_inds] == 'hit')
             fp = np.sum(session.outcome[trial_inds] == 'fp')
             tn = np.sum(session.outcome[trial_inds] == 'cr')
@@ -53,7 +55,7 @@ def beh_metric(sessions, metric='accuracy',
             if metric == 'accuracy':
                 acc[i_session, i_stim] = (tp + tn) / (tp + fp + tn + fn)
             elif metric == 'sensitivity':
-                acc[i_session, i_stim] = tp / (tp + fp)
+                acc[i_session, i_stim] = tp.copy() / (tp.copy() + fp.copy())
     return acc
 
 def fun_return_2d(data):  # possibly add fancy stuff
