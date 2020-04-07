@@ -607,11 +607,50 @@ def class_av_mean_accuracy(binary_truth, estimate):
         return mean_acc_true, std_acc_true
     elif not bin_truth_1 and bin_truth_0:
         return mean_acc_false, std_acc_false
-    
+
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
                                 region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
-    """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)"""
+    """Compute accuracy of decoders for all time steps in time_array, for all sessions
+    Idea is that results here are concatenated overall, not saved per mouse only but
+    this needs checking #TODO
+
+    Parameters
+    ----------
+    sessions : dict of Session
+            data
+    time_array : np.array
+         array of time points to evaluate
+    average_fun : function
+        function that computes accuracy metric
+    reg_type : str, 'l2' or 'none'
+        type of regularisation
+    region_list : str, default=['s1', 's2']
+        list of regions to compute
+    regularizer : float
+        if reg_type == 'l2', this is the reg strength (C in scikit-learn)
+    projected_data : bool, default=False
+        if true, also compute test prediction on projected data (see train_test_all_sessions())
+
+    Returns
+    -------
+    tuple
+        (lick_acc,
+            lick accuracy of lick decoder per mouse/session
+        lick_acc_split,
+            lick accuracy split by trial type
+        ps_acc,
+            ps accuracy
+        ps_acc_split,
+            ps accuracy split by lick trial type
+        lick_half,
+            accuracy of naive fake data
+        angle_dec,
+            angle between decoders
+        decoder_weights)
+            weights of decoders
+
+    """
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
     tt_list = ['hit', 'fp', 'miss', 'cr']
@@ -622,7 +661,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
             mouse_s_list.append(mouse + '_' + reg)
     n_timepoints = len(time_array)
     signature_list = [session.signature for _, session in sessions.items()]
-    
+
     lick_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list} #mean, std
 #     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in stim_list}  # split per ps conditoin
     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in tt_list}  # split per tt
@@ -636,7 +675,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
                        's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
 
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
-        
+
         for reg in region_list:
             df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
             df_prediction_train, df_prediction_test[reg][tp], dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
@@ -647,9 +686,9 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
             for xx in ['stim', 'dec']:
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
-                    
-            tmp_dict = make_violin_df_custom(input_dict_df=df_prediction_test, 
-                                           flat_normalise_ntrials=False, verbose=0) 
+
+            tmp_dict = make_violin_df_custom(input_dict_df=df_prediction_test,
+                                           flat_normalise_ntrials=False, verbose=0)
             total_df_test = tmp_dict[tp]
             lick = total_df_test['true_dec_test'].copy()
             ps = (total_df_test['true_stim_test'] > 0).astype('int').copy()
@@ -677,14 +716,51 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
             tmp_all_angles = np.array([])
             for mouse in df_prediction_train.keys():
                 tmp_all_angles = np.concatenate((tmp_all_angles, df_prediction_train[mouse]['angle_decoders']))
-            angle_dec[reg][i_tp, 0] = mean_angle(tmp_all_angles)  # not sure about periodic std???? 
+            angle_dec[reg][i_tp, 0] = mean_angle(tmp_all_angles)  # not sure about periodic std????
 
     return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
 
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
-                                region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
-    """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)"""
+region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
+    """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
+
+    Parameters
+    ----------
+    sessions : dict of Session
+            data
+    time_array : np.array
+         array of time points to evaluate
+    average_fun : function
+        function that computes accuracy metric
+    reg_type : str, 'l2' or 'none'
+        type of regularisation
+    region_list : str, default=['s1', 's2']
+        list of regions to compute
+    regularizer : float
+        if reg_type == 'l2', this is the reg strength (C in scikit-learn)
+    projected_data : bool, default=False
+        if true, also compute test prediction on projected data (see train_test_all_sessions())
+
+    Returns
+    -------
+    tuple
+        (lick_acc,
+            lick accuracy of lick decoder per mouse/session
+        lick_acc_split,
+            lick accuracy split by trial type
+        ps_acc,
+            ps accuracy
+        ps_acc_split,
+            ps accuracy split by lick trial type
+        lick_half,
+            accuracy of naive fake data
+        angle_dec,
+            angle between decoders
+        decoder_weights)
+            weights of decoders
+
+    """
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
     tt_list = ['hit', 'fp', 'miss', 'cr']
@@ -695,7 +771,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
             mouse_s_list.append(mouse + '_' + reg)
     n_timepoints = len(time_array)
     signature_list = [session.signature for _, session in sessions.items()]
-    
+
     lick_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} #mean, std
 #     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
@@ -717,7 +793,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
             for xx in ['stim', 'dec']:
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
-                    
+
             for mouse in df_prediction_train.keys():
                 lick = df_prediction_test[mouse]['true_dec_test'].copy()
                 ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
@@ -761,7 +837,34 @@ for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
 
 def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor='grey',
                                  linest='-', aalpha=1, zero_mean=False, llinewidth=3):
-    """Plot plot_array vs time_array, where time_array has 1 gap, which is not plotted."""
+    """Plot plot_array vs time_array, where time_array has 1 gap, which is not plotted.
+
+    Parameters
+    ----------
+    ax: Axis Handle
+        to plot
+    time_array: np.array
+        of time points,
+    plot_array: dict of np.array
+        each item is a data set to plot
+    llabel : str
+        label of these data
+    ccolor : str
+        color
+    linest: str
+        linestyle
+    aalpha: float 0 < a < 1
+        transparency
+    zero_mean, bool, default=False
+        zero mean data first
+    llinewidth; int
+        linewidth
+
+    Returns:
+    ---------------
+        ax: Axis Handle
+            return same handle
+        """
     assert len(time_array) == len(plot_array)
     breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     if zero_mean:
@@ -774,13 +877,54 @@ def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor=
 
 
 
-def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=False,
-                           plot_laser=True, ccolor='grey', 
-                           plot_groupav=True, 
+def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
+                           plot_laser=True, ccolor='grey',
+                           plot_groupav=True,
                            plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
                            plot_diff_s1s2=False, freq=5):
-    """Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
-    of individual mouse traces. Can plot individual traces & group average."""
+    """"Same as plot_interrupted_trace_average_per_mouse(), but customised to plot_array being a dictionary
+    of just two s1 and s2 traces. Can plot individual traces & group average. needs checking #TODO 
+
+    Parameters
+    ----------
+    ax: Axis Handle
+        to plot
+    time_array: np.array
+        of time points,
+    plot_array: dict of np.array
+        each item is a data set to plot
+    llabel : str
+        label of these data
+    plot_laser : bool
+        plot vertical bar during PS
+    ccolor : str
+        color
+    plot_indiv : bool, default=False
+        plot individual data sets
+    plot_groupav : bool default=True
+        plot group average of data sets
+    individual_mouse_list : list or None
+        if list, only plot these mice (i.e. data set keys)
+    plot_errorbar : True,
+        plot error bars
+    plot_std_area : type
+        plot shaded std area
+    region_list : list of regions
+        to plot
+    plot_diff_s1s2 : bool, default=False
+        if true, plot s1-s2 difference
+    freq : int, default=5
+        frequency of time_array (used for laser plot)
+
+    Returns
+    -------
+    ax: Axis Handle
+        return same handle
+    average_mean: np .array
+        mean over data sets
+
+    """
+
     breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:breakpoint]  # time before & after PS
     time_2 = time_array[breakpoint:]
@@ -823,23 +967,64 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='', bool_plot_std=
             assert diff_data.ndim == 2 and diff_data.shape[1] == 2
             diff_mean = diff_data[:, 0]
             ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff. 
+                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
             ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if plot_laser:  # plot laser
-        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1, 
+        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1,
                    ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
     return ax, None
 
 
 
-def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='', bool_plot_std=False,
-                           plot_laser=True, ccolor='grey', plot_indiv=False,
-                           plot_groupav=True, individual_mouse_list=None,
-                           plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
-                           plot_diff_s1s2=False, freq=5):
-    """Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
-    of individual mouse traces. Can plot individual traces & group average."""
+def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='',
+            plot_laser=True, ccolor='grey', plot_indiv=False,
+            plot_groupav=True, individual_mouse_list=None, plot_errorbar=False,
+            plot_std_area=False, region_list=['s1', 's2'],
+            plot_diff_s1s2=False, freq=5):
+    """"Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
+    of individual mouse traces. Can plot individual traces & group average.
+
+    Parameters
+    ----------
+    ax: Axis Handle
+        to plot
+    time_array: np.array
+        of time points,
+    plot_array: dict of np.array
+        each item is a data set to plot
+    llabel : str
+        label of these data
+    plot_laser : bool
+        plot vertical bar during PS
+    ccolor : str
+        color
+    plot_indiv : bool, default=False
+        plot individual data sets
+    plot_groupav : bool default=True
+        plot group average of data sets
+    individual_mouse_list : list or None
+        if list, only plot these mice (i.e. data set keys)
+    plot_errorbar : True,
+        plot error bars
+    plot_std_area : type
+        plot shaded std area
+    region_list : list of regions
+        to plot
+    plot_diff_s1s2 : bool, default=False
+        if true, plot s1-s2 difference
+    freq : int, default=5
+        frequency of time_array (used for laser plot)
+
+    Returns
+    -------
+    ax: Axis Handle
+        return same handle
+    average_mean: np .array
+        mean over data sets
+
+    """
+
     breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:breakpoint]  # time before & after PS
     time_2 = time_array[breakpoint:]
@@ -899,20 +1084,32 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
             assert (region_list == np.array(['s1', 's2'])).all() and len(region_list) == len(average_mean)
             diff_mean = average_mean['s1'] - average_mean['s2']
             ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff. 
+                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
             ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if len(region_list) == 2:
         assert count_means[region_list[0]] == count_means[region_list[1]]
     if plot_laser:  # plot laser
-        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1, 
+        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1,
                    ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
     return ax, average_mean
 
 
 def wilcoxon_test(acc_dict):
     """Perform wilcoxon signed rank test for dictionoary of S1/S2 measurements. Each
-    S1/S2 pair per mouse is a paired sample for the test. Perform test on each time point."""
+    S1/S2 pair per mouse is a paired sample for the test. Perform test on each time point.
+
+    Parameters:
+    ----------------------
+        acc_dict: dict
+            dictionary of np.arrays of (n_timepoints x 2) or (n_timepoints)
+            Wilcoxon test is performed across all mice, comparing regions, for each time point.
+
+    Returns:
+    ---------------------
+        p_vals: np.array of size n_timepoints
+            P values of W test.
+    """
     reg_mouse_list = list(acc_dict.keys())
     mouse_list = np.unique([xx[:-3] for xx in reg_mouse_list])
     reg_list = ['s1', 's2']
@@ -995,9 +1192,9 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
     return new_df
 
 def difference_pre_post(ss, tt='hit', reg='s1', duration_window=1.2):
-    """Compute difference df/f response between a post-stim window and a pre_stim 
-    baseline window average. Computes the average window acitivty per neuron and per 
-    trial, and then returns the average of the elementwise difference between 
+    """Compute difference df/f response between a post-stim window and a pre_stim
+    baseline window average. Computes the average window acitivty per neuron and per
+    trial, and then returns the average of the elementwise difference between
     all neurons and trials.
     #TODO: merge with dynamic equivalent
     Parameters:
@@ -1010,23 +1207,23 @@ def difference_pre_post(ss, tt='hit', reg='s1', duration_window=1.2):
             region
         duration_window_: float
             length of  window
-            
+
     Returns:
     ---------------
         metric: float
             difference
-        
+
     """
     inds_pre_stim = np.logical_and(ss.filter_ps_time < 0, ss.filter_ps_time >= -2) # hard-set 2 second pre stimulus baseline
-    inds_post_stim = np.logical_and(ss.filter_ps_time < (ss.filter_ps_time[ss.filter_ps_time > 0][0] + duration_window), 
+    inds_post_stim = np.logical_and(ss.filter_ps_time < (ss.filter_ps_time[ss.filter_ps_time > 0][0] + duration_window),
                                     ss.filter_ps_time >= ss.filter_ps_time[ss.filter_ps_time > 0][0])  # post stimulus window
 
     if reg == 's1':
         reg_inds = ss.s1_bool
     elif reg == 's2':
         reg_inds = ss.s2_bool
-        
-           
+
+
     if tt == 'ur_hit':  # unrewarded hit
         general_tt = 'hit' # WILL be changed later, but this is more efficient I think with lines of code
         odd_tt_only = True
@@ -1057,7 +1254,7 @@ def difference_pre_post(ss, tt='hit', reg='s1', duration_window=1.2):
                                                  ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
         post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
                                                  ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_post_stim]][reg_inds, :, :]
-            
+
     pre_met = np.mean(pre_stim_act, 2)
     post_met = np.mean(post_stim_act, 2)
 
@@ -1066,12 +1263,12 @@ def difference_pre_post(ss, tt='hit', reg='s1', duration_window=1.2):
         metric = np.array([metric]) #  pack into 1D array
     return metric
 
-def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2, 
+def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
                                 tp_post=1.0, odd_tt_only=None, return_trials_separate=False):
-    """Compute difference df/f response between a post-stim timepoint tp_post and a pre_stim 
-    baseline window average. Returns the average of the elementwise difference between 
+    """Compute difference df/f response between a post-stim timepoint tp_post and a pre_stim
+    baseline window average. Returns the average of the elementwise difference between
     all neurons and trials.
-    
+
     Parameters:
     ---------------
         ss: Session
@@ -1087,12 +1284,12 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
         odd_tt_only: bool or None, default=None
             if True; only eval unrew_hit / autorew miss; if False; only evaluate non UH/AM; if None; evaluate all
             i.e. bundles boolean for unrewarded_hits and autorewarded trial types.
-            
+
     Returns:
     ---------------
         metric: float
             difference
-        
+
     """
     inds_pre_stim = np.logical_and(ss.filter_ps_time <= 0, ss.filter_ps_time >= (-1 * duration_window_pre))
     frame_post = ss.filter_ps_array[np.where(ss.filter_ps_time == tp_post)[0]]  # corresponding frame
@@ -1100,7 +1297,7 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
         reg_inds = ss.s1_bool
     elif reg == 's2':
         reg_inds = ss.s2_bool
-        
+
     if tt == 'ur_hit':  # unrewarded hit
         general_tt = 'hit' # WILL be changed later, but this is more efficient I think with lines of code
         odd_tt_only = True
@@ -1113,7 +1310,7 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
             odd_tt_only = False  # only use regular ones
         elif tt == 'fp' or tt == 'cr':
             odd_tt_only = None  # does not matter
-        
+
     if odd_tt_only is None or general_tt == 'fp' or general_tt == 'cr': # if special tt do not apply
         pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                              ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
@@ -1142,5 +1339,3 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
     if metric.shape == ():  # if only 1 element it is not yet an array, while the separate trial output can be, so change for consistency
         metric = np.array([metric]) #  pack into 1D array
     return metric
-
-

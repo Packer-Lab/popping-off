@@ -113,12 +113,36 @@ def build_flu_array_single(run, pre_frames=30, post_frames=80, fs=30):
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
     def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True,
-                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
-                 verbose=1, filter_threshold=10):
-        """Initialize parameters and call all Class methods (except shuffle_labels()) to construct attributes."""
+                pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
+                verbose=1, filter_threshold=10):
+        """Initialize parameters and call all Class methods (except shuffle_labels()) to construct attributes.
+
+        Parameters
+        ----------
+        mouse : str
+            name mouse.
+        run_number : int
+            run number (i.e.session id of this mouse).
+        pkl_path : str
+            path to pickle file.
+        remove_nan_trials : bool, default=True
+            Remove trials with Nan Df/f data.
+        pre_seconds : float, default=4
+            time pre-stimulus to load into trial.
+        post_seconds : float, default=6
+            time post-stimulus to load into trial.
+        pre_gap_seconds : float, default=0.2
+            skip these seconds before PS stimulus onset
+        post_gap_seconds : float, default=0.6
+            skip these seconds after PS stimulus onset
+        verbose : int, default=1
+            verbosiness;  1: only important info (i.e. user end); 2: all info (debug end)
+        filter_threshold : int, default=10
+            filter neurons with mean(abs(df/f)) > filter_threshold
+        """
         self.mouse = mouse
         self.run_number = run_number
-        self.signature = f'{self.mouse}_R{self.run_number}'
+        self.signature = f'{self.mouse}_R{self.run_number}' # signature to use whenever
         self.pkl_path = pkl_path
         self.name = f'Mouse {mouse}, run {run_number}'
         self.run = None
@@ -130,19 +154,19 @@ class Session:
         self.shuffled_s1s2_labels_indicator = False
         self.shuffled_trial_labels_indicator = False
 
-        self.load_data(vverbose=self.verbose)
-        if mouse=='J048' or mouse=='RL048':
+        self.load_data(vverbose=self.verbose)  # load data from pkl path
+        if mouse=='J048' or mouse=='RL048':  # these are 5Hz data sets
             self.frequency = 5
-            self.build_time_gap_array()  # requires frequency def
-            self.build_trials_multi(vverbose=self.verbose)
+            self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
+            self.build_trials_multi(vverbose=self.verbose)  # create Df/f matrix (index per trial )
         else:
             self.frequency = 30
             self.build_time_gap_array()
             self.build_trials_single(vverbose=self.verbose)
-        self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)
-        self.define_s1_s2()
-        self.label_trials(vverbose=self.verbose)
-        self.remove_nan_trials_inplace(vverbose=self.verbose)
+        self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)  #filter neurons based on mean abs values
+        self.define_s1_s2()   # label s1 and s2 identity of neurons
+        self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
         delattr(self.run, 'x_galvo_uncaging')   # to free memory
 
     def __str__(self):
@@ -197,7 +221,7 @@ class Session:
         self.av_ypix = np.zeros(self.n_cells)
         self.av_xpix = np.zeros(self.n_cells)
         self.plane_number = np.zeros(self.n_cells)
-        for neuron_id in range(self.n_cells):
+        for neuron_id in range(self.n_cells):# get mean coords of pixels per cell
             self.av_xpix[neuron_id] = np.mean(self.run.stat[neuron_id]['xpix']) % im_size  # modulo 1024 because different planes are transposed by image size
             self.av_ypix[neuron_id] = np.mean(self.run.stat[neuron_id]['ypix']) % im_size
             # JR addition to deal with single plane data that has no iplane
@@ -205,16 +229,16 @@ class Session:
                 self.plane_number[neuron_id] = self.run.stat[neuron_id]['iplane']
             except KeyError:
                 self.plane_number[neuron_id] = 0
-        self.s2_bool = self.av_xpix > 512
+        self.s2_bool = self.av_xpix > 512  # images were manually aligned to be half s1, half s2
         self.s1_bool = np.logical_not(self.s2_bool)
 
     def build_time_gap_array(self):
         """Filter frames around PS due to laser artefact, build relevant new time/frame arrays etc."""
-        self.pre_frames = int(np.round(self.pre_seconds * self.frequency))
+        self.pre_frames = int(np.round(self.pre_seconds * self.frequency))  # convert seconds to frame
         self.post_frames = int(np.round(self.post_seconds * self.frequency))
-        self.art_gap_start = self.pre_frames - int(np.round(self.pre_gap_seconds * self.frequency))
+        self.art_gap_start = self.pre_frames - int(np.round(self.pre_gap_seconds * self.frequency))  # end of pre-stim frames
         self.final_pre_gap_tp = np.arange(self.art_gap_start)[-1]
-        self.art_gap_stop = self.pre_frames + int(np.round(self.post_gap_seconds * self.frequency))
+        self.art_gap_stop = self.pre_frames + int(np.round(self.post_gap_seconds * self.frequency))  # start of post-stim frames
         self.filter_ps_array = np.concatenate((np.arange(self.art_gap_start),
                                   np.arange(self.art_gap_stop, self.pre_frames + self.post_frames))) # frame array of remaining frames
         self.filter_ps_time = (self.filter_ps_array - self.art_gap_start + 1) / self.frequency  # time array for remaining frames wrt stim onset
@@ -258,7 +282,12 @@ class Session:
         #print(self.behaviour_trials.shape, self.pre_rew_trials.shape)
 
     def filter_neurons(self, vverbose=1, abs_threshold=10):
-        """Filter neurons with surreal stats"""
+        """Filter neurons with surreal stats
+
+        Parameters:
+        -----------------
+            abs_threshold, float, default=10
+                upper bound on mean(abs(df/f))"""
         mean_abs_df = np.mean(np.abs(self.run.flu), 1)
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where(mean_abs_df < abs_threshold)[0]
@@ -273,6 +302,8 @@ class Session:
                 print('No neurons filtered')
 
     def find_unrewarded_hits(self):
+        """Find unrewarded hit trials that are defined as
+        (registered as miss) & (lick before 1000ms) & (not an autorewarded trials )"""
         spiral_lick = self.run.spiral_licks  # [self.run.spiral_licks[x] for x in self.nonnan_trials]
         lick_trials = np.zeros(len(spiral_lick))
         for x in range(len(spiral_lick)):
@@ -285,7 +316,7 @@ class Session:
         ind_unrew_hits = np.where(np.logical_and(mismatch == -1, self.autorewarded == False))[0]
         self.unrewarded_hits = np.zeros_like(self.decision, dtype='bool')
         self.unrewarded_hits[ind_unrew_hits] = True
-        
+
     def label_trials(self, vverbose=1):
         """Construct the trial labels (PS & lick), and occurence table."""
         self.decision = np.logical_or(self.outcome == 'hit', self.outcome == 'fp').astype('int')
@@ -297,7 +328,7 @@ class Session:
             print(f'photo stim occurences: {self.photostim_occ}')
         self.autorewarded = np.array(rf.autoreward(self.run))  # array of bools whether an autoreward (after 3 consecutive misses) has occurred
         self.find_unrewarded_hits()  # adds unrewarded hits, requires self.decision to be defined
-        
+
         assert self.photostim.shape == self.decision.shape
         self.n_unique_stims = len(np.unique(self.photostim))
         self.n_neurons = self.behaviour_trials.shape[0]
@@ -312,7 +343,7 @@ class Session:
         if vverbose >= 1:
             print('Occurence table:')
             print(self.occ_table)
-            
+
     def remove_nan_trials_inplace(self, vverbose=1):
         """Identify trials for which NaN values occur in the neural activity and remove those."""
         self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
@@ -344,6 +375,7 @@ class Session:
         self.shuffled_trial_labels_indicator = True
 
     def shuffle_s1s2_labels(self):
+        """Shuffle s1/s2 labels for all neurons"""
         n_s1 = np.sum(self.s1_bool)
         n_cells = len(self.s1_bool)
         random_inds = np.random.choice(a=n_cells, size=n_s1, replace=False)
