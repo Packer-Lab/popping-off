@@ -5,7 +5,11 @@ path_to_vape = os.path.expanduser('~/repos/Vape')
 sys.path.append(path_to_vape)
 sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))
+
+oasis_path = os.path.expanduser('~/Documents/code/OASIS')
+sys.path.append(oasis_path)
 import numpy as np
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
@@ -15,6 +19,7 @@ from subsets_analysis import Subsets
 import pickle
 import sklearn.decomposition
 from cycler import cycler
+from oasis.functions import deconvolve
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_rate=20000):
@@ -64,7 +69,8 @@ def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_ra
         return None
     return trial_frames
 
-def build_flu_array_single(run, pre_frames=30, post_frames=80, fs=30):
+
+def build_flu_array_single(run, prereward=False, pre_frames=30, post_frames=80, fs=30):
     ''' Build an trial by trial fluoresence array of shape [n_cells x n_frames x n_trials].
 
     Parameters:
@@ -87,13 +93,19 @@ def build_flu_array_single(run, pre_frames=30, post_frames=80, fs=30):
     flu = run.flu
     # the frames that were actually imaged and the time (samples) that they occured
     clock = run.paqio_frames
-    # the times of trial start in paq samples
-    trial_start = run.spiral_start
 
-    # check that the number of trial starts detected by x galvo thresholding
-    # matches the number of trials reported by pycontrol
-    assert len(trial_start) == len(run.trial_start)
+    if prereward:
+        # Time of prereward trial starts in paq samples
+        trial_start = run.prereward_aligner.A_to_B(run.pre_reward)
+    else:
+        # Times of main behaviour trial start in paq samples
+        trial_start = run.spiral_start
+        # check that the number of trial starts detected by x galvo thresholding
+        # matches the number of trials reported by pycontrol
+        assert len(trial_start) == len(run.trial_start)
+
     for i, start in enumerate(trial_start):
+
         trial_frames = get_trial_frames_single(clock, start, pre_frames, post_frames)
 
         if trial_frames is None:
@@ -109,6 +121,7 @@ def build_flu_array_single(run, pre_frames=30, post_frames=80, fs=30):
 
 
     return np.swapaxes(flu_array,2,1)
+
 
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
@@ -140,6 +153,10 @@ class Session:
         filter_threshold : int, default=10
             filter neurons with mean(abs(df/f)) > filter_threshold
         """
+    def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True, use_spks=False,
+                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
+                 verbose=1, filter_threshold=10):
+        """Initialize parameters and call all Class methods (except shuffle_labels()) to construct attributes."""
         self.mouse = mouse
         self.run_number = run_number
         self.signature = f'{self.mouse}_R{self.run_number}' # signature to use whenever
@@ -155,7 +172,10 @@ class Session:
         self.shuffled_trial_labels_indicator = False
 
         self.load_data(vverbose=self.verbose)  # load data from pkl path
-        if mouse=='J048' or mouse=='RL048':  # these are 5Hz data sets
+        if use_spks:
+            self.get_spks()
+
+        if mouse=='J048' or mouse=='RL048':
             self.frequency = 5
             self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
             self.build_trials_multi(vverbose=self.verbose)  # create Df/f matrix (index per trial )
@@ -232,6 +252,24 @@ class Session:
         self.s2_bool = self.av_xpix > 512  # images were manually aligned to be half s1, half s2
         self.s1_bool = np.logical_not(self.s2_bool)
 
+    def get_spks(self):
+        """ Build spks array using Oasis deconvolution https://github.com/j-friedrich/OASIS """
+
+        flu = self.flu.astype('float64')
+
+        denoised_flu = np.empty_like(flu)
+        deconved = np.empty_like(flu)
+
+        for idx, cell in enumerate(tqdm(flu)):
+            c, s, b, g, lam = deconvolve(cell, penalty=0)
+            denoised_flu[idx, :] = c
+            deconved[idx, :] = s
+        
+        self.run.flu = deconved  # Come up with a more elegant solution to this
+        self.deconved = deconved
+        self.denoised_flu = denoised_flu
+
+
     def build_time_gap_array(self):
         """Filter frames around PS due to laser artefact, build relevant new time/frame arrays etc."""
         self.pre_frames = int(np.round(self.pre_seconds * self.frequency))  # convert seconds to frame
@@ -254,32 +292,35 @@ class Session:
             print(f'Shape new array : {self.behaviour_trials.shape}')
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0]
 
-#         self.pre_rew_trials = utils.build_flu_array(self.run, self.run.pre_reward, self.pre_frames,
-#                                            self.pre_frames, is_prereward=True)  # equal amount b/c no PS artefact
-#         self.pre_rew_trials = self.pre_rew_trials[:, 1:9, :]
-#         assert np.sum(np.isnan(self.pre_rew_trials)) == 0
-#         self.pre_rew_trials = self.pre_rew_trials - np.mean(self.pre_rew_trials, (1, 2))[:, np.newaxis, np.newaxis]
-#         if vverbose >= 2:
-#             print(self.behaviour_trials.shape, self.pre_rew_trials.shape)
+        self.pre_rew_trials = utils.build_flu_array(self.run, self.run.pre_reward, self.post_frames,
+                                                     self.pre_frames, is_prereward=True) 
+    
+        nan_trials = np.any(np.isnan(self.pre_rew_trials), axis=(0,2))
+        self.pre_rew_trials = self.pre_rew_trials[:, ~nan_trials, :]
+                                                        
+        assert np.sum(np.isnan(self.pre_rew_trials)) == 0
+
+        if vverbose >= 2:
+            print(self.behaviour_trials.shape, self.pre_rew_trials.shape)
 
     def build_trials_single(self, vverbose=1):
         """Construct 3D matrix of neural data (n_cells x n_trials x n_frames) for single-plane data sets."""
         # array of fluoresence through behavioural trials (n_cells x n_trials x n_frames)
         # with e.g. the first trials spanning (galvo_ms[0] - pre_frames) : (galvo_ms[0] + post_frames)
-        self.behaviour_trials = build_flu_array_single(self.run, pre_frames=self.pre_frames, post_frames=self.post_frames, fs=30)
-#         self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
+        self.behaviour_trials = build_flu_array_single(self.run, prereward=False,
+                                                       pre_frames=self.pre_frames,
+                                                       post_frames=self.post_frames, fs=30)
         if vverbose >= 2:
             print(f'Shape new array : {self.behaviour_trials.shape}')
-        assert self.behaviour_trials.shape[1] == self.outcome.shape[0], '{} {}'.format(self.behaviour_trials.shape[1], self.outcome.shape[0])
+        assert self.behaviour_trials.shape[1] == self.outcome.shape[0],\
+               '{} {}'.format(self.behaviour_trials.shape[1], self.outcome.shape[0])
 
-        ### JR pre reward for single planes is not yet implmented ############
-
-        #self.pre_rew_trials = utils.build_flu_array(self.run, self.run.pre_reward, pre_frames,
-        #                                   pre_frames, is_prereward=True)  # equal amount b/c no PS artefact
+        self.pre_rew_trials = build_flu_array_single(self.run, prereward=True,
+                                                     pre_frames=self.pre_frames,
+                                                     post_frames=self.post_frames, fs=30)
+    
         #self.pre_rew_trials = self.pre_rew_trials[:, 1:9, :]
         #assert np.sum(np.isnan(self.pre_rew_trials)) == 0
-        #self.pre_rew_trials = self.pre_rew_trials - np.mean(self.pre_rew_trials, (1, 2))[:, np.newaxis, np.newaxis]
-        #print(self.behaviour_trials.shape, self.pre_rew_trials.shape)
 
     def filter_neurons(self, vverbose=1, abs_threshold=10):
         """Filter neurons with surreal stats
@@ -292,6 +333,7 @@ class Session:
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where(mean_abs_df < abs_threshold)[0]
         self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
+        self.pre_rew_trials = self.pre_rew_trials[self.filtered_neurons, :, :]
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]

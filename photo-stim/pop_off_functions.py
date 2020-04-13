@@ -1304,13 +1304,15 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
     elif tt == 'ar_miss':  # autorewarded miss
         general_tt = 'miss'
         odd_tt_only = True
+    elif tt =='spont_rew':
+        odd_tt_only = True
+        general_tt = tt
     else:  # regular cases
         general_tt = tt
         if tt == 'hit' or tt == 'miss':
             odd_tt_only = False  # only use regular ones
         elif tt == 'fp' or tt == 'cr':
             odd_tt_only = None  # does not matter
-
     if odd_tt_only is None or general_tt == 'fp' or general_tt == 'cr': # if special tt do not apply
         pre_stim_act = ss.behaviour_trials[:, np.logical_and(ss.photostim < 2,
                                              ss.outcome==general_tt), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
@@ -1328,6 +1330,16 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
                                                  ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
         post_stim_act = ss.behaviour_trials[:, np.logical_and.reduce((ss.photostim < 2,
                                                  ss.outcome==general_tt, ss.unrewarded_hits==odd_tt_only)), :][:, :, frame_post][reg_inds, :, :]
+
+    elif tt == general_tt == 'spont_rew':
+        flu_arr = ss.pre_rew_trials
+        pre_stim_act = flu_arr[:, :, ss.filter_ps_array[inds_pre_stim]][reg_inds, :, :]
+        post_stim_act = flu_arr[:, :, frame_post][reg_inds, :, :]
+
+    else:
+        raise ValueError('tt {} not understood'.format(tt))
+
+
 
     pre_met = np.squeeze(np.mean(pre_stim_act, 2))  # take mean over time points
     post_met = np.squeeze(post_stim_act)
