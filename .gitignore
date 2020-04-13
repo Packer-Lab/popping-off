@@ -4,3 +4,5 @@
 **.py.swm
 **.py.swo
 **.pyc
+**.orig
+**.pkl
