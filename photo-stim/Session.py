@@ -123,6 +123,8 @@ def build_flu_array_single(run, prereward=False, pre_frames=30, post_frames=80, 
     return np.swapaxes(flu_array,2,1)
 
 
+
+
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
     def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True,
@@ -153,10 +155,6 @@ class Session:
         filter_threshold : int, default=10
             filter neurons with mean(abs(df/f)) > filter_threshold
         """
-    def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True, use_spks=False,
-                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
-                 verbose=1, filter_threshold=10):
-        """Initialize parameters and call all Class methods (except shuffle_labels()) to construct attributes."""
         self.mouse = mouse
         self.run_number = run_number
         self.signature = f'{self.mouse}_R{self.run_number}' # signature to use whenever
@@ -425,3 +423,14 @@ class Session:
         self.s1_bool[random_inds] = True
         self.s2_bool = np.logical_not(self.s1_bool)
         self.shuffled_s1s2_labels_indicator = True
+
+
+
+
+
+class Session_lite(Session):
+    def __init__(self):
+        pass
+
+
+
