@@ -1,7 +1,7 @@
 ## general imports (also for subsequent analysis notebooks)
 import sys
 import os
-path_to_vape = os.path.expanduser('~/repos/Vape')
+path_to_vape = os.path.expanduser('~/Documents/code/Vape')
 sys.path.append(path_to_vape)
 sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))
@@ -17,6 +17,8 @@ import utils_funcs as utils
 import run_functions as rf
 from subsets_analysis import Subsets
 import pickle
+import json
+import deepdish as dd
 import sklearn.decomposition
 from cycler import cycler
 from oasis.functions import deconvolve
@@ -70,7 +72,7 @@ def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_ra
     return trial_frames
 
 
-def build_flu_array_single(run, prereward=False, pre_frames=30, post_frames=80, fs=30):
+def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, post_frames=80, fs=30):
     ''' Build an trial by trial fluoresence array of shape [n_cells x n_frames x n_trials].
 
     Parameters:
@@ -90,7 +92,11 @@ def build_flu_array_single(run, prereward=False, pre_frames=30, post_frames=80, 
             matrix of fluorescence data
     '''
 
-    flu = run.flu
+    if not use_spks:
+        flu = run.flu
+    else:
+        flu = run.spks
+
     # the frames that were actually imaged and the time (samples) that they occured
     clock = run.paqio_frames
 
@@ -170,8 +176,6 @@ class Session:
         self.shuffled_trial_labels_indicator = False
 
         self.load_data(vverbose=self.verbose)  # load data from pkl path
-        if use_spks:
-            self.get_spks()
 
         if mouse=='J048' or mouse=='RL048':
             self.frequency = 5
@@ -250,7 +254,7 @@ class Session:
         self.s2_bool = self.av_xpix > 512  # images were manually aligned to be half s1, half s2
         self.s1_bool = np.logical_not(self.s2_bool)
 
-    def get_spks(self):
+    def run_oasis(self):
         """ Build spks array using Oasis deconvolution https://github.com/j-friedrich/OASIS """
 
         flu = self.flu.astype('float64')
@@ -279,19 +283,19 @@ class Session:
                                   np.arange(self.art_gap_stop, self.pre_frames + self.post_frames))) # frame array of remaining frames
         self.filter_ps_time = (self.filter_ps_array - self.art_gap_start + 1) / self.frequency  # time array for remaining frames wrt stim onset
 
-    def build_trials_multi(self, vverbose=1):
+    def build_trials_multi(self, use_spks=False, vverbose=1):
         """Construct 3D matrix of neural data (n_cells x n_trials x n_frames) for multi-plane data sets."""
         # array of fluoresence through behavioural trials (n_cells x n_trials x n_frames)
         # with e.g. the first trials spanning (galvo_ms[0] - pre_frames) : (galvo_ms[0] + post_frames)
         self.behaviour_trials = utils.build_flu_array(self.run, self.galvo_ms,
-                                                      pre_frames=self.pre_frames, post_frames=self.post_frames)
+                                                      pre_frames=self.pre_frames, post_frames=self.post_frames, use_spks=use_spks)
 #         self.behaviour_trials = self.behaviour_trials - np.nanmean(self.behaviour_trials, (1, 2))[:, np.newaxis, np.newaxis]
         if vverbose >= 2:
             print(f'Shape new array : {self.behaviour_trials.shape}')
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0]
 
         self.pre_rew_trials = utils.build_flu_array(self.run, self.run.pre_reward, self.post_frames,
-                                                     self.pre_frames, is_prereward=True) 
+                                                     self.pre_frames, is_prereward=True, use_spks=use_spks) 
     
         nan_trials = np.any(np.isnan(self.pre_rew_trials), axis=(0,2))
         self.pre_rew_trials = self.pre_rew_trials[:, ~nan_trials, :]
@@ -301,11 +305,11 @@ class Session:
         if vverbose >= 2:
             print(self.behaviour_trials.shape, self.pre_rew_trials.shape)
 
-    def build_trials_single(self, vverbose=1):
+    def build_trials_single(self, use_spks=False, vverbose=1):
         """Construct 3D matrix of neural data (n_cells x n_trials x n_frames) for single-plane data sets."""
         # array of fluoresence through behavioural trials (n_cells x n_trials x n_frames)
         # with e.g. the first trials spanning (galvo_ms[0] - pre_frames) : (galvo_ms[0] + post_frames)
-        self.behaviour_trials = build_flu_array_single(self.run, prereward=False,
+        self.behaviour_trials = build_flu_array_single(self.run, use_spks=use_spks, prereward=False,
                                                        pre_frames=self.pre_frames,
                                                        post_frames=self.post_frames, fs=30)
         if vverbose >= 2:
@@ -313,12 +317,10 @@ class Session:
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0],\
                '{} {}'.format(self.behaviour_trials.shape[1], self.outcome.shape[0])
 
-        self.pre_rew_trials = build_flu_array_single(self.run, prereward=True,
+        self.pre_rew_trials = build_flu_array_single(self.run, use_spks=use_spks, prereward=True,
                                                      pre_frames=self.pre_frames,
                                                      post_frames=self.post_frames, fs=30)
     
-        #self.pre_rew_trials = self.pre_rew_trials[:, 1:9, :]
-        #assert np.sum(np.isnan(self.pre_rew_trials)) == 0
 
     def filter_neurons(self, vverbose=1, abs_threshold=10):
         """Filter neurons with surreal stats
@@ -426,11 +428,127 @@ class Session:
 
 
 
-
-
 class Session_lite(Session):
-    def __init__(self):
-        pass
 
+    def __init__(self, mouse, run_number, pkl_path, flu_flavour, remove_nan_trials=True,
+                pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
+                verbose=1, filter_threshold=10):
+
+        self.mouse = mouse
+        self.run_number = run_number
+        self.pkl_path = pkl_path
+        self.pre_seconds = pre_seconds
+        self.post_seconds = post_seconds
+        self.pre_gap_seconds = pre_gap_seconds
+        self.post_gap_seconds = post_gap_seconds
+        self.verbose = verbose
+        self.filter_threshold = filter_threshold
+        self.name = f'Mouse {mouse}, run {run_number}'
+
+        self.load_data()
+
+
+        if flu_flavour == 'flu':
+            use_spks = False
+        elif flu_flavour == 'spks':
+            use_spks = True
+        elif flu_flavour == 'denoised_flu':
+            use_spks = False
+            assert self.run.flu.shape == self.run.denoised_flu.shape
+            self.run.flu = self.run.denoised_flu
+        else:
+            raise ValueError('flu_flavour not recognised')
+
+        if mouse=='J048' or mouse=='RL048':
+            self.frequency = 5
+            self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
+            # create Df/f matrix (index per trial )
+            self.flu = self.build_trials_multi(vverbose=self.verbose, use_spks=use_spks)
+        else:
+            self.frequency = 30
+            self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
+            self.flu = self.build_trials_single(vverbose=self.verbose, use_spks=use_spks)
+
+
+        self.filter_neurons(vverbose=self.verbose)  #filter neurons based on mean abs values
+        self.define_s1_s2()   # label s1 and s2 identity of neurons
+        self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
+
+        self.clean_obj()
+
+    def filter_neurons(self, vverbose=1, abs_threshold_df=10, abs_threshold_spks=1):
+        """Filter neurons with surreal stats
+           Overwritten here by subclass to remove cells with 'surreal' flu and/or spks
+
+        Parameters:
+        -----------------
+            abs_threshold, float, default=10
+                upper bound on mean(abs(df/f)) or mean(spks)"""
+
+        mean_abs_df = np.mean(np.abs(self.run.flu), 1)
+        mean_abs_spks = np.mean(np.abs(self.run.spks), 1) 
+        self.unfiltered_n_cells = self.run.flu.shape[0]
+        self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) & 
+                                         (mean_abs_spks < abs_threshold_spks))[0]
+        self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
+        self.pre_rew_trials = self.pre_rew_trials[self.filtered_neurons, :, :]
+        self.run.flu = self.run.flu[self.filtered_neurons, :]
+        self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
+        self.run.stat = self.run.stat[self.filtered_neurons]
+        if vverbose >= 1:
+            if len(self.filtered_neurons < self.unfiltered_n_cells):
+                print(f'{self.unfiltered_n_cells - len(self.filtered_neurons)} / {self.unfiltered_n_cells} cells filtered')
+            else:
+                print('No neurons filtered')
+
+    def clean_obj(self):
+
+        attrs_remove = ['run', 'flu']
+        
+        for attr in attrs_remove:
+            delattr(self, attr)
+
+
+def only_numerics(seq):
+    seq_type= type(seq)
+    return seq_type().join(filter(seq_type.isdigit, seq))
+
+def load_files(save_dict, data_dict, folder_path):
+    total_ds = 0
+    for mouse in data_dict.keys():
+        for run_number in data_dict[mouse]:
+            try:  
+                this_session = Session_lite(mouse, run_number, folder_path, flu_flavour='spks', pre_gap_seconds=0,
+                                              post_gap_seconds=0, post_seconds=8)
+                save_dict[total_ds] = this_session
+                total_ds += 1
+                print(f'succesfully loaded mouse {mouse}, run {run_number}')
+            except AttributeError:
+                pass
+    return save_dict, total_ds
+
+if __name__ == '__main__':
+
+    pkl_path = '/home/jrowland/Documents/code/Vape/run_pkls'
+
+    ## Load data
+    sessions = {}
+
+    all_mice = [x for x in os.listdir(pkl_path) if x[-4:] != '.pkl']
+
+    run_dict = {m: list(np.unique([int(only_numerics(x)) 
+               for x in os.listdir(pkl_path + f'/{m}')])) 
+               for m in all_mice}
+
+    if 'J065' in run_dict.keys() and 14 in run_dict['J065']:
+        run_dict['J065'].remove(14)
+
+    sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict, folder_path=pkl_path)
+
+    save_path = os.path.expanduser('~/Documents/code/sessions_lite.pkl')
+    # dd.io.save(save_path, sessions)
+    with open(save_path, 'wb') as f:
+        pickle.dump(sessions, f)
 
 
