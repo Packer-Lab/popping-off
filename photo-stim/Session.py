@@ -454,7 +454,7 @@ class Session_lite(Session):
             use_spks = True
         elif flu_flavour == 'denoised_flu':
             use_spks = False
-            assert self.run.flu.shape == self.run.denoised_flu.shape
+            assert self.run.flu.shape == self.run.denoised_flu.shape, '{} {}'.format(self.run.flu.shape, self.run.denoised_flu.shape)
             self.run.flu = self.run.denoised_flu
         else:
             raise ValueError('flu_flavour not recognised')
@@ -514,12 +514,12 @@ def only_numerics(seq):
     seq_type= type(seq)
     return seq_type().join(filter(seq_type.isdigit, seq))
 
-def load_files(save_dict, data_dict, folder_path):
+def load_files(save_dict, data_dict, folder_path, flu_flavour):
     total_ds = 0
     for mouse in data_dict.keys():
         for run_number in data_dict[mouse]:
             try:  
-                this_session = Session_lite(mouse, run_number, folder_path, flu_flavour='spks', pre_gap_seconds=0,
+                this_session = Session_lite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
                                               post_gap_seconds=0, post_seconds=8)
                 save_dict[total_ds] = this_session
                 total_ds += 1
@@ -530,6 +530,7 @@ def load_files(save_dict, data_dict, folder_path):
 
 if __name__ == '__main__':
 
+    flu_flavour = 'flu'
     pkl_path = '/home/jrowland/Documents/code/Vape/run_pkls'
 
     ## Load data
@@ -544,9 +545,10 @@ if __name__ == '__main__':
     if 'J065' in run_dict.keys() and 14 in run_dict['J065']:
         run_dict['J065'].remove(14)
 
-    sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict, folder_path=pkl_path)
+    sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
+                                    folder_path=pkl_path, flu_flavour=flu_flavour)
 
-    save_path = os.path.expanduser('~/Documents/code/sessions_lite.pkl')
+    save_path = os.path.expanduser('~/Documents/code/sessions_lite_{}.pkl'.format(flu_flavour))
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
