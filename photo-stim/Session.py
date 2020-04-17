@@ -1,12 +1,15 @@
 ## general imports (also for subsequent analysis notebooks)
-import sys
-import os
-path_to_vape = os.path.expanduser('~/Documents/code/Vape')
+import sys, os
+import json
+with open('data_paths.json', 'r') as config_file:
+    config_info = json.load(config_file)
+    user_paths_dict = config_info['paths']
+path_to_vape = user_paths_dict['vape_path']  #os.path.expanduser('~/Documents/code/Vape')
 sys.path.append(path_to_vape)
 sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))
 
-oasis_path = os.path.expanduser('~/Documents/code/OASIS')
+oasis_path = user_paths_dict['oasis_path']  # os.path.expanduser('~/Documents/code/OASIS')
 sys.path.append(oasis_path)
 import numpy as np
 from tqdm import tqdm
@@ -17,12 +20,13 @@ import utils_funcs as utils
 import run_functions as rf
 from subsets_analysis import Subsets
 import pickle
-import json
 import deepdish as dd
 import sklearn.decomposition
 from cycler import cycler
 from oasis.functions import deconvolve
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
+
+
 
 def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_rate=20000):
     """Get frames that indicate trial start.
@@ -266,7 +270,7 @@ class Session:
             c, s, b, g, lam = deconvolve(cell, penalty=0)
             denoised_flu[idx, :] = c
             deconved[idx, :] = s
-        
+
         self.run.flu = deconved  # Come up with a more elegant solution to this
         self.deconved = deconved
         self.denoised_flu = denoised_flu
@@ -295,11 +299,11 @@ class Session:
         assert self.behaviour_trials.shape[1] == self.outcome.shape[0]
 
         self.pre_rew_trials = utils.build_flu_array(self.run, self.run.pre_reward, self.post_frames,
-                                                     self.pre_frames, is_prereward=True, use_spks=use_spks) 
-    
+                                                     self.pre_frames, is_prereward=True, use_spks=use_spks)
+
         nan_trials = np.any(np.isnan(self.pre_rew_trials), axis=(0,2))
         self.pre_rew_trials = self.pre_rew_trials[:, ~nan_trials, :]
-                                                        
+
         assert np.sum(np.isnan(self.pre_rew_trials)) == 0
 
         if vverbose >= 2:
@@ -320,7 +324,7 @@ class Session:
         self.pre_rew_trials = build_flu_array_single(self.run, use_spks=use_spks, prereward=True,
                                                      pre_frames=self.pre_frames,
                                                      post_frames=self.post_frames, fs=30)
-    
+
 
     def filter_neurons(self, vverbose=1, abs_threshold=10):
         """Filter neurons with surreal stats
@@ -487,9 +491,9 @@ class Session_lite(Session):
                 upper bound on mean(abs(df/f)) or mean(spks)"""
 
         mean_abs_df = np.mean(np.abs(self.run.flu), 1)
-        mean_abs_spks = np.mean(np.abs(self.run.spks), 1) 
+        mean_abs_spks = np.mean(np.abs(self.run.spks), 1)
         self.unfiltered_n_cells = self.run.flu.shape[0]
-        self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) & 
+        self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) &
                                          (mean_abs_spks < abs_threshold_spks))[0]
         self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
         self.pre_rew_trials = self.pre_rew_trials[self.filtered_neurons, :, :]
@@ -505,7 +509,7 @@ class Session_lite(Session):
     def clean_obj(self):
 
         attrs_remove = ['run', 'flu']
-        
+
         for attr in attrs_remove:
             delattr(self, attr)
 
@@ -518,7 +522,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
     total_ds = 0
     for mouse in data_dict.keys():
         for run_number in data_dict[mouse]:
-            try:  
+            try:
                 this_session = Session_lite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
                                               post_gap_seconds=0, post_seconds=8)
                 save_dict[total_ds] = this_session
@@ -531,15 +535,15 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
 if __name__ == '__main__':
 
     flu_flavour = 'flu'
-    pkl_path = '/home/jrowland/Documents/code/Vape/run_pkls'
+    pkl_path = user_paths_dict['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
 
     ## Load data
     sessions = {}
 
     all_mice = [x for x in os.listdir(pkl_path) if x[-4:] != '.pkl']
 
-    run_dict = {m: list(np.unique([int(only_numerics(x)) 
-               for x in os.listdir(pkl_path + f'/{m}')])) 
+    run_dict = {m: list(np.unique([int(only_numerics(x))
+               for x in os.listdir(pkl_path + f'/{m}')]))
                for m in all_mice}
 
     if 'J065' in run_dict.keys() and 14 in run_dict['J065']:
@@ -548,9 +552,7 @@ if __name__ == '__main__':
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
                                     folder_path=pkl_path, flu_flavour=flu_flavour)
 
-    save_path = os.path.expanduser('~/Documents/code/sessions_lite_{}.pkl'.format(flu_flavour))
+    save_path = os.path.expanduser(f'{user_paths_dict["base_path"]}/sessions_lite_{flu_flavour}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
-
-
