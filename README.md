@@ -25,9 +25,10 @@ To use code in the photo-stim folder, one requires the data pre-processing repo 
 
 To use OASIS for spike deconvolution, you must install their package. To do so, clone this repo: 
 https://github.com/j-friedrich/OASIS
-and follow their python installation instruction. 
--------------
+and follow their python installation instructions.
+
+------------
 
 To use demixing PCA, you must install their package. To do so, clone this repo: https://github.com/machenslab/dPCA/tree/master/python/
-and follow their python installation instruction. 
+and follow their python installation instructions. 
 
