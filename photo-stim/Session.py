@@ -23,16 +23,23 @@ sys.path.append(oasis_path)
 
 import numpy as np
 from tqdm import tqdm
+import copy
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
-import utils_funcs as utils
+import time
+import utils_funcs as utils 
 import run_functions as rf
 from subsets_analysis import Subsets
 import pickle
 import deepdish as dd
 import sklearn.decomposition
 from cycler import cycler
+
+# OASIS gives a useless warning
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+
 from oasis.functions import deconvolve
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
@@ -441,7 +448,9 @@ class Session:
 
 
 
-class Session_lite(Session):
+class SessionLite(Session):
+    ''' Does the same job as Session, using inheritence out of laziness to not combine 
+        todo -- combine classes '''
 
     def __init__(self, mouse, run_number, pkl_path, flu_flavour, remove_nan_trials=True,
                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
@@ -449,6 +458,7 @@ class Session_lite(Session):
 
         self.mouse = mouse
         self.run_number = run_number
+        self.flu_flavour = flu_flavour
         self.pkl_path = pkl_path
         self.pre_seconds = pre_seconds
         self.post_seconds = post_seconds
@@ -460,17 +470,23 @@ class Session_lite(Session):
 
         self.load_data()
 
-
-        if flu_flavour == 'flu':
+        if self.flu_flavour == 'flu':
             use_spks = False
-        elif flu_flavour == 'spks':
+        elif self.flu_flavour == 'spks':
             use_spks = True
-        elif flu_flavour == 'denoised_flu':
+        elif self.flu_flavour == 'denoised_flu':
             use_spks = False
-            assert self.run.flu.shape == self.run.denoised_flu.shape, '{} {}'.format(self.run.flu.shape, self.run.denoised_flu.shape)
+            self.run.dff = copy.deepcopy(run.flu)
+            assert self.run.flu.shape == self.run.denoised_flu.shape
+            # Inelegant reassignment but saves reworking downstream functions
             self.run.flu = self.run.denoised_flu
+        elif self.flu_flavour == 'flu_raw':
+            use_spks = False
+            self.run.dff = copy.deepcopy(self.run.flu)
+            assert self.run.flu.shape == self.run.flu_raw.shape
+            self.run.flu = self.run.flu_raw
         else:
-            raise ValueError('flu_flavour not recognised')
+            raise ValueError('self.flu_flavour not recognised')
 
         if mouse=='J048' or mouse=='RL048':
             self.frequency = 5
@@ -499,7 +515,13 @@ class Session_lite(Session):
             abs_threshold, float, default=10
                 upper bound on mean(abs(df/f)) or mean(spks)"""
 
-        mean_abs_df = np.mean(np.abs(self.run.flu), 1)
+        # run.flu is reassigned above, so make sure the same neurons are filtered
+        # regardless of flu_flavour
+        if self.flu_flavour == 'denoised_flu' or self.flu_flavour == 'flu_raw':
+            mean_abs_df = np.mean(np.abs(self.run.dff), 1)
+        else:
+            mean_abs_df = np.mean(np.abs(self.run.flu), 1)
+
         mean_abs_spks = np.mean(np.abs(self.run.spks), 1)
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) &
@@ -532,19 +554,37 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
     for mouse in data_dict.keys():
         for run_number in data_dict[mouse]:
             try:
-                this_session = Session_lite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                              post_gap_seconds=0, post_seconds=8)
-                save_dict[total_ds] = this_session
+                session = SessionLite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                      post_gap_seconds=0, post_seconds=8)
+                save_dict[total_ds] = session
                 total_ds += 1
                 print(f'succesfully loaded mouse {mouse}, run {run_number}')
-            except AttributeError:
+            except AttributeError as e:
+                #print(f'ERROR {e}')
                 pass
     return save_dict, total_ds
 
 if __name__ == '__main__':
 
-    flu_flavour = 'flu'
+    flu_flavour = input('Enter a flu_flavour, valid entries are: [dff, raw, denoised, spks]\n\n')
+
+    if flu_flavour == 'dff':
+        flu_flavour = 'flu'
+    elif flu_flavour == 'denoised':
+        flu_flavour = 'denoised_flu'
+    elif flu_flavour == 'raw':
+        flu_flavour = 'flu_raw'
+    elif flu_flavour == 'spks':
+        flu_flavour = 'spks'
+    else:
+        print('Invalid flu_flavour')
+        time.sleep(2)
+        raise ValueError
+
     pkl_path = user_paths_dict['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
+
+    if not os.path.exists(pkl_path):
+        raise FileNotFoundError('pkl_path directory not found, did you update data_path.json?')
 
     ## Load data
     sessions = {}
@@ -565,3 +605,4 @@ if __name__ == '__main__':
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
+
