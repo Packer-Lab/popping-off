@@ -476,7 +476,7 @@ class SessionLite(Session):
             use_spks = True
         elif self.flu_flavour == 'denoised_flu':
             use_spks = False
-            self.run.dff = copy.deepcopy(run.flu)
+            self.run.dff = copy.deepcopy(self.run.flu)
             assert self.run.flu.shape == self.run.denoised_flu.shape
             # Inelegant reassignment but saves reworking downstream functions
             self.run.flu = self.run.denoised_flu
