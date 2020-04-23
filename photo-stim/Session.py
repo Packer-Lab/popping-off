@@ -32,7 +32,6 @@ import utils_funcs as utils
 import run_functions as rf
 from subsets_analysis import Subsets
 import pickle
-import deepdish as dd
 import sklearn.decomposition
 from cycler import cycler
 
@@ -40,7 +39,9 @@ from cycler import cycler
 import warnings
 warnings.simplefilter("ignore", UserWarning)
 
-from oasis.functions import deconvolve
+# Taken out to prevent need to clone OASIS to use SessionLite
+#from oasis.functions import deconvolve
+
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 
