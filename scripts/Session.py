@@ -1,19 +1,12 @@
 ## General imports (also for subsequent analysis notebooks)
 import sys, os
 import json
+from popoff import loadpaths
 
-# Where is this file?
-__location__ = os.path.realpath(
-    os.path.join(os.getcwd(), os.path.dirname(__file__)))
-
-with open(os.path.join(__location__, 'data_paths.json'), 'r') as config_file:
-    config_info = json.load(config_file)
-    user_paths_dict = config_info['paths']
-
-# Expand tildes in the json paths
-user_paths_dict = {k:os.path.expanduser(v) for k, v in user_paths_dict.items()}
+user_paths_dict = loadpaths.loadpaths()
 
 path_to_vape = user_paths_dict['vape_path']
+
 sys.path.append(path_to_vape)
 sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))

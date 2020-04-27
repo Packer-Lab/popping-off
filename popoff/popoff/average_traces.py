@@ -5,6 +5,7 @@ from matplotlib import gridspec
 import pickle
 import pandas as pd
 import seaborn as sns
+
 from Session import SessionLite
 from loadpaths import loadpaths
 

@@ -1,12 +1,16 @@
 import os
 import json
+import sys
+from pathlib import Path
 
 def loadpaths():
     # Where is this file?
     __location__ = os.path.realpath(
         os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-    with open(os.path.join(__location__, 'data_paths.json'), 'r') as config_file:
+    json_path = os.path.join(Path(__location__).parent.parent, 'data_paths.json')
+
+    with open(json_path, 'r') as config_file:
         config_info = json.load(config_file)
         user_paths_dict = config_info['paths']
 
