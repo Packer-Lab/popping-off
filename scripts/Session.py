@@ -1,6 +1,7 @@
 ## General imports (also for subsequent analysis notebooks)
 import sys, os
 import json
+
 from popoff import loadpaths
 
 user_paths_dict = loadpaths.loadpaths()
@@ -218,6 +219,8 @@ class Session:
         if vverbose >= 1:
             print(f'Now loading mouse {self.mouse}, run {self.run_number}')
         run_path = os.path.join(self.pkl_path, self.mouse, f'run{self.run_number}.pkl')
+        print(run_path)
+        run_path = str(run_path)
         with open(run_path, 'rb') as f:  # load data
             r = pickle.load(f)
             self.run = r
@@ -547,15 +550,15 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
     total_ds = 0
     for mouse in data_dict.keys():
         for run_number in data_dict[mouse]:
-            try:
-                session = SessionLite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, post_seconds=8)
-                save_dict[total_ds] = session
-                total_ds += 1
-                print(f'succesfully loaded mouse {mouse}, run {run_number}')
-            except AttributeError as e:
-                #print(f'ERROR {e}')
-                pass
+            # try:
+            session = SessionLite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                  post_gap_seconds=0, post_seconds=8)
+            save_dict[total_ds] = session
+            total_ds += 1
+            # print(f'succesfully loaded mouse {mouse}, run {run_number}')
+            # except AttributeError as e:
+                # print(f'ERROR {e}')
+                # pass
     return save_dict, total_ds
 
 if __name__ == '__main__':
