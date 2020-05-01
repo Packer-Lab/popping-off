@@ -1,7 +1,10 @@
 ## General imports (also for subsequent analysis notebooks)
 import sys, os
 import json
+
 from popoff import loadpaths
+
+print(loadpaths.__file__)
 
 user_paths_dict = loadpaths.loadpaths()
 
@@ -142,9 +145,6 @@ def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, 
 
     return np.swapaxes(flu_array,2,1)
 
-
-
-
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
     def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True,
@@ -172,8 +172,7 @@ class Session:
             skip these seconds after PS stimulus onset
         verbose : int, default=1
             verbosiness;  1: only important info (i.e. user end); 2: all info (debug end)
-        filter_threshold : int, default=10
-            filter neurons with mean(abs(df/f)) > filter_threshold
+        filter_threshold : int, default=10 filter neurons with mean(abs(df/f)) > filter_threshold
         """
         self.mouse = mouse
         self.run_number = run_number
@@ -218,6 +217,8 @@ class Session:
         if vverbose >= 1:
             print(f'Now loading mouse {self.mouse}, run {self.run_number}')
         run_path = os.path.join(self.pkl_path, self.mouse, f'run{self.run_number}.pkl')
+        print(run_path)
+        run_path = str(run_path)
         with open(run_path, 'rb') as f:  # load data
             r = pickle.load(f)
             self.run = r
@@ -492,7 +493,6 @@ class SessionLite(Session):
             self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
             self.flu = self.build_trials_single(vverbose=self.verbose, use_spks=use_spks)
 
-
         self.filter_neurons(vverbose=self.verbose)  #filter neurons based on mean abs values
         self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
@@ -516,7 +516,7 @@ class SessionLite(Session):
         else:
             mean_abs_df = np.mean(np.abs(self.run.flu), 1)
 
-        mean_abs_spks = np.mean(np.abs(self.run.spks), 1)
+        mean_abs_spks = np.nanmean(np.abs(self.run.spks), 1)
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) &
                                          (mean_abs_spks < abs_threshold_spks))[0]
@@ -554,7 +554,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
                 total_ds += 1
                 print(f'succesfully loaded mouse {mouse}, run {run_number}')
             except AttributeError as e:
-                #print(f'ERROR {e}')
+                # print(f'ERROR {e}')
                 pass
     return save_dict, total_ds
 

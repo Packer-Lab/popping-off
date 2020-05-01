@@ -5,9 +5,11 @@ from matplotlib import gridspec
 import pickle
 import pandas as pd
 import seaborn as sns
+import math
 
 from Session import SessionLite
 from loadpaths import loadpaths
+
 
 
 class AverageTraces():
@@ -147,8 +149,9 @@ class AverageTraces():
                 behaviour_trials = session.pre_rew_trials[cell_bool, :, :]
             
             baseline_frames = np.where((session.filter_ps_time>=-2) & 
-                                       (session.filter_ps_time<0))[0]
-            baseline = np.mean(behaviour_trials[:, :, baseline_frames], 2)
+                                       (session.filter_ps_time<-1))[0]
+
+            baseline = np.nanmean(behaviour_trials[:, :, baseline_frames], 2)
             
             if sub_baseline:
                 baseline_subbed = behaviour_trials[:, :, session.frames_use] \
@@ -157,10 +160,10 @@ class AverageTraces():
                 baseline_subbed = behaviour_trials[:, :, session.frames_use]
             
             if idx == 0:
-                stacked_trials = np.mean(baseline_subbed, 0)
+                stacked_trials = np.nanmean(baseline_subbed, 0)
             else:
                 stacked_trials = np.vstack((stacked_trials, 
-                                            np.mean(baseline_subbed, 0)))
+                                            np.nanmean(baseline_subbed, 0)))
             
         return stacked_trials
 
@@ -198,7 +201,6 @@ class AverageTraces():
 
         balanced_hits = np.full_like(hits, False)
         balanced_misses = np.full_like(misses, False)
-
 
         subsets = np.unique(session.trial_subsets)
 
@@ -267,19 +269,45 @@ class AverageTraces():
         return arr1, arr2
 
 
-    def average_trace_plotter(self, df_plot, tt):
+    def average_trace_plotter(self, df_plot, tt, manual=True):
         
         color_tt = {'hit': 'green', 'miss': 'grey', 'fp': 'magenta', 
                     'cr': 'brown', 'ur_hit': '#7b85d4', 'ar_miss': '#e9d043',
                     'spont_rew': 'darkorange'}
 
-        sns.lineplot(data=df_plot[df_plot['timepoint'] <= 0], x='timepoint', 
-                     y='diff_dff', linewidth=3, color=color_tt[tt], 
-                     label=tt, ci=95)
+        if not manual:
+            sns.lineplot(data=df_plot[df_plot['timepoint'] <= 0], x='timepoint', 
+                         y='diff_dff', linewidth=3, color=color_tt[tt], 
+                         label=tt, ci=95) 
 
-        sns.lineplot(data=df_plot[df_plot['timepoint'] >= 0], x='timepoint', 
-                     y='diff_dff', linewidth=3, color=color_tt[tt], 
-                     label=None, ci=95)
+            sns.lineplot(data=df_plot[df_plot['timepoint'] >= 0], x='timepoint', 
+                         y='diff_dff', linewidth=3, color=color_tt[tt], 
+                         label=None, ci=95)
+
+        else:
+            # Manual control over plots while playing around
+            timepoints = np.unique(np.array(df_plot['timepoint']))
+            num_timepoints = len(self.times_use)
+            
+            data = np.array(df_plot['diff_dff']) 
+            num_datapoints = len(data)
+            data = data.reshape(int(num_datapoints/num_timepoints), num_timepoints)
+
+            # Removes that one trials with nans at the end (I believe resulting from the
+            # aosisNan function
+            count = 0
+            for i, d in enumerate(data):
+                if sum(np.isnan(d)) > 7:
+                    count+=1
+                    data = np.delete(data, i, axis=0)
+
+            self.data = data
+
+            mean_data = np.mean(data, 0)
+            sem = np.std(data, 0) / math.sqrt(data.shape[0])
+            
+            plt.plot(timepoints, mean_data, color=color_tt[tt], label=tt)
+            plt.fill_between(timepoints, mean_data-sem, mean_data+sem, alpha=0.1, color=color_tt[tt])
 
 
     def plotting_df(self, stacked_trials, stacked_prereward=None, 
