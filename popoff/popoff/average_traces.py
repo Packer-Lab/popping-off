@@ -371,3 +371,13 @@ class AverageTraces():
                 plt.legend().set_visible(False)
             
 
+class SingleCells(AverageTraces):
+
+    def __init__(self, flu_flavour='dff'):
+
+        super().__init__(flu_flavour)
+
+
+
+
+
