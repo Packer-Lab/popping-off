@@ -145,6 +145,7 @@ def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, 
 
     return np.swapaxes(flu_array,2,1)
 
+
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
     def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True,
@@ -266,7 +267,14 @@ class Session:
                 self.plane_number[neuron_id] = self.run.stat[neuron_id]['iplane']
             except KeyError:
                 self.plane_number[neuron_id] = 0
-        self.s2_bool = self.av_xpix > 512  # images were manually aligned to be half s1, half s2
+
+
+        with open('/home/jrowland/Documents/code/Vape/s2_position.json') as json_file:
+            s1s2_border_json = json.load(json_file)
+    
+        self.s1s2_border = s1s2_border_json[self.mouse][str(self.run_number)]
+        
+        self.s2_bool = self.av_xpix > self.s1s2_border  # images were manually aligned to be half s1, half s2
         self.s1_bool = np.logical_not(self.s2_bool)
 
     def run_oasis(self):
@@ -352,6 +360,8 @@ class Session:
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]
+        self.is_target = self.is_target[self.filtered_neurons, :, :]
+
         if vverbose >= 1:
             if len(self.filtered_neurons < self.unfiltered_n_cells):
                 print(f'{self.unfiltered_n_cells - len(self.filtered_neurons)} / {self.unfiltered_n_cells} cells filtered')
@@ -412,6 +422,7 @@ class Session:
         self.autorewarded = self.autorewarded[self.nonnan_trials]
         self.unrewarded_hits = self.unrewarded_hits[self.nonnan_trials]
         self.n_trials = len(self.nonnan_trials)
+        self.is_target = self.is_target[:, self.nonnan_trials, :]
 
         if vverbose >= 1:
             print(f'{len(self.nonnan_trials)} / {self.behaviour_trials.shape[1]} non nan trials identified')
@@ -442,7 +453,20 @@ class Session:
         self.shuffled_s1s2_labels_indicator = True
 
 
+    def get_targets(self):
+        
+        gt = rf.GetTargets(self.run)
+        self.is_target = gt.is_target
+        self.is_target = np.repeat(self.is_target[:, :, np.newaxis], self.n_times, axis=2)
 
+        # Was a cell targeted on any trial?
+        ever_targeted = np.any(self.is_target, axis=(1,2))
+        # Check that all targets are in s1
+        print('here i am ')
+        for target, s1 in zip(ever_targeted, self.s1_bool):
+            if target:
+                assert s1
+        
 class SessionLite(Session):
     ''' Does the same job as Session, using inheritence out of laziness to not combine 
         todo -- combine classes '''
@@ -496,6 +520,7 @@ class SessionLite(Session):
         self.filter_neurons(vverbose=self.verbose)  #filter neurons based on mean abs values
         self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        self.get_targets()
         self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
 
         self.clean_obj()
@@ -554,7 +579,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
                 total_ds += 1
                 print(f'succesfully loaded mouse {mouse}, run {run_number}')
             except AttributeError as e:
-                # print(f'ERROR {e}')
+                print(f'ERROR {e}')
                 pass
     return save_dict, total_ds
 
