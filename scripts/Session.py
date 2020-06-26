@@ -344,6 +344,8 @@ class Session:
                                                      pre_frames=self.pre_frames,
                                                      post_frames=self.post_frames, fs=30)
 
+        nan_trials = np.any(np.isnan(self.pre_rew_trials), axis=(0,2))
+        self.pre_rew_trials = self.pre_rew_trials[:, ~nan_trials, :]
 
     def filter_neurons(self, vverbose=1, abs_threshold=10):
         """Filter neurons with surreal stats
