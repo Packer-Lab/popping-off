@@ -29,8 +29,6 @@ from loadpaths import loadpaths
     # if ii > 100:
         # break
 
-
-
 class AverageTraces():
     
     def __init__(self, flu_flavour):
@@ -99,6 +97,17 @@ class AverageTraces():
 
     @property
     def tp_dict(self):
+
+        ''' Calculate the imaging frames to use that match across different fs
+        Returns a dictionary tp_dict which has key 'mutual'.
+        This contains a list of times that are shared between different 
+        frame rates. 
+        This can be used to index session.filter_ps_time, allowing combining of 
+        sessions recorded with different frame rates.
+        The returned dictionary is parsed by match_framerates
+            
+        '''
+
         ## Integrate different imaging frequencies:
         freqs = np.unique([ss.frequency for _, ss in self.sessions.items()])
         tp_dict = {}
@@ -118,7 +127,11 @@ class AverageTraces():
 
 
     def match_framerates(self):
-    
+
+        ''' For each session, patch a attribute 'frames_use'
+        which based on tp_dict allows for each combinbing of sessions
+        with different frame rates '''
+
         # Find the frames to use that match across all sessions
         baseline_start = -2  # Could be a param of class?
         self.times_use = self.tp_dict['mutual']
@@ -146,6 +159,8 @@ class AverageTraces():
 
 
     def trace_tuple(self, region):
+
+        ''' Calls session stacker for an individual region in order to build a trace dict '''
         
         behaviour = self.session_stacker(region, prereward=False, 
                                          sub_baseline=True)
@@ -157,7 +172,13 @@ class AverageTraces():
 
     def session_stacker(self, cells_include='s1', prereward=False,
                         sub_baseline=True, mask=None):
-       
+
+
+        ''' Function underpinning self.trace_dict
+            Returns stacked_trials  [n_trials x n_frames] (possibly tranpose of this)
+            the cell averaged trace (of cells specified in cells_include for each trial of each session
+            '''
+
         for idx, session in enumerate(self.sessions.values()):
 
             if prereward:
@@ -183,7 +204,6 @@ class AverageTraces():
             # Bug in Session.py kept NaN in prereward, think ive fixed but keep an eye
             if np.isnan(behaviour_trials).any():
                 print('NaN ahoy')
-            
 
             behaviour_trials = behaviour_trials[cell_bool, :, :]
 
@@ -192,15 +212,28 @@ class AverageTraces():
 
             baseline = np.mean(behaviour_trials[:, :, baseline_frames], 2)
             
-            # This is an inefficient way of making arrays
             if sub_baseline:
                 baseline_subbed = behaviour_trials[:, :, session.frames_use] \
                                   - baseline[:,:,np.newaxis]
             else:
                 baseline_subbed = behaviour_trials[:, :, session.frames_use]
+
             
+            ##### HERE WE ARE DOING THE BASELINE SUBTRACTION AGAIN CHECK THAT THIS WORKS IT 
+            ##### USED TO BE DONE ABOVE BUT I CHANGED IT AND I DONT KNOW WHY 
+
+            # pre_range, post_range = self.get_range(session)
+
+            # subbed = np.mean(baseline_subbed[:, :, self.times_use<0], 2)\
+                     # - np.mean(baseline_subbed[:, :, self.times_use>0], 2)
+
+            # subbed = np.repeat(subbed[:, :, np.newaxis], baseline_subbed.shape[2], axis=2)
+            # baseline_subbed = np.ma.array(baseline_subbed, mask=subbed>0)
+            
+            # This is an inefficient way of making arrays
             if idx == 0:
                 stacked_trials = np.mean(baseline_subbed, 0)
+                print(stacked_trials.shape)
             else:
                 stacked_trials = np.vstack((stacked_trials, 
                                             np.mean(baseline_subbed, 0)))
@@ -260,7 +293,6 @@ class AverageTraces():
         
         return balanced_hits, balanced_misses
 
-
         
     def tt_raveled(self, trial_type='all', trial_outcome='all', balance=False):
 
@@ -311,6 +343,11 @@ class AverageTraces():
 
     def average_trace_plotter(self, df_plot, tt, manual=True):
         
+        ''' Responsible for actual plotting. 
+            Arguments:
+            df_plot -- pandas dataframe 
+
+            '''
         color_tt = {'hit': 'green', 'miss': 'grey', 'fp': 'magenta', 
                     'cr': 'brown', 'ur_hit': '#7b85d4', 'ar_miss': '#e9d043',
                     'spont_rew': 'darkorange'}
@@ -322,12 +359,10 @@ class AverageTraces():
                          # label=tt, ci=95) 
 
             sns.lineplot(data=df_plot[df_plot['timepoint'] <= 0], x='timepoint', 
-                         y='dff', linewidth=3, #color=WES_COLS[self.n_plots], 
-                         label=tt, ci=95) 
+                         y='dff', linewidth=3, label=tt, ci=95) 
 
             sns.lineplot(data=df_plot[df_plot['timepoint'] >= 0.7], x='timepoint', 
-                         y='dff', linewidth=3, #color=WES_COLS[self.n_plots], 
-                         label=None, ci=95)
+                         y='dff', linewidth=3, label=None, ci=95)
 
         else:
             # Manual control over plots while playing around
@@ -356,10 +391,15 @@ class AverageTraces():
 
 
     def plotting_df(self, stacked_trials, stacked_prereward=None, outcomes=['hit', 'miss'],
-                    stim_type='test', balance=False, show_plot=True, label=None):
-        
-        
+                    stim_type='test', balance=False, show_plot=True, do_rob_mean=False, label=None):
 
+        ''' Builds a pandas dataframe for an individual trace to be plotted / analysed
+            This allows to call sns.lineplot on the dataframe for bootstrapped error bars and
+            mean traces. Dataframe includes all trials.
+        
+            '''
+
+        
         tt_mapper = {
 
             'hit': stim_type,
@@ -385,15 +425,14 @@ class AverageTraces():
 
                 dff = stacked_trials[trials_use, :]
 
-            do_rob_mean = True  # Make this not shit
-
             if do_rob_mean:
-                
+                # Mean within sessions and then across sessions, rather than across trials (grand mean)
+                # Ignore this chunk if doing the classical mean across all trials (overall mean)
 
                 # Still need to do spont_rew
                 if outcome in ['fp', 'cr', 'spont_rew']:
                     ps = 0
-                elif self.stim_type == 'easy':
+                elif stim_type == 'easy':
                     ps = 2
                 else:
                     ps = 1
@@ -413,7 +452,6 @@ class AverageTraces():
                     running_n += n_trial_in_session
                     
                 dff = np.array(rob_mean)
-
             
             d = {name: np.array([]) for name in ['dff', 'timepoint']}  
             d['dff'] = dff.ravel() 
@@ -422,13 +460,30 @@ class AverageTraces():
             df_plot = pd.DataFrame(d) 
             
             if show_plot:
-                self.average_trace_plotter(df_plot, outcome, manual=True)
+                self.average_trace_plotter(df_plot, outcome, manual=False)
             df_plots.append(df_plot)
 
         return df_plots
 
 
     def s1s2_plot(self, ylims, grid, stim_type='test', balance=False):
+
+        ''' Master plotting function to plot all trial types for s1 and s2 
+            in neighbouring plots.
+
+            Arguments -- 
+            ylims - y axis limit of both plots (tuple / list of lenght 2)
+            grid - Gridspec object upon which to plot (TODO: make this optional)
+            stim_type - The go trial stimulus type to plot ['easy', 'test']
+            balance - Balance the number of each trial type in the plot (bool)
+
+            '''
+
+        # global plotting params
+        plt.style.use('ggplot')
+        # gg plot colors are nice but want seaborn style
+        colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        sns.set_style('white')
 
         # PREREWRAD S2 DIFFERNET?
         plt.subplots_adjust(wspace=0.4,hspace=0.4)
@@ -458,11 +513,12 @@ class AverageTraces():
                 plt.legend().set_visible(False)
 
 
-
-
 class SingleCells(AverageTraces):
 
     def __init__(self, flu_flavour='dff'):
+
+        ''' This class is used to generate average trace plots split by responder / non-responder etc.
+            very messy and needs rewriting'''
 
         super().__init__(flu_flavour)
 
@@ -503,7 +559,8 @@ class SingleCells(AverageTraces):
             if tt not in ['hit', 'miss'] or region == 's2':
                 col_dict[tt] = self.flat_trace
             else:
-                col_dict[tt] = self.plotting_df(targets, outcomes=[tt], stim_type=stim_type, show_plot=False, label='Targets')[0]
+                col_dict[tt] = self.plotting_df(targets, outcomes=[tt], stim_type=stim_type, 
+                                                show_plot=False, label='Targets')[0]
 
         trace_dict[col] = col_dict
 
@@ -517,11 +574,11 @@ class SingleCells(AverageTraces):
 
         for tt in trial_types:
             if tt != 'spont_rew':
-                col_dict[tt] = self.plotting_df(background, outcomes=[tt], stim_type=stim_type, show_plot=False)[0]
-                if tt == 'miss':
-                    print(df)
+                col_dict[tt] = self.plotting_df(background, outcomes=[tt], 
+                                                stim_type=stim_type, show_plot=False)[0]
             else:
-                col_dict[tt] = self.plotting_df(None, background_pre, outcomes=[tt], stim_type=stim_type, show_plot=False)[0]
+                col_dict[tt] = self.plotting_df(None, background_pre, outcomes=[tt],
+                                                stim_type=stim_type, show_plot=False)[0]
 
         trace_dict[col] = col_dict
 
