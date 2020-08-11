@@ -233,7 +233,6 @@ class AverageTraces():
             # This is an inefficient way of making arrays
             if idx == 0:
                 stacked_trials = np.mean(baseline_subbed, 0)
-                print(stacked_trials.shape)
             else:
                 stacked_trials = np.vstack((stacked_trials, 
                                             np.mean(baseline_subbed, 0)))
