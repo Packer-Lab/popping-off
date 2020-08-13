@@ -89,7 +89,7 @@ def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_ra
     return trial_frames
 
 
-def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, post_frames=80, fs=30):
+def build_flu_array_single(run, use_spks=False, use_comps=False, prereward=False, pre_frames=30, post_frames=80, fs=30):
     ''' Build an trial by trial fluoresence array of shape [n_cells x n_frames x n_trials].
 
     Parameters:
@@ -109,10 +109,12 @@ def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, 
             matrix of fluorescence data
     '''
 
-    if not use_spks:
-        flu = run.flu
-    else:
+    if use_spks:
         flu = run.spks
+    elif use_comps:
+        flu = run.comps
+    else:
+        flu = run.flu
 
     # the frames that were actually imaged and the time (samples) that they occured
     clock = run.paqio_frames
