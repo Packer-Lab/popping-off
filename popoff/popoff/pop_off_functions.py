@@ -506,6 +506,16 @@ def llh(binary_truth, estimate):
     llh = np.mean(np.log(np.clip(pp, a_min=1e-3, a_max=1)))
     return llh, 0
 
+
+def score_nonbinary(model, X, y):
+
+    ''' JR helper for Thijs juice'''
+
+    estimate = model.predict_proba(X)[:, 1]
+    acc = mean_accuracy(binary_truth=y, estimate=estimate)
+    return acc[0]
+
+
 def r2_acc(binary_truth, estimate):
     """R2, plainly averaged over all trials (not variance-weighted).
 
