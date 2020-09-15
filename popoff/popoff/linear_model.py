@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.decomposition import PCA, NMF
+from sklearn.metrics import ConfusionMatrixDisplay
 from scipy import sparse
 from scipy.stats import ks_2samp, mode
 from average_traces import AverageTraces
@@ -116,13 +117,10 @@ def pca_session(session, n_components=100, plot=False):
 
 
     # Remove NaN trials
-    nonnan = np.unique(np.where(~np.isnan(arr))[1])
-    nonnan_pre = np.unique(np.where(~np.isnan(arr_pre))[1])
     session.comps = arr[:, session.nonnan_trials, :]
-    # session.comps = arr[:, nonnan, :]
+    nonnan_pre = np.unique(np.where(~np.isnan(arr_pre))[1])
     session.comps_pre = arr_pre[:, nonnan_pre, :]
 
-    print(np.isnan(session.comps).any())
     session.clean_obj()  # "Garbage collection" to remove session.run
 
     return session
@@ -211,7 +209,7 @@ class LabelEncoder():
 
 class LinearModel():
 
-    def __init__(self, session, times_use):
+    def __init__(self, session, times_use, remove_targets=False):
         
         ''' Perform logistic regression on Session object
 
@@ -228,7 +226,15 @@ class LinearModel():
         # rather than using class inheritence so that this class does
         # not need to load every session
         self.times_use = times_use
+
         self.setup_flu()
+        self.target_info()
+
+        if remove_targets:
+            self.remove_targets_from_data()
+
+        # Init encoder with required sort order
+        self.encoder = LabelEncoder(['miss', 'hit', 'cr', 'fp'])
 
 
     def setup_flu(self):
@@ -258,10 +264,15 @@ class LinearModel():
                            'post': self.post,
                            'all': self.remove_artifact}
 
+        self.region_map = {'all': np.repeat(True, self.session.n_cells),
+                           's1': self.session.s1_bool,
+                           's2': self.session.s2_bool
+                           }
 
-    def prepare_data(self, frames='all', model='full', trial_type='test',
-                     outcomes=['hit', 'miss', 'cr', 'fp'], n_comps_include=0, 
-                     prereward=False, return_matrix=True):
+
+    def prepare_data(self, frames='all', model='full',
+                     outcomes=['hit', 'miss', 'cr', 'fp'], region='all',
+                     n_comps_include=0, prereward=False, return_matrix=True):
 
         ''' Prepare fluoresence data in Session object for regression
 
@@ -276,15 +287,18 @@ class LinearModel():
             full = include mean activity of all cells in model
             partial = include only 'network features' e.g. PCS in model
 
+        outcomes : {['hit', 'miss', 'fp', 'cr']}, default=['hit', 'miss' 'fp', 'cr']
+            Which trial types do you want to decode on?
+
+        region : {['s1', 's2', 'both']}, default='both'
+            Include cells from which region in regression?
+
         n_comps_include : How many PCs to include in the partial model 
             (requires model='partial')
 
-        outcomes : {['hit', 'miss', 'fp', 'cr']}, default=['hit', 'miss']
-                   which trial types do you want to decode on?
+        prereward : bool, default=False
+            Just include prereward trials? Negates outcomes argument
 
-        TODO: Currently partial regression parameters are added in a hacky, code repeating way
-              Make this much more flexible so the user can specify an argument of which
-              parameters to include
 
         Returns
         --------
@@ -293,11 +307,6 @@ class LinearModel():
 
         '''
 
-        # Select the trial type of interest
-        tt_map = {'catch': 0,
-                  'test': 1,
-                  'easy': 2}
-
         if prereward:
             flu = self.pre_flu
             y = np.ones(flu.shape[1])
@@ -305,21 +314,22 @@ class LinearModel():
 
         else:
             outcome = self.session.outcome[self.session.nonnan_trials]
-
             trial_bool = np.isin(outcome, outcomes)
-
+            
             # Change 100 to 2 if you want only test trials
+            # (REMOVE THIS HACK)
             remove_easy = self.session.photostim != 100
             trial_bool = np.logical_and(trial_bool, remove_easy)
-
             outcome = outcome[trial_bool]
+            flu = self.flu[:, trial_bool, :]
 
-            self.encoder = LabelEncoder(['miss', 'hit', 'cr', 'fp'])
             # Fit encoder on data that is independent of the trial
             # order in the session
             self.encoder.fit(outcome)
             y = self.encoder.transform(outcome)
-            flu = self.flu[:, trial_bool, :]
+
+        # Select cells from required region
+        flu = flu[self.region_map[region], :, :]
 
         # For the full model the independent variables are the mean activity across the whole trial
         # for every cell
@@ -347,16 +357,25 @@ class LinearModel():
         X = scaler.fit_transform(X)
         return X
 
-
     def dict2matrix(self, dict_):
         X = np.vstack([v for v in dict_.values()])
         return self.transform_data(X)
 
-
     def covariates_full(self, flu, frames):
 
-        flu_frames = flu[:, :, self.frames_map[frames]]
-        X = np.mean(flu_frames, 2)
+
+        # Use this to check that PC performance
+        # was not ~= full model as PCs are subbed but cells are
+        # not. Confirmed that performance for full subbed is roughly
+        # the same 
+        if frames == 'subbed':
+            pre = flu[:, :, self.frames_map['pre']]
+            post = flu[:, :, self.frames_map['post']]
+            X = np.mean(post, 2) - np.mean(pre, 2)
+        else:
+            flu_frames = flu[:, :, self.frames_map[frames]]
+            X = np.mean(flu_frames, 2)
+        
         return self.transform_data(X)
 
     def covariates_partial(self, flu, frames, trial_bool, n_comps_include, prereward=False):
@@ -408,9 +427,7 @@ class LinearModel():
             # Set this at the start of the function? Remove code repetition?
             pre_keys = ['mean_pre', 'corr_pre', 'PCs']
             covariates_dict = {k:covariates_dict[k] for k in pre_keys}
-            print('hi')
         elif frames == 'post':
-            print('hi')
             pre_keys = ['mean_post', 'corr_post', 'PCs']
             covariates_dict = {k:covariates_dict[k] for k in post_keys}
 
@@ -476,6 +493,9 @@ class LinearModel():
             '''
 
         C = sklearn.metrics.confusion_matrix(y_true, y_pred)
+
+        if C.shape != (4,4):
+            return
         
         if not hasattr(self, 'confusion_matrix'):
             self.confusion_matrix = C
@@ -546,7 +566,7 @@ class LinearModel():
             model.fit(X=X_train, y=y_train)
 
 
-            if not filter_models or model.score(X_test, y_test) > 0.7:
+            if not filter_models or model.score(X_test, y_test) > 0.55:
                 models.append(model)
             else:
                 print('model filtering on')
@@ -620,11 +640,10 @@ class LinearModel():
 
         for idx, model in enumerate(['full', 'partial']):
 
-            plt.figure(figsize=(18, 8))
-            plt.suptitle(model, fontsize=30)
+            plt.figure(figsize=(9, 4))
+            plt.suptitle(model, fontsize=16)
 
             X, y = self.prepare_data(frames=frames, model=model,
-                                     trial_type='test',
                                      outcomes=outcomes,
                                      n_comps_include=n_comps_in_partial)
 
@@ -644,41 +663,70 @@ class LinearModel():
                 plt.ylim(0,1)
 
 
-    def plot_betas(self, frames, model, n_comps_in_partial=10):
+    def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False,
+                   plot=True):
         
         ''' Plot the beta values of each covariate in the model 
-            TODO: Make compatible with mutliclass classifier
             '''
+
+        penalty = 'l1'
+        C = 0.5
+        solver = 'saga'
+
+        if multiclass:
+          outcomes = ['hit', 'miss', 'fp', 'cr']
+        else:
+          outcomes = ['hit', 'miss']
 
         X, y = self.prepare_data(frames, model, 
                                  n_comps_include=n_comps_in_partial,
-                                 outcomes=['hit', 'miss'])
+                                 outcomes=outcomes)
 
-        acc, std_acc, models = self.logistic_regression(X, y, 'l1', 0.5,
-                                                        'saga', filter_models=False)
+        acc, std_acc, models = self.logistic_regression(X, y, penalty=penalty, C=C,
+                                                        solver=solver, 
+                                                        filter_models=False)
+
         coefs = []
         for model in models:
             coef = np.squeeze(model.coef_)
             coefs.append(coef)
-            plt.plot(coef, '.', markersize=10, color=COLORS[0])
 
-        labels = ['Mean Activity', r'Population $\Delta$F', 'Mean activity pre',
-                  'Mean activity post', 'Mean trace correlation pre', 'Mean trace correlation post']
+            if not plot:
+                continue
+
+            # Plot each fold's betas as points
+            for idx, c in enumerate(coef):
+                label = self.encoder.inverse_transform([idx])[0]
+                plt.plot(c, '.', color=COLORS[idx], label=label, markersize=9)
+
+
+        labels = ['Mean Activity', r'Population $\Delta$F',
+                  'Mean activity pre', 'Mean activity post',
+                  'Mean trace correlation pre', 'Mean trace correlation post']
 
         [labels.append(f'PC{i}') for i in range(n_comps_in_partial)]
+
+        # Useful for full model, how sparse is B vector -> how many cells important?
+        if model == 'full': print(sum(coef == 0) / len(coef))
+
+        if not plot:
+            return coefs, labels
+
+        # Legend with duplicates removed 
+        # https://stackoverflow.com/a/13589144/10723511
+        handles, leg_labels = plt.gca().get_legend_handles_labels()
+        by_label = dict(zip(leg_labels, handles))
+        plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.04,1))
 
         plt.axhline(0, linestyle=':')
         plt.ylabel(r'$\beta$')
         plt.xlabel('Covariate')
         xt = plt.xticks(np.arange(len(labels)), labels,
-                        rotation=90, fontsize=14)
+                      rotation=90, fontsize=14)
 
-        if model == 'full':
-            # Useful for full model, how sparse is B vector -> how many cells important?
-            print(sum(coef == 0) / len(coef))
-
-
-    def partial_model_performance(self, frames, n_comps_in_partial=10, plot=True):
+        
+    def partial_model_performance(self, frames, n_comps_in_partial=10,
+                                  plot=True, multiclass=False):
 
         ''' Plot partial model performance relative to full model 
             performance as a function of number of partial covariates
@@ -690,9 +738,10 @@ class LinearModel():
         solver = 'lbfgs'
         C = 0.5
 
-        # Full model performance
-        outcomes = ['hit', 'miss']
-        # outcomes = ['hit', 'miss', 'fp', 'cr']
+        if multiclass:
+          outcomes = ['hit', 'miss', 'fp', 'cr']
+        else:
+          outcomes = ['hit', 'miss']
 
         X, y = self.prepare_data('all', 'full', outcomes=outcomes)
         mean_full, std_full, _ = self.logistic_regression(X, y, penalty=penalty, 
@@ -724,8 +773,6 @@ class LinearModel():
         for covs in self.add_partial_map.values():
             X = self.dict2matrix({k:v for k, v in covariates_dict.items() if k in covs})
 
-            # mean, std, _ = self.logistic_regression(X, y, 'l1', 0.5, 'saga')
-
             mean, std, _ = self.logistic_regression(X, y, penalty=penalty, 
                                                     C=C, solver=solver)
             means.append(mean)
@@ -740,7 +787,12 @@ class LinearModel():
             tick_labels = list(self.add_partial_map.keys())
             tick_labels.append('Full model')
             plt.xticks(range(len(means)), tick_labels, rotation=80, fontsize=18)
-            plt.axhline(0.5, linestyle=':')
+
+            if not multiclass:
+                plt.axhline(0.5, linestyle=':')
+            else:
+                plt.axhline(0.25, linestyle=':')
+
             plt.ylabel('Mean classification accuracy')
     
         return np.array(means), np.array(stds)
@@ -802,6 +854,12 @@ class LinearModel():
         self.n_times_targetted = np.sum(is_target, 1)
         self.ever_targetted = np.any(is_target, axis=1)
 
+    def remove_targets_from_data(self):
+        self.flu = self.flu[~self.ever_targetted, :, :]
+        self.pre_flu = self.pre_flu[~self.ever_targetted, :, :]
+        self.region_map = {keys:values[~self.ever_targetted] 
+                           for keys, values in self.region_map.items()}
+
     def targets_histogram(self):
 
         ''' Plot n_times_targetted histogram '''
@@ -820,28 +878,27 @@ class LinearModel():
 
         '''
 
-        X, y = self.prepare_data('all', 'full')
+        X, y = self.prepare_data('all', 'full', 
+                                 outcomes=['hit', 'miss', 'cr', 'fp'])
+
         acc, std_acc, models = self.logistic_regression(X, y, 'l1', 0.5,
                                                         'saga')
 
         # The index of the coef that corresponds to hit trials
         hit_idx = self.encoder.transform(['hit'])[0]
-        coef = models[0].coef_[hit_idx, :]
+        # Project cells onto hit axis
+        self.hit_coef = models[0].coef_[hit_idx, :]
 
         # Can we reject the null that the distribution of the target and 
         # non-target betas is the same?
-        _, p_val = ks_2samp(coef[self.ever_targetted],
-                            coef[~self.ever_targetted])
+        _, p_val = ks_2samp(self.hit_coef[self.ever_targetted],
+                            self.hit_coef[~self.ever_targetted])
+
         if p_val < 0.05:
             print('NULL REJECTED!!')
 
-        region_map = {'all': np.repeat(True, self.session.n_cells),
-                      's1': self.session.s1_bool,
-                      's2': self.session.s2_bool
-                      }
-
-        coef = coef[region_map[region]]
-        n_times_targetted = self.n_times_targetted[region_map[region]]
+        coef = self.hit_coef[self.region_map[region]]
+        n_times_targetted = self.n_times_targetted[self.region_map[region]]
 
         plt.plot(n_times_targetted, coef, '.')
         plt.xlabel('Number of times targeted')
@@ -885,8 +942,8 @@ class LinearModel():
         '''
 
         # These hyperparams give the best performance across sessions
-        penalty = 'l2'
-        solver = 'lbfgs'
+        penalty = 'l1'
+        solver = 'saga'
         C = 0.5
         
         # Prepare data for hit and miss trials
@@ -894,15 +951,16 @@ class LinearModel():
                                  outcomes=['hit', 'miss'],
                                  n_comps_include=10)
 
-        # Prepare data for hit and miss trials X, y = self.prepare_data(frames=frames, model=model, n_comps_include=10) 
+        # Prepare data for hit and miss trials 
+        # X, y = self.prepare_data(frames=frames, model=model, n_comps_include=10) 
         # Prepare data for fp vs cr trials
         X_catch, y_catch = self.prepare_data(frames=frames, model=model,
-                                             trial_type='catch', outcomes=['fp', 'cr'],
+                                             outcomes=['fp', 'cr'],
                                              n_comps_include=10)
 
         # Prepare data for prereward trials
         X_pre, y_pre = self.prepare_data(frames=frames, model=model,
-                                         n_comps_include=10, outcomes=['hit', 'miss'],
+                                         n_comps_include=10,
                                          prereward=True)
 
         # Cross validated full model accuracy
@@ -939,9 +997,47 @@ class LinearModel():
                 (np.mean(accs_pre), np.std(accs_pre)))
 
 
+
+
+    def compare_regions(self, frames='all', plot=True):
+        
+        penalty = 'l2'
+        C = 0.5
+        solver = 'lbfgs'
+        
+        regions = ['s1', 's2', 'all']
+
+        mean_accs = []
+        std_accs = []
+
+        for idx, region in enumerate(regions):
+
+            X, y = self.prepare_data(frames=frames, model='full',
+                                     outcomes=['hit', 'miss', 'fp', 'cr'], 
+                                     region=region,
+                                     n_comps_include=0)
+
+            mean_acc, std_acc, _ = self.logistic_regression(X, y, penalty,
+                                                            C, solver)
+            mean_accs.append(mean_acc)
+            std_accs.append(std_acc)
+
+            if plot:
+                plt.errorbar(idx, mean_acc, yerr=std_acc, fmt='o', 
+                             color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
+
+        if plot:
+            plt.ylim(0,1)
+            plt.axhline(0.25)
+            plt.xticks(range(3), regions)
+
+        return mean_accs, std_accs
+
+
+
 class PoolAcrossSessions(AverageTraces):
 
-    def __init__(self, save_PCA=False):
+    def __init__(self, save_PCA=False, remove_targets=False):
         
         ''' Build object to pool across multiple LinearModel objects
 
@@ -973,6 +1069,10 @@ class PoolAcrossSessions(AverageTraces):
         # keep linear model to a single session
         super().__init__('dff')
 
+        # Subsample sessions to make a training set
+        self.sessions = {key:value for key, value in 
+                         self.sessions.items() if key in [2,5,10,14]}
+
         for idx, session in self.sessions.items():
 
             # Components already computed and saved
@@ -990,9 +1090,9 @@ class PoolAcrossSessions(AverageTraces):
             with open(save_path, 'wb') as f:
                 pickle.dump(self.sessions, f)
 
-        # 
-        self.linear_models = [LinearModel(
-            session, self.times_use) for session in self.sessions.values()]
+        self.linear_models = [LinearModel(session, self.times_use,
+                                          remove_targets=remove_targets)
+                              for session in self.sessions.values()]
 
 
     def project_model(self, frames='all', model='full'):
@@ -1029,21 +1129,56 @@ class PoolAcrossSessions(AverageTraces):
             linear_model.setup_flu()  # Should we call this is __init__?
             linear_model.model_params_plot()
 
-    def plot_betas(self, frames, model, n_comps_in_partial=10):
+    def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False):
 
-        plt.figure(figsize=(10,5))
+        ''' Currently only works with multiclass model ''' 
+        
+        all_coefs = []
         for linear_model in self.linear_models:
-            # Will probably want to parse the coefs variable later
-            coefs = linear_model.plot_betas(frames, model, n_comps_in_partial)
+            coefs, labels = linear_model.plot_betas(frames, model, n_comps_in_partial,
+                                                  multiclass=multiclass, plot=False)
+            all_coefs.append(np.array(coefs))
 
-    def partial_model_performance(self, frames, n_comps_in_partial=10):
+        all_coefs = np.vstack(all_coefs)
+
+        # Use this to label the legend if you want to put all boxplots
+        # on the same plot
+        legend_labels = {}
+        
+        for trial_idx in range(all_coefs.shape[1]):
+
+            fig, ax = plt.subplots(figsize=(16,4))
+            trial_coefs = all_coefs[:, trial_idx, :]
+            box = ax.boxplot(trial_coefs, showfliers=True)
+                
+            plt.setp(box['fliers'], markeredgecolor=COLORS[trial_idx])
+            for _, line_list in box.items():
+                for line in line_list:
+                    line.set_color(COLORS[trial_idx])
+        
+            label = self.linear_models[0].encoder.inverse_transform([trial_idx])[0]
+            # Keep track of the boxes and their labels for the legend
+            legend_labels[label] = box['boxes'][0]
+
+            plt.title(label)
+
+            plt.axhline(0, linestyle=':')
+            plt.ylabel(r'$\beta$')
+            plt.xlabel('Covariate')
+            # Boxplot defaults to range(1, N+1)
+            xt = plt.xticks(np.arange(1, len(labels)+1), labels,
+                          rotation=90, fontsize=14)
+
+
+    def partial_model_performance(self, frames, n_comps_in_partial=10, multiclass=False):
         
         means = []
         stds = []
         for linear_model in self.linear_models:
             mean, std = linear_model.partial_model_performance(frames,
-                                                                 n_comps_in_partial,
-                                                                 plot=False)
+                                                               n_comps_in_partial,
+                                                               plot=False,
+                                                               multiclass=multiclass)
             means.append(mean)
             stds.append(std)
 
@@ -1060,8 +1195,72 @@ class PoolAcrossSessions(AverageTraces):
         tick_labels = list(linear_model.add_partial_map.keys())
         tick_labels.append('Full model')
         plt.xticks(range(len(grand_mean)), tick_labels, rotation=80, fontsize=18)
-        plt.axhline(0.5, linestyle=':')
         plt.ylabel('Mean classification accuracy')
-        plt.ylim(0.4, 1)
+        if multiclass:
+          plt.ylim(0, 1)
+          plt.axhline(0.25, linestyle=':')
+        else:
+          plt.ylim(0.4, 1)
+          plt.axhline(0.5, linestyle=':')
+
+
+    def compare_regions(self, frames='all'):
+
+        all_means = []
+        all_stds = []
+
+        for linear_model in self.linear_models: 
+           mean_accs, std_accs = linear_model.compare_regions(frames=frames, plot=False)
+           all_means.append(mean_accs)
+           all_stds.append(std_accs)
+
+        all_means = np.array(all_means)
+        all_stds = np.array(all_stds)
+
+        grand_mean = np.mean(all_means, axis=0)
+        grand_std = self.combine_stds(all_stds)
+
+        plt.errorbar(range(3), grand_mean, yerr=grand_std, fmt='o', 
+                     color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
+
+        regions = ['s1', 's2', 'all']
+
+        plt.ylim(0,1)
+        plt.axhline(0.25, linestyle=':')
+        plt.xticks(range(3), regions)
+    
+    def build_confusion_matrix(self):
+
+        ''' Builds a "3d" confusion matrix, allowing you to stack
+            mutliple confusion matrices by multiple calls to this function
+            designed to later be summed across 3rd dimension
+            '''
+        self.confusion_matrix = None
+
+        for session in self.sessions.values():
+            linear_model = LinearModel(session, self.times_use)
+
+            X, y = linear_model.prepare_data(model='full', 
+                                   outcomes=['hit', 'miss', 'fp', 'cr'])
+
+            acc, std_acc, models = linear_model.logistic_regression(X, y, 'l2', 0.5,
+                                            'lbfgs', compute_confusion=True)
+
+            C = np.sum(linear_model.confusion_matrix, 2)
+
+            # Inefficient but clean way of stacking matrices to 3d for summing
+            # after loop.
+            if self.confusion_matrix is None:
+                self.confusion_matrix = C
+            else:
+                self.confusion_matrix = np.dstack((self.confusion_matrix, C))
+
+        cmd = ConfusionMatrixDisplay(np.sum(self.confusion_matrix, 2),
+                  display_labels=linear_model.encoder.inverse_transform([0,1,2,3]))
+
+        cmd.plot(cmap ='Blues')
+
+
+
 
 
