@@ -14,6 +14,8 @@ from Session import build_flu_array_single
 from utils_funcs import build_flu_array
 import pickle
 from popoff import loadpaths
+from IPython.core.debugger import Pdb
+ipdb = Pdb()
 
 USER_PATHS_DICT = loadpaths.loadpaths()
 
@@ -150,6 +152,18 @@ def trace_correlation(flu, frames):
         trial_corr.append(mean_cov)
 
     return np.array(trial_corr)
+
+
+def largest_singular_value(flu, frames):
+
+    singular_values = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        _, s, _ = np.linalg.svd(trial)
+        singular_values.append(s[0])
+
+    return np.array(singular_values)
 
 
 class LabelEncoder():
@@ -331,8 +345,8 @@ class LinearModel():
         # Select cells from required region
         flu = flu[self.region_map[region], :, :]
 
-        # For the full model the independent variables are the mean activity across the whole trial
-        # for every cell
+        # For the full model the independent variables are the mean activity
+        # across the whole trial for every cell
         if model == 'full':
             X = self.covariates_full(flu=flu, frames=frames)
         elif model == 'partial':
@@ -401,6 +415,16 @@ class LinearModel():
         covariates_dict['corr_pre'] = trace_correlation(flu, self.pre)
         # Mean trace correlation post stim
         covariates_dict['corr_post'] = trace_correlation(flu, self.post)
+
+        # Largest singular value
+        # covariates_dict['singular_value'] = np.array(
+                            # [largest_singular_value(self.flu[:, trial, :]) for trial in range(self.flu.shape[1])]
+                            # )
+
+        covariates_dict['singular_value'] = largest_singular_value(flu, self.remove_artifact)
+
+        covariates_dict['flat'] = np.ones(*covariates_dict['singular_value'].shape)
+
 
         if prereward:
             PCs = self.session.comps_pre
@@ -680,12 +704,11 @@ class LinearModel():
 
         X, y = self.prepare_data(frames, model, 
                                  n_comps_include=n_comps_in_partial,
-                                 outcomes=outcomes)
-
+                                 outcomes=outcomes, return_matrix=True)
+         
         acc, std_acc, models = self.logistic_regression(X, y, penalty=penalty, C=C,
                                                         solver=solver, 
                                                         filter_models=False)
-
         coefs = []
         for model in models:
             coef = np.squeeze(model.coef_)
@@ -702,7 +725,8 @@ class LinearModel():
 
         labels = ['Mean Activity', r'Population $\Delta$F',
                   'Mean activity pre', 'Mean activity post',
-                  'Mean trace correlation pre', 'Mean trace correlation post']
+                  'Mean trace correlation pre', 'Mean trace correlation post',
+                  'Largest SV', 'flat']
 
         [labels.append(f'PC{i}') for i in range(n_comps_in_partial)]
 
@@ -1189,6 +1213,7 @@ class PoolAcrossSessions(AverageTraces):
         grand_mean = np.mean(means, 0)
         grand_std = self.combine_stds(stds)
         
+        plt.figure(figsize=(8,6))
         plt.errorbar(range(len(grand_mean)), grand_mean, yerr=grand_std, fmt='o', 
                      color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
 
