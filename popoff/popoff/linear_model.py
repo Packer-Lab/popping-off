@@ -10,7 +10,7 @@ from scipy import sparse
 from scipy.stats import ks_2samp, mode
 from average_traces import AverageTraces
 from pop_off_functions import prob_correct, mean_accuracy, score_nonbinary
-from Session import build_flu_array_single
+from Session import build_flu_array_single, SessionLite
 from utils_funcs import build_flu_array
 import pickle
 from popoff import loadpaths
@@ -53,7 +53,8 @@ def do_pca(data, model, plot=False):
     return varexp, components
 
 
-def pca_session(session, n_components=100, plot=False):
+def pca_session(session, cells_include, n_components=100, plot=False, 
+                save_PC_matrix=False):
 
     ''' Appends comps attributes to session objects
 
@@ -80,7 +81,8 @@ def pca_session(session, n_components=100, plot=False):
     # Load in the full dff data
     session.load_data()
     run = session.run
-    flu = session.run.flu
+    flu = session.run.flu[session.filtered_neurons, :]
+    flu = flu[cells_include, :]
 
     _, components = do_pca(flu, PCA(n_components=n_components), plot=plot)
     # Hacky but straightforward, stick the components into the run object to send it into
@@ -117,38 +119,46 @@ def pca_session(session, n_components=100, plot=False):
                                      post_frames=session.post_frames, use_comps=True, fs=30,
                                      prereward=True)
 
-
     # Remove NaN trials
     session.comps = arr[:, session.nonnan_trials, :]
     nonnan_pre = np.unique(np.where(~np.isnan(arr_pre))[1])
     session.comps_pre = arr_pre[:, nonnan_pre, :]
 
-    session.clean_obj()  # "Garbage collection" to remove session.run
+    if not save_PC_matrix:
+        session.clean_obj()  # "Garbage collection" to remove session.run
 
     return session
 
+def noise_correlation(flu, signal_trials, frames):
 
-def trace_correlation(flu, frames):
-
-    ''' Compute trial-wise trace correlation for fluoresence array 
+    ''' Compute trial-wise noise correlation for fluoresence array ->
+        pairwise correlations minus mean
+        
 
     Parameters
     ----------
     flu : fluoresence array [n_cells x n_trials x n_frames]
+    signal_trials : which trials do you want to calculate the 
+                    mean from for subtraction
     frames : indexing array, frames across which to compute correlation
 
     Returns
     -------
     trial_corr : vector of len n_trials ->
-                 mean of covariance matrix on each trial.
+                 mean of correlation coefficient matrix matrix on each trial.
+                 TODO: remove the diagonal (won't make much difference)
 
     '''
 
     trial_corr = []
+    # mean_to_subtract = np.mean(flu[:, signal_trials, :], 1)
+    # mean_to_subtract = mean_to_subtract[:, frames]
+
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-        mean_cov = np.mean(np.cov(trial), (0, 1))
+        # trial = trial - mean_to_subtract
+        mean_cov = np.mean(np.corrcoef(trial), (0, 1))
         trial_corr.append(mean_cov)
 
     return np.array(trial_corr)
@@ -164,7 +174,6 @@ def largest_singular_value(flu, frames):
         singular_values.append(s[0])
 
     return np.array(singular_values)
-
 
 class LabelEncoder():
     ''' Reimplement skearn.preprocessing.LabelEncoder for user defined label
@@ -240,11 +249,12 @@ class LinearModel():
         # rather than using class inheritence so that this class does
         # not need to load every session
         self.times_use = times_use
+        self.remove_targets = remove_targets
 
         self.setup_flu()
         self.target_info()
 
-        if remove_targets:
+        if self.remove_targets:
             self.remove_targets_from_data()
 
         # Init encoder with required sort order
@@ -351,7 +361,7 @@ class LinearModel():
             X = self.covariates_full(flu=flu, frames=frames)
         elif model == 'partial':
             covariates_dict = self.covariates_partial(flu=flu, frames=frames,
-                                        trial_bool=trial_bool,
+                                        trial_bool=trial_bool, region=region,
                                         n_comps_include=n_comps_include,
                                         prereward=prereward)
             X = self.dict2matrix(covariates_dict)
@@ -392,7 +402,9 @@ class LinearModel():
         
         return self.transform_data(X)
 
-    def covariates_partial(self, flu, frames, trial_bool, n_comps_include, prereward=False):
+    def covariates_partial(self, flu, frames, trial_bool, n_comps_include,
+                            region='all', prereward=False):
+
 
         # Function to subtract the mean of pre frames from the
         # mean of post frames -> [n_cells x n_trials]
@@ -412,24 +424,24 @@ class LinearModel():
         covariates_dict['mean_post'] = np.mean(flu[:, :, self.post], (0, 2))
 
         # Mean trace correlation pre stim
-        covariates_dict['corr_pre'] = trace_correlation(flu, self.pre)
+        covariates_dict['corr_pre'] = noise_correlation(flu, self.session.photostim==1, self.pre)
         # Mean trace correlation post stim
-        covariates_dict['corr_post'] = trace_correlation(flu, self.post)
+        covariates_dict['corr_post'] = noise_correlation(flu, self.session.photostim==1, self.post)
 
-        # Largest singular value
-        # covariates_dict['singular_value'] = np.array(
-                            # [largest_singular_value(self.flu[:, trial, :]) for trial in range(self.flu.shape[1])]
-                            # )
+        covariates_dict['largest_singular_value'] = largest_singular_value(flu, self.pre)
 
-        covariates_dict['singular_value'] = largest_singular_value(flu, self.remove_artifact)
-
-        covariates_dict['flat'] = np.ones(*covariates_dict['singular_value'].shape)
+        covariates_dict['flat'] = np.ones(*covariates_dict['delta_f'].shape)
 
 
         if prereward:
+            if region != 'all': 
+                raise NotImplementedError('prereward comps do not yet have '
+                                           'region dependency')
             PCs = self.session.comps_pre
         else:
-            PCs = self.session.comps
+            # PCs = self.session.comps
+            print(f' Cell included from region {region}')
+            PCs = self.session.pca_dict[region]
             PCs = PCs[:, trial_bool, :]
 
         PCs = PCs[:, :, self.session.frames_use]
@@ -456,58 +468,6 @@ class LinearModel():
             covariates_dict = {k:covariates_dict[k] for k in post_keys}
 
         return covariates_dict
-
-    def covariates_partial_bak(self, flu, frames, trial_bool, n_comps_include, prereward=False):
-
-        # Function to subtract the mean of pre frames from the
-        # mean of post frames -> [n_cells x n_trials]
-        sub_frames = lambda arr: np.mean(arr[:, :, self.post], 2) - np.mean(arr[:, :, self.pre], 2)
-
-        # Mean population activity on every trial
-        x1 = np.mean(flu[:, :, self.remove_artifact], (0, 2))
-
-        # Average post - pre across all cells
-        x2 = np.mean(sub_frames(flu), 0)
-
-        # Mean network activity just before the stim
-        x3 = np.mean(flu[:, :, self.pre], (0, 2))
-        # Mean network activity just after the stim
-        x4 = np.mean(flu[:, :, self.post], (0, 2))
-
-        # Mean trace correlation pre stim
-        x5 = trace_correlation(flu, self.pre)
-        # Mean trace correlation post stim
-        x6 = trace_correlation(flu, self.post)
-
-        if prereward:
-            PCs = self.session.comps_pre
-        else:
-            PCs = self.session.comps
-            PCs = PCs[:, trial_bool, :]
-
-        PCs = PCs[:, :, self.session.frames_use]
-
-        assert n_comps_include <= PCs.shape[0]
-        PCs = PCs[0:n_comps_include, :, :]
-
-        if frames == 'all':
-            x7 = sub_frames(PCs)
-        elif frames == 'pre':
-            x7 = np.mean(PCs[:, :, self.pre], 2)
-        elif frames == 'post':
-            x7 = np.mean(PCs[:, :, self.post], 2)
-
-        # Use this if you don't want to subtract but rather mean whole trace (worse performance)
-        #x3 = np.mean(PCs[:, :, remove_artifact], 2)
-
-        if frames == 'all':
-            X = np.vstack((x1, x2, x3, x4, x5, x6, x7))
-        elif frames == 'pre':
-            X = np.vstack((x3, x5, x7))
-        elif frames == 'post':
-            X = np.vstack((x4, x6, x7))
-
-        return X
 
     def build_confusion_matrix(self, y_true, y_pred):
         
@@ -688,7 +648,7 @@ class LinearModel():
 
 
     def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False,
-                   plot=True):
+                   plot=True, region='all'):
         
         ''' Plot the beta values of each covariate in the model 
             '''
@@ -703,7 +663,7 @@ class LinearModel():
           outcomes = ['hit', 'miss']
 
         X, y = self.prepare_data(frames, model, 
-                                 n_comps_include=n_comps_in_partial,
+                                 n_comps_include=n_comps_in_partial, region=region,
                                  outcomes=outcomes, return_matrix=True)
          
         acc, std_acc, models = self.logistic_regression(X, y, penalty=penalty, C=C,
@@ -725,7 +685,7 @@ class LinearModel():
 
         labels = ['Mean Activity', r'Population $\Delta$F',
                   'Mean activity pre', 'Mean activity post',
-                  'Mean trace correlation pre', 'Mean trace correlation post',
+                  'Mean noise correlation pre', 'Mean noise correlation post',
                   'Largest SV', 'flat']
 
         [labels.append(f'PC{i}') for i in range(n_comps_in_partial)]
@@ -733,21 +693,20 @@ class LinearModel():
         # Useful for full model, how sparse is B vector -> how many cells important?
         if model == 'full': print(sum(coef == 0) / len(coef))
 
-        if not plot:
-            return coefs, labels
 
-        # Legend with duplicates removed 
-        # https://stackoverflow.com/a/13589144/10723511
-        handles, leg_labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(leg_labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.04,1))
+        if plot:
+            # Legend with duplicates removed 
+            # https://stackoverflow.com/a/13589144/10723511
+            handles, leg_labels = plt.gca().get_legend_handles_labels()
+            by_label = dict(zip(leg_labels, handles))
+            plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.04,1))
+            plt.axhline(0, linestyle=':')
+            plt.ylabel(r'$\beta$')
+            plt.xlabel('Covariate')
+            xt = plt.xticks(np.arange(len(labels)), labels,
+                          rotation=90, fontsize=14)
 
-        plt.axhline(0, linestyle=':')
-        plt.ylabel(r'$\beta$')
-        plt.xlabel('Covariate')
-        xt = plt.xticks(np.arange(len(labels)), labels,
-                      rotation=90, fontsize=14)
-
+        return coefs, labels
         
     def partial_model_performance(self, frames, n_comps_in_partial=10,
                                   plot=True, multiclass=False):
@@ -1058,6 +1017,30 @@ class LinearModel():
         return mean_accs, std_accs
 
 
+    def pca_regions(self, n_components=100, save_PC_matrix=False):
+
+        ''' Driver function for pca_session to build PCs based on cells in
+            s1 and s2 seperately 
+
+            Returns:  
+            '''
+
+        self.session.pca_dict = {}
+        for region_name, cells_include in self.region_map.items():
+
+            if self.remove_targets:
+                # Awkward af, need to "add back in" previously removed targets
+                # to the cells_include boolean but set them to False 
+                # could cause future bugs
+                temp = np.repeat(False, self.ever_targetted.shape)
+                temp[~self.ever_targetted] = cells_include
+                cells_include = temp
+
+            session = pca_session(self.session, cells_include, n_components=n_components, plot=False, 
+                        save_PC_matrix=save_PC_matrix)
+            # Weird way of building a dictionary from session attributes but avoids
+            # changing the structure of pca_session to split by region
+            self.session.pca_dict[region_name] = session.comps
 
 class PoolAcrossSessions(AverageTraces):
 
@@ -1093,18 +1076,23 @@ class PoolAcrossSessions(AverageTraces):
         # keep linear model to a single session
         super().__init__('dff')
 
-        # Subsample sessions to make a training set
-        self.sessions = {key:value for key, value in 
-                         self.sessions.items() if key in [2,5,10,14]}
 
-        for idx, session in self.sessions.items():
+        self.linear_models = [LinearModel(session, self.times_use,
+                                          remove_targets=remove_targets)
+                              for session in self.sessions.values()]
+
+        # Add PCA attributes to session if they are not already saved
+        # for idx, session in self.sessions.items():
+        for idx, linear_model in enumerate(self.linear_models):
 
             # Components already computed and saved
-            if hasattr(session, 'comps') and not save_PCA:  
+            if hasattr(linear_model.session, 'comps') and not save_PCA:  
                 continue
             else: 
-                self.sessions[idx] = pca_session(session, n_components=100,
-                                                 plot=False)
+               linear_model.pca_regions(n_components=20, save_PC_matrix=False)
+               self.sessions[idx] = linear_model.session
+                # self.sessions[idx] = pca_session(session, n_components=100,
+                                                 # plot=False)
 
         # Cache the PCA components to the Session object so we do not need to
         # recalculate every time this class is initialised
@@ -1114,10 +1102,15 @@ class PoolAcrossSessions(AverageTraces):
             with open(save_path, 'wb') as f:
                 pickle.dump(self.sessions, f)
 
+        # Subsample sessions to make a training set
+        self.sessions = {key:value for key, value in 
+                         self.sessions.items() if key in [2,5,14]}
+
+        # This is a shitty fix redefining this variable but it allows for caching
+        # of the pca_dict variable
         self.linear_models = [LinearModel(session, self.times_use,
                                           remove_targets=remove_targets)
                               for session in self.sessions.values()]
-
 
     def project_model(self, frames='all', model='full'):
 
@@ -1153,14 +1146,16 @@ class PoolAcrossSessions(AverageTraces):
             linear_model.setup_flu()  # Should we call this is __init__?
             linear_model.model_params_plot()
 
-    def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False):
+    def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False,
+                   region='all'):
 
         ''' Currently only works with multiclass model ''' 
         
         all_coefs = []
         for linear_model in self.linear_models:
             coefs, labels = linear_model.plot_betas(frames, model, n_comps_in_partial,
-                                                  multiclass=multiclass, plot=False)
+                                                  region=region, multiclass=multiclass,
+                                                  plot=False)
             all_coefs.append(np.array(coefs))
 
         all_coefs = np.vstack(all_coefs)
