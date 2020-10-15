@@ -1102,15 +1102,45 @@ class PoolAcrossSessions(AverageTraces):
             with open(save_path, 'wb') as f:
                 pickle.dump(self.sessions, f)
 
-        # Subsample sessions to make a training set
-        self.sessions = {key:value for key, value in 
-                         self.sessions.items() if key in [2,5,14]}
 
-        # This is a shitty fix redefining this variable but it allows for caching
-        # of the pca_dict variable
-        self.linear_models = [LinearModel(session, self.times_use,
-                                          remove_targets=remove_targets)
-                              for session in self.sessions.values()]
+        timescales_pkl = 'OASIS_TAU_dffDetrended_60Pre60PostStim_sessions_liteNoSPKS3_flu.pkl'
+        timescales_pkl_path = os.path.join(USER_PATHS_DICT['base_path'], timescales_pkl)
+
+        with open(timescales_pkl_path, 'rb') as f:
+            timescale_sessions = pickle.load(f)
+
+        # Subsample sessions to make a training set
+        # Now done only for timescale sessions
+        # self.sessions = {key:value for key, value in 
+                         # self.sessions.items() if key in [2,5,14]}
+
+        # Indexs of the timescales sessions to keep as a training set
+        keep_sessions = [0,4,7]
+        # Match it to the daddy sessions using the __repr__ string that contains
+        # mouse id and session number
+        timescale_sessions = {key:session for key, session in timescale_sessions.items() if key in keep_sessions}
+
+        # reprs of the timescales sessions, switch key value order to lookup key later
+        session_stamps = {session.__repr__():key for key, session in timescale_sessions.items()}
+
+        # Subsample self.sessions to get the same as timescale sessions
+        temp = {}
+        for key, session in self.sessions.items():
+            if session.__repr__() in session_stamps.keys():
+                temp[session_stamps[session.__repr__()]] = session
+
+        # self.sessions = temp
+
+        # # Get the tau_dict into the daddy session
+        for key in self.sessions.keys():
+            self.sessions[key].tau_dict = timescale_sessions[key].tau_dict
+
+        # ipdb.set_trace()
+        # # This is a shitty fix redefining this variable but it allows for caching
+        # # of the pca_dict variable
+        # self.linear_models = [LinearModel(session, self.times_use,
+                                          # remove_targets=remove_targets)
+                              # for session in self.sessions.values()]
 
     def project_model(self, frames='all', model='full'):
 
