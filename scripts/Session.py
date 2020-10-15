@@ -415,9 +415,27 @@ class Session:
             print('Occurence table:')
             print(self.occ_table)
 
+    def load_timescales_pkl(self):
+        ''' Temporary function to get the nonnan_trials from matthias' timescales pkl '''
+
+        timescales_pkl = 'OASIS_TAU_dffDetrended_60Pre60PostStim_sessions_liteNoSPKS3_flu.pkl'
+        timescales_pkl_path = os.path.join(USER_PATHS_DICT['base_path'], timescales_pkl)
+
+        with open(timescales_pkl_path, 'rb') as f:
+            timescale_sessions = pickle.load(f)
+
+        self.nonnan_trials = None
+        for ts in timescale_sessions.values():
+            if ts.mouse == self.mouse and ts.run_number == self.run_number:
+                self.nonnan_trials = ts.nonnan_trials
+
+
     def remove_nan_trials_inplace(self, vverbose=1):
         """Identify trials for which NaN values occur in the neural activity and remove those."""
-        self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
+        self.load_timescales_pkl()
+        if self.nonnan_trials is None:  # Session is not in the timescales pkl
+            self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
+
         self.behaviour_trials = self.behaviour_trials[:, self.nonnan_trials, :]
         self.photostim = self.photostim[self.nonnan_trials]
         self.decision = self.decision[self.nonnan_trials]
