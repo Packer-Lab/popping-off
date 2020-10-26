@@ -5,13 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.decomposition import PCA, NMF
-from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score
 from scipy import sparse
 from scipy.stats import ks_2samp, mode
 from average_traces import AverageTraces
 from pop_off_functions import prob_correct, mean_accuracy, score_nonbinary
 from Session import build_flu_array_single, SessionLite
 from utils_funcs import build_flu_array
+import copy
 import pickle
 from popoff import loadpaths
 from IPython.core.debugger import Pdb
@@ -430,8 +431,18 @@ class LinearModel():
 
         covariates_dict['largest_singular_value'] = largest_singular_value(flu, self.pre)
 
-        covariates_dict['flat'] = np.ones(*covariates_dict['delta_f'].shape)
+        covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
+        covariates_dict['ts_s1_pre'] = self.session.tau_dict['S1_pre'][trial_bool]
+
+        covariates_dict['ts_s2_pre'] = self.session.tau_dict['S2_pre'][trial_bool]
+
+        covariates_dict['ts_both_pre'] = self.session.tau_dict['all_pre'][trial_bool]
+
+        for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
+            val = covariates_dict[key]
+            val[np.logical_or(val < 30, val > 3000)] = 0
+            covariates_dict[key] = val
 
         if prereward:
             if region != 'all': 
@@ -489,7 +500,8 @@ class LinearModel():
 
     def logistic_regression(self, X, y, penalty, C, solver='lbfgs', n_folds=5, 
                             digital_score=True, compute_confusion=False,
-                            filter_models=False):
+                            random_state=None, filter_models=False,
+                            return_results=False, stratified_kfold=False):
         
         ''' Perform cross validated logistic regression on data
             Driver function for sklearn class https://tinyurl.com/sklearn-logistic
@@ -518,6 +530,11 @@ class LinearModel():
             case is scored as right or wrong. If False, performance is scored
             as model confidence.
 
+        random_state : {None, int, numpy.random.RandomState instance}, default=None 
+            see sklearn docs, seed of random number generator used for kfold
+            splits. None will cause different kfold splits with each function
+            call. Int will seed and provide the same splits on each calls
+
         compute_confusion : bool, default False
             Whether to add results to self.confusion_matrix
 
@@ -538,17 +555,24 @@ class LinearModel():
         results = []
         models = []
 
-        folds = sklearn.model_selection.KFold(n_splits=n_folds, shuffle=True)
+        if stratified_kfold:
+            kfold = sklearn.model_selection.StratifiedKFold
+        else:
+            kfold = sklearn.model_selection.KFold
+
+        folds = kfold(n_splits=n_folds, shuffle=True, 
+                      random_state=random_state)
 
         for train_idx, test_idx in folds.split(X, y):
+            
 
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
 
             model =  sklearn.linear_model.LogisticRegression(penalty=penalty, C=C,
-                                                            class_weight='balanced', solver=solver)
+                                                            class_weight='balanced', solver=solver,
+                                                            random_state=random_state)
             model.fit(X=X_train, y=y_train)
-
 
             if not filter_models or model.score(X_test, y_test) > 0.55:
                 models.append(model)
@@ -560,11 +584,16 @@ class LinearModel():
                 self.build_confusion_matrix(y_test, model.predict(X_test))
 
             if digital_score:
-                results.append(model.score(X_test, y_test))
+                # results.append(model.score(X_test, y_test))
+                # results.append(roc_auc_score(y_test, model.predict(X_test))) 
+                results.append(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])) 
             else:
                 results.append(score_nonbinary(model, X_test, y_test))
 
-        return np.mean(results), np.std(results), models
+        if return_results:
+            return results, models
+        else:
+            return np.mean(results), np.std(results), models
 
 
     def performance_vs_reg(self, X, y, penalty, solvers):
@@ -683,10 +712,13 @@ class LinearModel():
                 plt.plot(c, '.', color=COLORS[idx], label=label, markersize=9)
 
 
-        labels = ['Mean Activity', r'Population $\Delta$F',
-                  'Mean activity pre', 'Mean activity post',
-                  'Mean noise correlation pre', 'Mean noise correlation post',
-                  'Largest SV', 'flat']
+        # labels = ['Mean Activity', r'Population $\Delta$F',
+                  # 'Mean activity pre', 'Mean activity post',
+                  # 'Mean noise correlation pre', 'Mean noise correlation post',
+                  # 'Largest SV', 'flat', 'ts_pre_s1', 'ts_pre_s2', 'ts_pre_both']
+        labels = ['Mean activity pre', 'mean noise corrlelation pre', 'largest_singular_value pre',
+                  'flat', 'ts_pre_s1', 'ts_pre_s2', 'ts_pre_both']
+
 
         [labels.append(f'PC{i}') for i in range(n_comps_in_partial)]
 
@@ -1042,6 +1074,180 @@ class LinearModel():
             # changing the structure of pca_session to split by region
             self.session.pca_dict[region_name] = session.comps
 
+
+    def dropout(self, region='s1', return_results=True, plot=True):
+
+        X, y = self.prepare_data(frames='all', model='partial',
+                                 outcomes=['hit', 'miss'], 
+                                 region=region,
+                                 n_comps_include=0,
+                                 return_matrix=False,)
+                                 
+
+        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value',
+                     f'ts_{region}_pre']
+
+        X = {k:v for k,v in X.items() if k in covs_keep}
+
+        penalty = 'l1'
+        C = 0.5
+        solver = 'saga'
+
+        results_dict = {}
+
+        # Full 
+        results, models = self.logistic_regression(self.dict2matrix(X), y, 
+                                                              penalty=penalty, C=C,
+                                                              solver=solver, 
+                                                              n_folds=5,
+                                                              random_state=0,
+                                                              filter_models=False,
+                                                              return_results=True,
+                                                              stratified_kfold=True)
+        results_dict['all_covs'] = results
+
+        if plot: plt.figure(figsize=(12,6))
+        n_points = 0
+
+        if plot:
+            plt.plot([n_points]*len(results), results, '.', color=COLORS[0])
+        # plt.errorbar(n_points, full_acc, yerr=full_std, capsize=20)
+
+        n_points += 1
+
+        for label, cov in X.items():
+            temp_dict = copy.deepcopy(X)
+            temp_dict.pop(label, None)
+            
+            results, _ = self.logistic_regression(self.dict2matrix(temp_dict), y,
+                                                  penalty=penalty, C=C, solver=solver,
+                                                  random_state=0,
+                                                  n_folds=5,
+                                                  filter_models=False,
+                                                  return_results=True,
+                                                  stratified_kfold=True)
+            results_dict[label] = results
+
+            # plt.errorbar(n_points, acc, yerr=std_acc, capsize=20)
+            if plot:
+                plt.plot([n_points]*len(results), results, '.', color=COLORS[1])
+            n_points += 1
+
+
+        np.random.shuffle(y)
+        # This shouldn't be repeated three times
+        results, _ = self.logistic_regression(self.dict2matrix(temp_dict), y,
+                                              penalty=penalty, C=C, solver=solver,
+                                              random_state=0,
+                                              n_folds=5,
+                                              filter_models=False,
+                                              return_results=True,
+                                              stratified_kfold=True)
+
+        results_dict['shuffled_null'] = results
+
+
+        if plot:
+            labels = list(X.keys())
+            
+            labels.insert(0, 'No Covariate dropped') 
+
+            plt.xticks(np.arange(n_points), labels, rotation=90)
+            plt.ylabel('Classification Accuracy')
+            plt.xlabel('Covariate Dropped')
+            plt.title(region.upper())
+            plt.ylim((0.4, 1))
+            plt.axhline(0.5, ls=':')
+
+            # For the beta plot
+            plt.figure(figsize=(12,6))
+
+        coefs = []
+        for model in models:
+            coef = np.squeeze(model.coef_)
+            coefs.append(coef)
+            # Plot each fold's betas as points
+            if plot: plt.plot(coef, '.', color=COLORS[0], markersize=9)
+
+        if plot:
+            labels.pop(0)
+            plt.xticks(np.arange(n_points), labels, rotation=90)
+            plt.axhline(0)
+
+        return results_dict, coefs
+
+    def single_covariate(self, region='s1', plot=True):
+
+        X, y = self.prepare_data(frames='all', model='partial',
+                                 outcomes=['hit', 'miss'], 
+                                 region=region,
+                                 n_comps_include=0,
+                                 return_matrix=False)
+
+        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value',
+                     f'ts_{region}_pre']
+
+        X = {k:v for k,v in X.items() if k in covs_keep}
+
+        penalty = 'l1'
+        C = 0.5
+        solver = 'saga'
+
+        n_points = 0
+
+        if plot:
+            plt.figure(figsize=(12,6))
+
+        means_dict = {}
+        stds_dict = {}
+        for label, cov in X.items():
+
+            cov = np.expand_dims(cov, axis=1)
+            acc, std_acc, models = self.logistic_regression(cov, y, penalty=penalty, C=C,
+                                                            solver=solver, 
+                                                            filter_models=False,
+                                                            stratified_kfold=True)
+
+            means_dict[label] = acc
+            stds_dict[label] = std_acc
+
+            if plot:
+                plt.errorbar(n_points, acc, yerr=std_acc, capsize=20)
+            n_points += 1
+
+        # Include all covariates
+        acc, std_acc, models = self.logistic_regression(self.dict2matrix(X), y, penalty=penalty, C=C,
+                                                        solver=solver, 
+                                                        filter_models=False,
+                                                        stratified_kfold=True)
+
+        means_dict['all_covariates'] = acc
+        stds_dict['all_covariates'] = std_acc
+
+        np.random.shuffle(y)
+        acc, std_acc, models = self.logistic_regression(self.dict2matrix(X), y, penalty=penalty, C=C,
+                                                        solver=solver, 
+                                                        filter_models=False,
+                                                        stratified_kfold=True)
+
+        means_dict['shuffled_null'] = acc
+        stds_dict['shuffled_null'] = std_acc
+
+        if plot:
+            plt.errorbar(n_points, acc, yerr=std_acc, capsize=20)
+            n_points += 1
+
+            labels = list(X.keys())
+            labels.append('All covariates')
+
+            plt.xticks(np.arange(n_points), labels, rotation=90)
+            plt.axhline(0.5, linestyle=':')
+            plt.ylabel('Classification Accuracy')
+
+        return means_dict, stds_dict
+
+
+
 class PoolAcrossSessions(AverageTraces):
 
     def __init__(self, save_PCA=False, remove_targets=False):
@@ -1115,7 +1321,7 @@ class PoolAcrossSessions(AverageTraces):
                          # self.sessions.items() if key in [2,5,14]}
 
         # Indexs of the timescales sessions to keep as a training set
-        keep_sessions = [0,4,7]
+        keep_sessions = [0,3,7]
         # Match it to the daddy sessions using the __repr__ string that contains
         # mouse id and session number
         timescale_sessions = {key:session for key, session in timescale_sessions.items() if key in keep_sessions}
@@ -1129,7 +1335,7 @@ class PoolAcrossSessions(AverageTraces):
             if session.__repr__() in session_stamps.keys():
                 temp[session_stamps[session.__repr__()]] = session
 
-        # self.sessions = temp
+        self.sessions = temp
 
         # # Get the tau_dict into the daddy session
         for key in self.sessions.keys():
@@ -1138,9 +1344,9 @@ class PoolAcrossSessions(AverageTraces):
         # ipdb.set_trace()
         # # This is a shitty fix redefining this variable but it allows for caching
         # # of the pca_dict variable
-        # self.linear_models = [LinearModel(session, self.times_use,
-                                          # remove_targets=remove_targets)
-                              # for session in self.sessions.values()]
+        self.linear_models = [LinearModel(session, self.times_use,
+                                          remove_targets=remove_targets)
+                              for session in self.sessions.values()]
 
     def project_model(self, frames='all', model='full'):
 
@@ -1309,6 +1515,104 @@ class PoolAcrossSessions(AverageTraces):
                   display_labels=linear_model.encoder.inverse_transform([0,1,2,3]))
 
         cmd.plot(cmap ='Blues')
+
+    def dropout(self, region='s1'):
+
+        # This is so shit
+        mean_accs = {}
+        std_accs = {}
+        all_betas = []
+        for linear_model in self.linear_models: 
+            results_dict, betas = linear_model.dropout(region=region, plot=False)
+            all_betas.append(betas)
+            for k, v in results_dict.items():
+                try:
+                    mean_accs[k] = np.append(np.mean(v), mean_accs[k])
+                    std_accs[k] = np.append(np.std(v), std_accs[k])
+                except KeyError:
+                    mean_accs[k] = np.array(np.mean(v))
+                    std_accs[k] = np.array(np.std(v))
+
+        all_betas = np.array(all_betas)
+        # This is gonna cause an error
+        all_betas = all_betas.reshape(15, 4)
+
+        n_points = 0
+        for (label, means), (label2, stds) in zip(mean_accs.items(), std_accs.items()):
+            assert label == label2  # Make sure the dicts are not in wrong order
+            plt.errorbar(n_points, np.mean(means), self.combine_stds(stds)/5, marker='o',
+                         capsize=10, color=COLORS[0])
+            n_points += 1
+
+        labels = list(mean_accs.keys())
+        xt = plt.xticks(np.arange(len(labels)), labels,
+                        rotation=90, fontsize=14)
+        # plt.ylim(0.4,0.75)
+        plt.ylabel('AUC(ROC)')
+        plt.xlabel('Dropped covariate')
+        plt.title(region)
+
+        plt.figure(figsize=(12,6))
+        labels.pop(0)
+        labels.pop(-1)
+        plt.errorbar(np.arange(all_betas.shape[1]), np.mean(all_betas, 0), 
+                     np.std(all_betas, 0), fmt='o',
+                     capsize=10, color=COLORS[0])
+        xt = plt.xticks(np.arange(len(labels)), labels,
+                        rotation=90, fontsize=14)
+        plt.axhline(0, linestyle=':')
+        plt.title(region)
+
+
+    def single_covariate(self, region='s1'):
+
+        for idx, linear_model in enumerate(self.linear_models):
+            mean_acc, std_acc = linear_model.single_covariate(region=region, plot=False)
+            
+            if idx == 0:
+                all_means = mean_acc
+                all_stds = std_acc
+            else:
+                for key in mean_acc.keys():
+                    all_means[key] = np.append(all_means[key], mean_acc[key]) 
+                    all_stds[key] = np.append(all_stds[key], std_acc[key]) 
+
+        n_points = 0
+        for (label, means), (label2, stds) in zip(all_means.items(), all_stds.items()):
+            assert label == label2
+            plt.errorbar(n_points, np.mean(means), self.combine_stds(stds)/5, fmt='o', 
+                         color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
+            n_points += 1
+                
+
+        labels = all_means.keys()
+        xt = plt.xticks(np.arange(len(labels)), labels,
+                      rotation=90, fontsize=14)
+
+        plt.ylabel('AUC(ROC)')
+        plt.xlabel('Single Covariate in model')
+        # plt.ylim(0.4,0.7)
+        plt.title(region)
+
+
+
+
+
+            
+
+            
+            
+
+
+
+
+
+        
+            
+            
+
+            
+
 
 
 
