@@ -22,6 +22,7 @@
 * *symbol*: $X$
 * *size* ($n_{neurons}$ x $n_{times}$)
 * *defined by:* neural recordings
+
 #### Synonyms:
 * The activity of 1 neuron $i$ is row $i$: $x_i(t)$
 * Neural dynamics
@@ -32,6 +33,7 @@
 * *symbol*: $C$
 * *size*: ($n_{neurons}$ x $n_{neurons}$)
 * *defined by*: covariance of activity matrix $X$
+
 #### Synonyms:
 * pairwise covariance
 
@@ -42,6 +44,7 @@
 * *symbol*: $V$
 * *size matrix*: ($n_{comps}$ x $n_{neurons}$)
 * *defined by*: eigendecomposition $C = V L V^T$, where $L$ is the (diagonal) matrix with eigenvalues
+
 #### Synonyms:
 * Loading matrix
 * principal axes
@@ -55,6 +58,7 @@
 * *symbol*: $L$
 * *size*: ($n_{comps}$, $n_{comps}$) = ($n_{neurons}$, $n_{neurons}$) (equal in case of full eigendecomposition)
 * *defined by*: eigendecomposition $ = V L V^T$, where $V$ is the matrix of eigenvectors
+
 #### Synonyms:
 * eigenvalues $\lambda_k$ are on the diagonal 
 * variance explained = eigenvalues / sum(eigenvalues) = $\frac{\lambda_k}{\sum_k \lambda_k}$
@@ -66,6 +70,7 @@
 * *symbol*: $Z$
 * *size matrix*: (n_comps x n_times)
 * *defined by*: $Z = V \cdot X$ (Principal directions _dot_ Neural activity)
+
 #### Synonyms:
 * The activity of one PC $k$ is row $k$: $z_k(t)$
 * Neural activity projected onto Principal axes
