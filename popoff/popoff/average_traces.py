@@ -133,9 +133,12 @@ class AverageTraces():
         with different frame rates '''
 
         # Find the frames to use that match across all sessions
-        baseline_start = -2  # Could be a param of class?
+        # This is used to fix matthias' crazy long trials
+        baseline_start = -2  
+        trial_end = 6
         self.times_use = self.tp_dict['mutual']
         self.times_use = self.times_use[self.times_use >= baseline_start]
+        self.times_use = self.times_use[self.times_use <= trial_end]
 
         for idx, session in self.sessions.items():
 

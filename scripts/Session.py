@@ -6,15 +6,15 @@ from popoff import loadpaths
 
 print(loadpaths.__file__)
 
-user_paths_dict = loadpaths.loadpaths()
+USER_PATHS_DICT = loadpaths.loadpaths()
 
-path_to_vape = user_paths_dict['vape_path']
+path_to_vape = USER_PATHS_DICT['vape_path']
 
 sys.path.append(path_to_vape)
 sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))
 
-oasis_path = user_paths_dict['oasis_path']
+oasis_path = USER_PATHS_DICT['oasis_path']
 sys.path.append(oasis_path)
 
 import numpy as np
@@ -276,7 +276,7 @@ class Session:
     
         self.s1s2_border = s1s2_border_json[self.mouse][str(self.run_number)]
         
-        self.s2_bool = self.av_xpix > self.s1s2_border  # images were manually aligned to be half s1, half s2
+        self.s2_bool = self.av_xpix > self.s1s2_border
         self.s1_bool = np.logical_not(self.s2_bool)
 
     def run_oasis(self):
@@ -349,14 +349,15 @@ class Session:
         nan_trials = np.any(np.isnan(self.pre_rew_trials), axis=(0,2))
         self.pre_rew_trials = self.pre_rew_trials[:, ~nan_trials, :]
 
-    def filter_neurons(self, vverbose=1, abs_threshold=10):
+    def filter_neurons(self, vverbose=1, abs_threshold=10, debug=False):
         """Filter neurons with surreal stats
 
         Parameters:
         -----------------
             abs_threshold, float, default=10
                 upper bound on mean(abs(df/f))"""
-        mean_abs_df = np.mean(np.abs(self.run.flu), 1)
+        # mean_abs_df = np.max(np.abs(self.run.flu), 1)
+        mean_abs_df = np.max(self.run.flu, 1)
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where(mean_abs_df < abs_threshold)[0]
         self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
@@ -364,7 +365,9 @@ class Session:
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]
-        self.is_target = self.is_target[self.filtered_neurons, :, :]
+        if debug:
+            1/0
+        # self.is_target = self.is_target[self.filtered_neurons, :, :]
 
         if vverbose >= 1:
             if len(self.filtered_neurons < self.unfiltered_n_cells):
@@ -479,12 +482,13 @@ class Session:
         
         gt = rf.GetTargets(self.run)
         self.is_target = gt.is_target
+        # print(self.is_target.shape)
+        # print(self.filtered_neurons)
+        # self.is_target[self.filtered_neurons, :]
         self.is_target = np.repeat(self.is_target[:, :, np.newaxis], self.n_times, axis=2)
-
         # Was a cell targeted on any trial?
         ever_targeted = np.any(self.is_target, axis=(1,2))
         # Check that all targets are in s1
-        print('here i am ')
         for target, s1 in zip(ever_targeted, self.s1_bool):
             if target:
                 assert s1
@@ -539,44 +543,44 @@ class SessionLite(Session):
             self.build_time_gap_array()  # requires frequency def, construct time arrat with PS gap
             self.flu = self.build_trials_single(vverbose=self.verbose, use_spks=use_spks)
 
-        self.filter_neurons(vverbose=self.verbose)  #filter neurons based on mean abs values
-        self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        # Filter neurons based on mean abs values
+        self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)  
+        self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.get_targets()
         self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
-
         self.clean_obj()
 
-    def filter_neurons(self, vverbose=1, abs_threshold_df=10, abs_threshold_spks=1):
-        """Filter neurons with surreal stats
-           Overwritten here by subclass to remove cells with 'surreal' flu and/or spks
+    # def filter_neurons(self, vverbose=1, abs_threshold_df=10, abs_threshold_spks=1):
+        # """Filter neurons with surreal stats
+           # Overwritten here by subclass to remove cells with 'surreal' flu and/or spks
 
-        Parameters:
-        -----------------
-            abs_threshold, float, default=10
-                upper bound on mean(abs(df/f)) or mean(spks)"""
+        # Parameters:
+        # -----------------
+            # abs_threshold, float, default=10
+                # upper bound on mean(abs(df/f)) or mean(spks)"""
 
-        # run.flu is reassigned above, so make sure the same neurons are filtered
-        # regardless of flu_flavour
-        if self.flu_flavour == 'denoised_flu' or self.flu_flavour == 'flu_raw':
-            mean_abs_df = np.mean(np.abs(self.run.dff), 1)
-        else:
-            mean_abs_df = np.mean(np.abs(self.run.flu), 1)
+        # # run.flu is reassigned above, so make sure the same neurons are filtered
+        # # regardless of flu_flavour
+        # if self.flu_flavour == 'denoised_flu' or self.flu_flavour == 'flu_raw':
+            # mean_abs_df = np.nanmean(np.abs(self.run.dff), 1)
+        # else:
+            # mean_abs_df = np.nanmean(np.abs(self.run.flu), 1)
 
-        mean_abs_spks = np.nanmean(np.abs(self.run.spks), 1)
-        self.unfiltered_n_cells = self.run.flu.shape[0]
-        self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) &
-                                         (mean_abs_spks < abs_threshold_spks))[0]
-        self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
-        self.pre_rew_trials = self.pre_rew_trials[self.filtered_neurons, :, :]
-        self.run.flu = self.run.flu[self.filtered_neurons, :]
-        self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
-        self.run.stat = self.run.stat[self.filtered_neurons]
-        if vverbose >= 1:
-            if len(self.filtered_neurons < self.unfiltered_n_cells):
-                print(f'{self.unfiltered_n_cells - len(self.filtered_neurons)} / {self.unfiltered_n_cells} cells filtered')
-            else:
-                print('No neurons filtered')
+        # mean_abs_spks = np.nanmean(np.abs(self.run.spks), 1)
+        # self.unfiltered_n_cells = self.run.flu.shape[0]
+        # self.filtered_neurons = np.where((mean_abs_df < abs_threshold_df) &
+                                         # (mean_abs_spks < abs_threshold_spks))[0]
+        # self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
+        # self.pre_rew_trials = self.pre_rew_trials[self.filtered_neurons, :, :]
+        # self.run.flu = self.run.flu[self.filtered_neurons, :]
+        # self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
+        # self.run.stat = self.run.stat[self.filtered_neurons]
+        # if vverbose >= 1:
+            # if len(self.filtered_neurons < self.unfiltered_n_cells):
+                # print(f'{self.unfiltered_n_cells - len(self.filtered_neurons)} / {self.unfiltered_n_cells} cells filtered')
+            # else:
+                # print('No neurons filtered')
 
     def clean_obj(self):
 
@@ -592,17 +596,30 @@ def only_numerics(seq):
 
 def load_files(save_dict, data_dict, folder_path, flu_flavour):
     total_ds = 0
+    debug = False
     for mouse in data_dict.keys():
+        
+        if mouse in ['J048', 'RL048']:  # Drop the 5Hz data for now
+            continue
+
+        if mouse != 'J065' and debug:
+            continue
         for run_number in data_dict[mouse]:
+            if run_number != 10 and debug:
+                continue
+
             try:
-                session = SessionLite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, post_seconds=8)
+                session = SessionLite(mouse, run_number, folder_path, 
+                                      flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                      post_gap_seconds=0, post_seconds=8, 
+                                      filter_threshold=5)
+
                 save_dict[total_ds] = session
                 total_ds += 1
                 print(f'succesfully loaded mouse {mouse}, run {run_number}')
             except AttributeError as e:
                 print(f'ERROR {e}')
-                pass
+                if debug: raise
     return save_dict, total_ds
 
 if __name__ == '__main__':
@@ -622,7 +639,7 @@ if __name__ == '__main__':
         time.sleep(2)
         raise ValueError
 
-    pkl_path = user_paths_dict['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
+    pkl_path = USER_PATHS_DICT['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
 
     if not os.path.exists(pkl_path):
         raise FileNotFoundError('pkl_path directory not found, did you update data_path.json?')
@@ -642,7 +659,7 @@ if __name__ == '__main__':
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
                                     folder_path=pkl_path, flu_flavour=flu_flavour)
 
-    save_path = os.path.expanduser(f'{user_paths_dict["base_path"]}/sessions_lite_{flu_flavour}.pkl')
+    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_lite_{flu_flavour}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)

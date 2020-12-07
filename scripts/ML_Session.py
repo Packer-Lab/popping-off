@@ -5,6 +5,8 @@ import mrestimator as mre
 import math
 #from help_functions import fit_tau, oasis_deconvolve_Fc
 from scipy.optimize import curve_fit
+from IPython.core.debugger import Pdb
+ipdb = Pdb()
 
 sys.path.append('/home/loidolt/Projects/OASIS')
 
@@ -13,7 +15,7 @@ import oasis
 from oasis import oasis_nan
 
 # shut up mr. estimator
-mre.ut._logstreamhandler.setLevel('DEBUG')
+mre.ut._logstreamhandler.setLevel('ERROR')
 
 # fix popoff import error
 sys.path.append("/home/loidolt/Projects/popping-off/popoff")
@@ -160,8 +162,10 @@ def build_flu_array_single(run, use_spks=False, prereward=False, pre_frames=30, 
 
 def get_bad_frames(run, fs=30):    
 
-    pre_frames = 2 #math.ceil(1*fs)
-    post_frames = math.ceil(0.75*fs)
+    # Give it a three frame buffer pre-stim
+    pre_frames = 3
+    post_frames = math.ceil(1*fs)
+
 
     paqio_frames = utils.tseries_finder(run.num_frames, run.frame_clock)
     trial_start = utils.get_spiral_start(run.x_galvo_uncaging, run.paq_rate*6)
@@ -176,6 +180,7 @@ def get_bad_frames(run, fs=30):
                                                    fs=fs)
         trial_starts.append(start_idx)
         bad_frames.append(frames)
+
 
     flattened = [bf for bf in bad_frames if bf is not None]
     flattened = [item for sublist in flattened for item in sublist]
@@ -194,8 +199,7 @@ def fill_nan(A):
     return B
 
 def artifact_suppress(run, set_to=0, copy_run=False, interpolate=False, plot=False):
-    print("artifact suprress")
-    print(run.flu.shape)
+
     if interpolate:
         set_to = np.nan
 
@@ -222,14 +226,12 @@ def artifact_suppress(run, set_to=0, copy_run=False, interpolate=False, plot=Fal
         if not copy_run:
             run.flu[:, bad_frames] = set_to
 
-
             if interpolate:
                 run.flu = fill_nan(run.flu)
 
             arr = uf.build_flu_array(run, run.trial_start)
 
         else:
-
             run_copy = copy.deepcopy(run)
             run_copy.flu[:, bad_frames] = set_to
 
@@ -345,6 +347,8 @@ class Session:
         self.shuffled_trial_labels_indicator = False
 
         self.load_data(vverbose=self.verbose)  # load data from pkl path
+        if not self.has_flu:
+            return
 
         if mouse=='J048' or mouse=='RL048':
             self.frequency = 5
@@ -379,7 +383,12 @@ class Session:
             r = pickle.load(f)
             self.run = r
         ## Start preprocessing:
-        self.flu = self.run.flu
+        try:
+            self.flu = self.run.flu
+            self.has_flu = True
+        except AttributeError:  # Not yet processed the fluoresence for this run
+            self.has_flu = False
+            return
         self.tstart_galvo = utils.threshold_detect(self.run.x_galvo_uncaging, 0)
         self.tstart_galvo = self.run.spiral_start
         self.trial_start = self.run.trial_start
@@ -422,8 +431,15 @@ class Session:
                 self.plane_number[neuron_id] = self.run.stat[neuron_id]['iplane']
             except KeyError:
                 self.plane_number[neuron_id] = 0
-        self.s2_bool = self.av_xpix > 512  # images were manually aligned to be half s1, half s2
+
+        with open('/home/jrowland/Documents/code/Vape/s2_position.json') as json_file:
+            s1s2_border_json = json.load(json_file)
+    
+        self.s1s2_border = s1s2_border_json[self.mouse][str(self.run_number)]
+        
+        self.s2_bool = self.av_xpix > self.s1s2_border
         self.s1_bool = np.logical_not(self.s2_bool)
+
 
     def run_oasis(self):
         """ Build spks array using Oasis deconvolution https://github.com/j-friedrich/OASIS """
@@ -585,6 +601,8 @@ class Session:
             self.outcome = self.outcome[self.nonnan_trials]
             self.autorewarded = self.autorewarded[self.nonnan_trials]
             self.unrewarded_hits = self.unrewarded_hits[self.nonnan_trials]
+
+            self.is_target = self.is_target[:, self.nonnan_trials, :]
             self.n_trials = len(self.nonnan_trials)
 
         if spks:
@@ -618,6 +636,17 @@ class Session:
         self.s2_bool = np.logical_not(self.s1_bool)
         self.shuffled_s1s2_labels_indicator = True
 
+    def get_targets(self):
+        
+        gt = rf.GetTargets(self.run)
+        self.is_target = gt.is_target
+        self.is_target = np.repeat(self.is_target[:, :, np.newaxis], self.n_times, axis=2)
+        # Was a cell targeted on any trial?
+        ever_targeted = np.any(self.is_target, axis=(1,2))
+        # Check that all targets are in s1
+        for target, s1 in zip(ever_targeted, self.s1_bool):
+            if target:
+                assert s1
 
 
 class SessionLite(Session):
@@ -625,16 +654,17 @@ class SessionLite(Session):
         todo -- combine classes '''
 
     def __init__(self, mouse, run_number, pkl_path, flu_flavour, remove_nan_trials=True,
-                pre_seconds=61, post_seconds=61, pre_gap_seconds=0.2, post_gap_seconds=0.6,
+                pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
                 verbose=1, filter_threshold=10):
 
         self.mouse = mouse
         self.run_number = run_number
         self.flu_flavour = flu_flavour
         self.pkl_path = pkl_path
+
+        # Hard-coded for timescales change post-hoc
         self.pre_seconds = 61
         self.post_seconds = 61
-        print(self.post_seconds)
         self.pre_gap_seconds = pre_gap_seconds
         self.post_gap_seconds = post_gap_seconds
         self.verbose = verbose
@@ -642,6 +672,9 @@ class SessionLite(Session):
         self.name = f'Mouse {mouse}, run {run_number}'
 
         self.load_data()
+
+        if not self.has_flu:
+            return
 
         if self.flu_flavour == 'flu':
             use_spks = False
@@ -679,8 +712,9 @@ class SessionLite(Session):
             self.filter_neurons(vverbose=self.verbose)  #filter neurons based on mean abs values
         self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        self.get_targets()
         self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
-        print(self.run.flu.shape)
+
        
         # ML change starts
         print("hey ML")
@@ -691,6 +725,9 @@ class SessionLite(Session):
         print("self.spont_spks.shape")
         print(self.spont_spks.shape)
         self.build_trials_single(vverbose=self.verbose, use_spks=True)
+        # Don't actually filter but run the function for backwards
+        # compatibility
+        self.filter_neurons(vverbose=self.verbose)  
         print(self.spks_behaviour_trials)
         self.remove_nan_trials_inplace(vverbose=self.verbose, spks=True)  # remove nan traisl
         print("nan trials removed")
@@ -700,7 +737,7 @@ class SessionLite(Session):
         self.clean_obj()
         print("is this going through?")
 
-    def filter_neurons(self, vverbose=1, abs_threshold_df=10, abs_threshold_spks=1):
+    def filter_neurons(self, vverbose=1, abs_threshold_df=np.inf, abs_threshold_spks=np.inf):
         """Filter neurons with surreal stats
            Overwritten here by subclass to remove cells with 'surreal' flu and/or spks
 
@@ -725,6 +762,8 @@ class SessionLite(Session):
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]
+        self.is_target = self.is_target[self.filtered_neurons, :, :]
+
         if vverbose >= 1:
             if len(self.filtered_neurons < self.unfiltered_n_cells):
                 print(f'{self.unfiltered_n_cells - len(self.filtered_neurons)} / {self.unfiltered_n_cells} cells filtered')
@@ -733,7 +772,7 @@ class SessionLite(Session):
 
     def clean_obj(self):
 
-        attrs_remove = ['run', 'flu', 'behaviour_trials', 'spont_spks', 'spks_behaviour_trials']
+        attrs_remove = ['run', 'flu']
 
         for attr in attrs_remove:
             print(attr)
@@ -784,6 +823,9 @@ class SessionLite(Session):
             self.spike_triggered_average[i_cell] = sta
             self.PCOV[i_cell] = pcov
             self.POPT[i_cell] = popt
+        self.save_me = {}
+        self.save_me['masked_dff'] = masked_dff
+        self.save_me['spks'] = self.run.spks
 
     def mre_spks(self):
         fps = 30
@@ -878,19 +920,31 @@ def only_numerics(seq):
 
 def load_files(save_dict, data_dict, folder_path, flu_flavour):
     total_ds = 0
+    debug = False
     for mouse in data_dict.keys():
+        if mouse != 'RL070' and debug:
+            continue
+        if mouse in ['RL048', 'J048']:
+            continue
         for run_number in data_dict[mouse]:
-            try:
-                session = SessionLite(mouse, run_number, folder_path, flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, post_seconds=8)
+
+            if run_number != 29 and debug:
+                continue
+
+            session = SessionLite(mouse, run_number, folder_path, 
+                                  flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                  post_gap_seconds=0, post_seconds=8)
+
+            if session.has_flu:
                 print("session lite created")
                 save_dict[total_ds] = session
                 total_ds += 1
                 print(f'succesfully loaded mouse {mouse}, run {run_number}')
-            except AttributeError as e:
-                # print(f'ERROR {e}')
-                pass
+            else:
+                print(f'{mouse}, run {run_number} flu not yet processed')
+                
     return save_dict, total_ds
+
 
 if __name__ == '__main__':
 
@@ -908,6 +962,7 @@ if __name__ == '__main__':
         print('Invalid flu_flavour')
         time.sleep(2)
         raise ValueError
+
 
     pkl_path = user_paths_dict['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
 
@@ -929,10 +984,8 @@ if __name__ == '__main__':
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
                                     folder_path=pkl_path, flu_flavour=flu_flavour)
 
-    #save_path = os.path.expanduser(f'{user_paths_dict["base_path"]}/sessions_lite_{flu_flavour}.pkl')
-    save_path = '/data.nst/loidolt/packer_data/JR2/OASIS_TAU_dffDetrended_60Pre60PostStim_sessions_liteNoSPKS2_'+flu_flavour+'.pkl'
+    save_path = os.path.expanduser(f'{user_paths_dict["base_path"]}/sessions_lite_spks.pkl')
 
-    # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f, protocol=4)
 

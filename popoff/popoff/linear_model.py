@@ -5,16 +5,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.decomposition import PCA, NMF
-from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score
+from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score, f1_score, balanced_accuracy_score
 from scipy import sparse
 from scipy.stats import ks_2samp, mode
 from average_traces import AverageTraces
 from pop_off_functions import prob_correct, mean_accuracy, score_nonbinary
 from Session import build_flu_array_single, SessionLite
 from utils_funcs import build_flu_array
-import copy
+import copy 
 import pickle
 from popoff import loadpaths
+from IPython.display import HTML, display
 from IPython.core.debugger import Pdb
 ipdb = Pdb()
 
@@ -28,29 +29,30 @@ COLORS = [
 ]
 
 
-def do_pca(data, model, plot=False):
+def do_pca(X, n_components, plot=False):
 
     ''' Run PCA on data matrix
         
     Parameters
     -----------
-    data : matrix to do PCA on
-    model: PCA object
+    X : neural_activity matrix. [n_cells x time]
+           (transposed before pca)
+    n_components: number of principle components to compute
     plot : bool, default False
-        Plot varience explained curve?
+           Plot varience explained curve?
     '''
 
-    X = data
-    model.fit(X)
+    model = PCA(n_components=n_components)
+    model.fit(X.T)
     varexp = np.cumsum(model.explained_variance_ratio_)
-    components = model.components_
+    # Projection of neural activity on principal axes
+    components = np.dot(model.components_, X)  
+    assert components.shape == (n_components, X.shape[1])
 
     if plot:
-        plt.plot(varexp, label="dff", color=COLORS[0])
-        plt.legend()
-        plt.xlabel("Num. of components")
-
-        plt.ylabel("Variance explained")
+        plt.plot(model.explained_variance_ratio_*100, label="dff", color='black', lw=4)
+        plt.xlabel('Principle Component')
+        plt.ylabel("% Variance explained\n(pre-stimulus)")
     return varexp, components
 
 
@@ -82,10 +84,11 @@ def pca_session(session, cells_include, n_components=100, plot=False,
     # Load in the full dff data
     session.load_data()
     run = session.run
-    flu = session.run.flu[session.filtered_neurons, :]
+    flu = run.flu[session.filtered_neurons, :]
     flu = flu[cells_include, :]
 
-    _, components = do_pca(flu, PCA(n_components=n_components), plot=plot)
+
+    _, components = do_pca(flu, n_components, plot=plot)
     # Hacky but straightforward, stick the components into the run object to send it into
     # build_flu_array_X
     run.comps = components
@@ -130,6 +133,7 @@ def pca_session(session, cells_include, n_components=100, plot=False,
 
     return session
 
+
 def noise_correlation(flu, signal_trials, frames):
 
     ''' Compute trial-wise noise correlation for fluoresence array ->
@@ -152,14 +156,15 @@ def noise_correlation(flu, signal_trials, frames):
     '''
 
     trial_corr = []
-    # mean_to_subtract = np.mean(flu[:, signal_trials, :], 1)
-    # mean_to_subtract = mean_to_subtract[:, frames]
 
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-        # trial = trial - mean_to_subtract
-        mean_cov = np.mean(np.corrcoef(trial), (0, 1))
+
+        matrix = np.corrcoef(trial)
+        matrix = matrix[~np.eye(matrix.shape[0],dtype=bool)]
+        # mean_cov = np.mean(np.corrcoef(trial), (0, 1))
+        mean_cov = np.mean(matrix)
         trial_corr.append(mean_cov)
 
     return np.array(trial_corr)
@@ -175,6 +180,60 @@ def largest_singular_value(flu, frames):
         singular_values.append(s[0])
 
     return np.array(singular_values)
+
+
+def largest_PC_var(flu, frames): 
+
+    PC_vars = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        varexp, _ = do_pca(trial, 10, plot=False)
+        PC_vars.append(varexp[0])
+
+    return np.array(PC_vars)
+
+def largest_PC_loading(flu, frames): 
+
+    PC_loading = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        pca = PCA(n_components=10)
+        pca.fit(trial.T)
+
+        # loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
+        loadings = pca.components_.T
+        PC_loading.append(loadings[:, 0])
+
+    return np.array(PC_loading)
+
+
+def largest_PC_trace(flu, frames):
+
+    traces = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        _, trace = do_pca(trial, 10, plot=False)
+        traces.append(trace[0,:])
+
+    return traces
+
+
+def reward_history(session, window_size=5):
+
+    binary_reward = (session.outcome=='hit').astype('int')
+    rolling_window = np.zeros(len(binary_reward))
+
+    for trial_idx in range(len(binary_reward)):
+        if trial_idx < window_size:
+            rolling_window[trial_idx] = sum(binary_reward[:trial_idx])
+        else:
+            rolling_window[trial_idx] = sum(binary_reward[trial_idx-window_size:trial_idx])
+        
+    return rolling_window
+
 
 class LabelEncoder():
     ''' Reimplement skearn.preprocessing.LabelEncoder for user defined label
@@ -233,7 +292,7 @@ class LabelEncoder():
 
 class LinearModel():
 
-    def __init__(self, session, times_use, remove_targets=False):
+    def __init__(self, session, times_use, remove_targets=False, use_spks=False):
         
         ''' Perform logistic regression on Session object
 
@@ -246,6 +305,10 @@ class LinearModel():
         '''
 
         self.session = session
+        if use_spks:
+            self.session.behaviour_trials = self.session.spks_behaviour_trials
+            print('WARNING: behaviour trials switched to spks')
+
         # times_use is inherited from AverageTraces, specify as an arugment
         # rather than using class inheritence so that this class does
         # not need to load every session
@@ -255,12 +318,29 @@ class LinearModel():
         self.setup_flu()
         self.target_info()
 
+        if use_spks:
+            self.trim_deconvolved()
+
         if self.remove_targets:
             self.remove_targets_from_data()
 
         # Init encoder with required sort order
         self.encoder = LabelEncoder(['miss', 'hit', 'cr', 'fp'])
 
+        self.session.outcome = self.nan_removal(self.session.outcome)
+        self.session.trial_subsets = self.nan_removal(self.session.trial_subsets)
+
+    def nan_removal(self, arr):
+
+        ''' Sometimes nans are not removed from e.g. self.session.outcome 
+            like they should be in Session
+            '''
+
+        try:
+            arr = arr[self.session.nonnan_trials]
+        except IndexError:  # Already been non-nanned 
+            pass
+        return arr
 
     def setup_flu(self):
 
@@ -279,8 +359,8 @@ class LinearModel():
         self.pre_flu = self.pre_flu[:, :, self.session.frames_use]
 
         # Split the trace into pre=frames-before-stim and post=frames-after-stim
-        self.pre = self.times_use < 0  # times_use inherited from AverageTraces
-        self.post = self.times_use > 1
+        self.pre = self.times_use < -0.04  # times_use inherited from AverageTraces
+        self.post = self.times_use > 0.8   
         self.remove_artifact = np.logical_or(self.pre, self.post)
 
         # Allows future functions to use 'frames' argument as a string
@@ -297,7 +377,8 @@ class LinearModel():
 
     def prepare_data(self, frames='all', model='full',
                      outcomes=['hit', 'miss', 'cr', 'fp'], region='all',
-                     n_comps_include=0, prereward=False, return_matrix=True):
+                     n_comps_include=0, prereward=False, remove_easy=False, 
+                     return_matrix=True):
 
         ''' Prepare fluoresence data in Session object for regression
 
@@ -338,13 +419,14 @@ class LinearModel():
             trial_bool = y.astype('bool')
 
         else:
-            outcome = self.session.outcome[self.session.nonnan_trials]
+            outcome = self.session.outcome
+
             trial_bool = np.isin(outcome, outcomes)
             
-            # Change 100 to 2 if you want only test trials
-            # (REMOVE THIS HACK)
-            remove_easy = self.session.photostim != 100
-            trial_bool = np.logical_and(trial_bool, remove_easy)
+            if remove_easy:
+                test_and_catch = self.session.photostim != 2
+                trial_bool = np.logical_and(trial_bool, test_and_catch)
+
             outcome = outcome[trial_bool]
             flu = self.flu[:, trial_bool, :]
 
@@ -365,6 +447,7 @@ class LinearModel():
                                         trial_bool=trial_bool, region=region,
                                         n_comps_include=n_comps_include,
                                         prereward=prereward)
+
             X = self.dict2matrix(covariates_dict)
         else:
             raise ValueError(f'model {model} not recognised')
@@ -382,12 +465,13 @@ class LinearModel():
         X = scaler.fit_transform(X)
         return X
 
+
     def dict2matrix(self, dict_):
         X = np.vstack([v for v in dict_.values()])
         return self.transform_data(X)
 
-    def covariates_full(self, flu, frames):
 
+    def covariates_full(self, flu, frames):
 
         # Use this to check that PC performance
         # was not ~= full model as PCs are subbed but cells are
@@ -403,9 +487,9 @@ class LinearModel():
         
         return self.transform_data(X)
 
+
     def covariates_partial(self, flu, frames, trial_bool, n_comps_include,
                             region='all', prereward=False):
-
 
         # Function to subtract the mean of pre frames from the
         # mean of post frames -> [n_cells x n_trials]
@@ -425,11 +509,16 @@ class LinearModel():
         covariates_dict['mean_post'] = np.mean(flu[:, :, self.post], (0, 2))
 
         # Mean trace correlation pre stim
-        covariates_dict['corr_pre'] = noise_correlation(flu, self.session.photostim==1, self.pre)
+        covariates_dict['corr_pre'] = noise_correlation(flu, self.session.photostim==1,
+                                                        self.frames_map['pre'])
         # Mean trace correlation post stim
-        covariates_dict['corr_post'] = noise_correlation(flu, self.session.photostim==1, self.post)
+        covariates_dict['corr_post'] = noise_correlation(flu, self.session.photostim==1,
+                                                         self.frames_map['post'])
 
         covariates_dict['largest_singular_value'] = largest_singular_value(flu, self.pre)
+
+        covariates_dict['largest_PC_var'] = largest_PC_var(flu, self.pre)
+
 
         covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
@@ -438,47 +527,69 @@ class LinearModel():
         covariates_dict['ts_s2_pre'] = self.session.tau_dict['S2_pre'][trial_bool]
 
         covariates_dict['ts_both_pre'] = self.session.tau_dict['all_pre'][trial_bool]
+        
+        covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
+
+        covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
+
+        covariates_dict['n_cells_stimmed'] = self.session.trial_subsets[trial_bool]
+
+        covariates_dict['lick'] = self.session.decision[trial_bool]
+        covariates_dict['reward'] = (self.session.outcome=='hit').astype('int')[trial_bool]
 
         for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
             val = covariates_dict[key]
             val[np.logical_or(val < 30, val > 3000)] = 0
             covariates_dict[key] = val
 
-        if prereward:
-            if region != 'all': 
-                raise NotImplementedError('prereward comps do not yet have '
-                                           'region dependency')
-            PCs = self.session.comps_pre
-        else:
-            # PCs = self.session.comps
-            print(f' Cell included from region {region}')
-            PCs = self.session.pca_dict[region]
-            PCs = PCs[:, trial_bool, :]
+        # if prereward:
+            # if region != 'all': 
+                # raise NotImplementedError('prereward comps do not yet have '
+                                           # 'region dependency')
+            # PCs = self.session.comps_pre
+        # else:
+            # print(f' Cell included from region {region}')
+            # PCs = self.session.pca_dict[region]
+            # PCs = PCs[:, trial_bool, :]
 
-        PCs = PCs[:, :, self.session.frames_use]
+        # PCs = PCs[:, :, self.session.frames_use]
 
-        assert n_comps_include <= PCs.shape[0]
-        PCs = PCs[0:n_comps_include, :, :]
+        # assert n_comps_include <= PCs.shape[0]
+        # PCs = PCs[0:n_comps_include, :, :]
 
-        if frames == 'all':
-            covariates_dict['PCs'] = sub_frames(PCs)
-        elif frames == 'pre':
-            covariates_dict['PCs'] = np.mean(PCs[:, :, self.pre], 2)
-        elif frames == 'post':
-            covariates_dict['PCs'] = np.mean(PCs[:, :, self.post], 2)
-
-        # Use this if you don't want to subtract but rather mean whole trace (worse performance)
-        #x3 = np.mean(PCs[:, :, remove_artifact], 2)
-
-        if frames == 'pre':
-            # Set this at the start of the function? Remove code repetition?
-            pre_keys = ['mean_pre', 'corr_pre', 'PCs']
-            covariates_dict = {k:covariates_dict[k] for k in pre_keys}
-        elif frames == 'post':
-            pre_keys = ['mean_post', 'corr_post', 'PCs']
-            covariates_dict = {k:covariates_dict[k] for k in post_keys}
+        # if frames == 'all':
+            # covariates_dict['PCs'] = sub_frames(PCs)
+        # elif frames == 'pre':
+            # covariates_dict['PCs'] = np.mean(PCs[:, :, self.pre], 2)
+        # elif frames == 'post':
+            # covariates_dict['PCs'] = np.mean(PCs[:, :, self.post], 2)
 
         return covariates_dict
+
+
+    def trim_deconvolved(self, pre_trim=5, post_trim=5, plot=False):
+        
+        ''' Give the linear_model.frames_map dict a haircut to 
+            avoid the weird peak where the NaNs are '''
+        
+        
+        # Remove 5 frames + the 3 from ML_session, so 8 frames total = 267 ms
+        self.pre[np.where(self.pre)[0][-pre_trim:]] = False
+        
+        # Remove 5 extra frames from the start
+        self.post[np.where(self.post)[0][:post_trim]] = False
+
+        self.frames_map['pre'] = self.pre
+        self.frames_map['post'] = self.post
+        self.frames_map['all'] = np.logical_or(self.pre, self.post)
+
+        if plot:
+            # I haven't aligned this to a proper trace but you get
+            # the idea
+            plt.plot(np.mean(self.flu, (0,1))[self.frames_map['pre']])
+            plt.plot(np.mean(self.flu, (0,1))[self.frames_map['post']])
+            plt.ylim(0, 0.01)
+            
 
     def build_confusion_matrix(self, y_true, y_pred):
         
@@ -586,7 +697,10 @@ class LinearModel():
             if digital_score:
                 # results.append(model.score(X_test, y_test))
                 # results.append(roc_auc_score(y_test, model.predict(X_test))) 
-                results.append(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])) 
+                # results.append(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])) 
+                results.append(balanced_accuracy_score(y_test, model.predict(X_test)))
+
+
             else:
                 results.append(score_nonbinary(model, X_test, y_test))
 
@@ -1016,11 +1130,14 @@ class LinearModel():
 
     def compare_regions(self, frames='all', plot=True):
         
-        penalty = 'l2'
+
+        penalty = 'l1'
         C = 0.5
-        solver = 'lbfgs'
+        solver = 'saga'
         
-        regions = ['s1', 's2', 'all']
+        # regions = ['s1', 's2', 'all']
+        regions = ['all']
+
 
         mean_accs = []
         std_accs = []
@@ -1028,7 +1145,8 @@ class LinearModel():
         for idx, region in enumerate(regions):
 
             X, y = self.prepare_data(frames=frames, model='full',
-                                     outcomes=['hit', 'miss', 'fp', 'cr'], 
+                                     # outcomes=['hit', 'miss', 'fp', 'cr'], 
+                                     outcomes=['hit', 'miss'], 
                                      region=region,
                                      n_comps_include=0)
 
@@ -1068,8 +1186,8 @@ class LinearModel():
                 temp[~self.ever_targetted] = cells_include
                 cells_include = temp
 
-            session = pca_session(self.session, cells_include, n_components=n_components, plot=False, 
-                        save_PC_matrix=save_PC_matrix)
+            session = pca_session(self.session, cells_include, n_components=n_components,
+                                  plot=False, save_PC_matrix=save_PC_matrix)
             # Weird way of building a dictionary from session attributes but avoids
             # changing the structure of pca_session to split by region
             self.session.pca_dict[region_name] = session.comps
@@ -1082,10 +1200,10 @@ class LinearModel():
                                  region=region,
                                  n_comps_include=0,
                                  return_matrix=False,)
-                                 
 
-        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value',
-                     f'ts_{region}_pre']
+
+        covs_keep = ['mean_pre', 'corr_pre', 'largest_PC_var', 
+                     f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
         X = {k:v for k,v in X.items() if k in covs_keep}
 
@@ -1135,8 +1253,8 @@ class LinearModel():
 
 
         np.random.shuffle(y)
-        # This shouldn't be repeated three times
-        results, _ = self.logistic_regression(self.dict2matrix(temp_dict), y,
+        # this shouldn't be repeated three times
+        results, _ = self.logistic_regression(self.dict2matrix(X), y,
                                               penalty=penalty, C=C, solver=solver,
                                               random_state=0,
                                               n_folds=5,
@@ -1145,7 +1263,6 @@ class LinearModel():
                                               stratified_kfold=True)
 
         results_dict['shuffled_null'] = results
-
 
         if plot:
             labels = list(X.keys())
@@ -1178,14 +1295,20 @@ class LinearModel():
 
     def single_covariate(self, region='s1', plot=True):
 
-        X, y = self.prepare_data(frames='all', model='partial',
+        n_comps_include = 5
+        X, y = self.prepare_data(frames='pre', model='partial',
                                  outcomes=['hit', 'miss'], 
                                  region=region,
-                                 n_comps_include=0,
+                                 n_comps_include=n_comps_include,
                                  return_matrix=False)
 
-        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value',
-                     f'ts_{region}_pre']
+        # for i in range(n_comps_include):
+            # X[f'PC{i}'] = X['PCs'][i, :]
+
+        covs_keep = ['mean_pre', 'corr_pre',
+                    'largest_PC_var', f'ts_{region}_pre', 'reward_history', 'trial_number',
+                    'n_cells_stimmed'] #'PC1', 'PC2', 'PC3', 
+
 
         X = {k:v for k,v in X.items() if k in covs_keep}
 
@@ -1225,7 +1348,7 @@ class LinearModel():
         stds_dict['all_covariates'] = std_acc
 
         np.random.shuffle(y)
-        acc, std_acc, models = self.logistic_regression(self.dict2matrix(X), y, penalty=penalty, C=C,
+        acc, std_acc, models = self.logistic_regression(cov, y, penalty=penalty, C=C,
                                                         solver=solver, 
                                                         filter_models=False,
                                                         stratified_kfold=True)
@@ -1246,11 +1369,47 @@ class LinearModel():
 
         return means_dict, stds_dict
 
+    def shuffled_model(self, region='s1'):
+
+        penalty = 'l1'
+        C = 0.5
+        solver = 'saga'
+
+        X, y = self.prepare_data(frames='all', model='partial',
+                                 outcomes=['hit', 'miss'], 
+                                 region=region,
+                                 n_comps_include=0,
+                                 return_matrix=True,)
+                                 
+
+        X = X[:, 0]
+        X = np.expand_dims(X, axis=1)
+        
+        n_trials = len(y)
+        train_idx = np.repeat(False, n_trials)
+        train_idx[:int(0.8*n_trials)] = True
+        test_idx = np.logical_not(train_idx)
+
+        np.random.shuffle(y)
+
+        model =  sklearn.linear_model.LogisticRegression(penalty=penalty, C=C,
+                                                        class_weight='balanced', solver=solver,
+                                                        random_state=None)
+        model.fit(X[train_idx, :], y[train_idx])
+        
+
+        print(f' Actual class = {y[test_idx]}')
+        print(f' Binarised Prediction = {model.predict(X[test_idx])}')
+        print(f' Analog Prediction = {model.predict_proba(X[test_idx])[:, 1]}')
+        print(f' BAS = {balanced_accuracy_score(y[test_idx], model.predict(X[test_idx]))}')
+        print(f' AUC(ROC) = {roc_auc_score(y[test_idx], model.predict_proba(X[test_idx])[:, 1])}') 
+        print(f' F1 score = {f1_score(y[test_idx], model.predict(X[test_idx]))}') 
+        print(f' Naive Score = {model.score(X[test_idx], y[test_idx])}')
 
 
 class PoolAcrossSessions(AverageTraces):
 
-    def __init__(self, save_PCA=False, remove_targets=False):
+    def __init__(self, save_PCA=False, remove_targets=False, subsample_sessions=True):
         
         ''' Build object to pool across multiple LinearModel objects
 
@@ -1292,11 +1451,11 @@ class PoolAcrossSessions(AverageTraces):
         for idx, linear_model in enumerate(self.linear_models):
 
             # Components already computed and saved
-            if hasattr(linear_model.session, 'comps') and not save_PCA:  
+            if hasattr(linear_model.session, 'comps') or not save_PCA:  
                 continue
             else: 
-               linear_model.pca_regions(n_components=20, save_PC_matrix=False)
-               self.sessions[idx] = linear_model.session
+                linear_model.pca_regions(n_components=20, save_PC_matrix=False)
+                self.sessions[idx] = linear_model.session
                 # self.sessions[idx] = pca_session(session, n_components=100,
                                                  # plot=False)
 
@@ -1304,7 +1463,7 @@ class PoolAcrossSessions(AverageTraces):
         # recalculate every time this class is initialised
         if save_PCA:
             save_path = os.path.expanduser(
-                f'{USER_PATHS_DICT["base_path"]}/sessions_lite_flu.pkl')
+                f'{USER_PATHS_DICT["base_path"]}/sessions_lite_dff.pkl')
             with open(save_path, 'wb') as f:
                 pickle.dump(self.sessions, f)
 
@@ -1324,7 +1483,9 @@ class PoolAcrossSessions(AverageTraces):
         keep_sessions = [0,3,7]
         # Match it to the daddy sessions using the __repr__ string that contains
         # mouse id and session number
-        timescale_sessions = {key:session for key, session in timescale_sessions.items() if key in keep_sessions}
+        if subsample_sessions:
+            timescale_sessions = {key:session for key, session in timescale_sessions.items()
+                                  if key in keep_sessions}
 
         # reprs of the timescales sessions, switch key value order to lookup key later
         session_stamps = {session.__repr__():key for key, session in timescale_sessions.items()}
@@ -1335,13 +1496,19 @@ class PoolAcrossSessions(AverageTraces):
             if session.__repr__() in session_stamps.keys():
                 temp[session_stamps[session.__repr__()]] = session
 
-        self.sessions = temp
+        if subsample_sessions:
+            self.sessions = temp
+        else:
+            print('ALERT SESSIONS NOT SUBSAMPLED')
 
-        # # Get the tau_dict into the daddy session
+        # Get the tau_dict into the daddy session Need to adjust this so it 
+        # only loops through 30 Hz session
         for key in self.sessions.keys():
-            self.sessions[key].tau_dict = timescale_sessions[key].tau_dict
+            try:
+                self.sessions[key].tau_dict = timescale_sessions[key].tau_dict
+            except KeyError:
+                continue
 
-        # ipdb.set_trace()
         # # This is a shitty fix redefining this variable but it allows for caching
         # # of the pca_dict variable
         self.linear_models = [LinearModel(session, self.times_use,
@@ -1476,14 +1643,14 @@ class PoolAcrossSessions(AverageTraces):
         grand_mean = np.mean(all_means, axis=0)
         grand_std = self.combine_stds(all_stds)
 
-        plt.errorbar(range(3), grand_mean, yerr=grand_std, fmt='o', 
+        plt.errorbar(range(len(grand_mean)), grand_mean, yerr=grand_std, fmt='o', 
                      color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
 
-        regions = ['s1', 's2', 'all']
+        regions = ['Mean cell activity\nprior to stimulation']
 
         plt.ylim(0,1)
-        plt.axhline(0.25, linestyle=':')
-        plt.xticks(range(3), regions)
+        plt.axhline(0.5, linestyle=':')
+        plt.xticks(range(len(grand_mean)), regions)
     
     def build_confusion_matrix(self):
 
@@ -1535,7 +1702,8 @@ class PoolAcrossSessions(AverageTraces):
 
         all_betas = np.array(all_betas)
         # This is gonna cause an error
-        all_betas = all_betas.reshape(15, 4)
+        all_betas = all_betas.reshape(all_betas.shape[0] * all_betas.shape[1], 
+                                      all_betas.shape[-1])
 
         n_points = 0
         for (label, means), (label2, stds) in zip(mean_accs.items(), std_accs.items()):
@@ -1548,9 +1716,10 @@ class PoolAcrossSessions(AverageTraces):
         xt = plt.xticks(np.arange(len(labels)), labels,
                         rotation=90, fontsize=14)
         # plt.ylim(0.4,0.75)
-        plt.ylabel('AUC(ROC)')
+        plt.ylabel('Balanced Accuracy Score')
         plt.xlabel('Dropped covariate')
         plt.title(region)
+        plt.axhline(0.5, linestyle=':')
 
         plt.figure(figsize=(12,6))
         labels.pop(0)
@@ -1562,6 +1731,7 @@ class PoolAcrossSessions(AverageTraces):
                         rotation=90, fontsize=14)
         plt.axhline(0, linestyle=':')
         plt.title(region)
+
 
 
     def single_covariate(self, region='s1'):
@@ -1583,38 +1753,60 @@ class PoolAcrossSessions(AverageTraces):
             plt.errorbar(n_points, np.mean(means), self.combine_stds(stds)/5, fmt='o', 
                          color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
             n_points += 1
-                
 
         labels = all_means.keys()
         xt = plt.xticks(np.arange(len(labels)), labels,
                       rotation=90, fontsize=14)
 
-        plt.ylabel('AUC(ROC)')
+        plt.ylabel('Balanced Accuracy Score')
         plt.xlabel('Single Covariate in model')
         # plt.ylim(0.4,0.7)
         plt.title(region)
+        plt.axhline(0.5, linestyle=':')
 
+    def summary_table(self):
 
+        metadata = [] 
 
-
-
+        for s in self.sessions.values():
             
-
+            if (s.mouse == 'RL070' and s.run_number == 29 or
+                s.mouse == 'J064' and s.run_number == 10 or
+                s.mouse == 'J065' and s.run_number == 10):
+                
+                in_current = 'True'
+            else:
+                in_current = 'False'
             
-            
+            if s.mouse in ['J048', 'RL048']:
+                fs = '5 Hz'
+            else:
+                fs = '30 Hz'
+                
+            mouse_info = [s.mouse, s.run_number, s.n_cells, fs, in_current]
+            metadata.append(mouse_info)
 
+        headers = ['Mouse Name', 'Run Number', 'Number of Cells', 'Imaging Frequency', 'In Current Plots?']
+        metadata.insert(0, headers)
 
+        PoolAcrossSessions.display_table(metadata)
 
+    @staticmethod
+    def display_table(data):
 
-
+        html = '<table style="table-layout:auto, width:180px">'
         
+        for idx, row in enumerate(data):
+            if idx == 0:
+                style = 'h3'
+            else:
+                style = 'br'
+            html += "<tr>"
+            for field in row:
+                html += f'<td style="width:100px"><{style}>{field}</{style}><td>'
+            html += "</tr>"
             
-            
-
-            
-
-
-
-
-
+        html += "</table>"
+        
+        display(HTML(html))
 
