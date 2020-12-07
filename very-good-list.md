@@ -1,20 +1,24 @@
 # TO DO LISTS
 
 ### TODO JR
-* Viola's PC plot -> trace of the first PC before hit and miss
-* Show the distributions of PC loadings before hit and before miss
-* Cross-correlation: take the absolute value of each element of cov matrix
-* Discard licks 250ms
-* Log the covariates that are better fit by the logs
-* Merge multiple sessions
-* Make the IO plot to Saxe's recommendation
+- [ ] Discard licks 250ms 
+- [ ] Churchland 2010 natneuro (Do our results match?)
+- [ ] Log the covariates that are better fit by the logs
+- [ ] RERUN WITH NEW PCA Viola's PC plot -> trace of the first PC before hit and miss
+- [ ] Factor analysis
+- [ ] Merge multiple sessions for the logistic classifier
+- [ ] Please plot hit trials traces split by num cells
+- [ ] Fix the model and run on all the data
+- [x] Fix markdown checklist
+- [x] Make the IO plot to Saxey's recommendation 
+- [x] Show the distributions of PC loadings before hit and before miss 
+- [x] Cross-correlation: take the absolute value of each element of cov matrix 
 
 ### TODO ML
-* Email Johannas about the oasis nan
-* Do fun stuff with the PCs
-
-
-
+- [ ] Email Johannas about the oasis nan
+- [ ] Do fun stuff with the PCs
+- [ ] Put the deconvolved spike data through the pipeline
+- [ ] Photostim period length
 
 # Glossary 
 
@@ -43,7 +47,7 @@
 ### Principal directions
 * *symbol*: $V$
 * *size matrix*: ($n_{comps}$ x $n_{neurons}$)
-* *defined by*: eigendecomposition $ C = V L V^T $, where $L$ is the (diagonal) matrix with eigenvalues
+* *defined by*: eigendecomposition $C = V L V^T$, where $L$ is the (diagonal) matrix with eigenvalues
 
 #### Synonyms:
 * Loading matrix
@@ -66,7 +70,7 @@
 ### ------
 
 
-### Principal Components
+### Principal Ccomponent (Dynamic Activity)
 * *symbol*: $Z$
 * *size matrix*: (n_comps x n_times)
 * *defined by*: $Z = V \cdot X$ (Principal directions _dot_ Neural activity)
