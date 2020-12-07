@@ -7,7 +7,7 @@
 * Discard licks 250ms
 * Log the covariates that are better fit by the logs
 * Merge multiple sessions
-* Make the IO plot to Saxey's recommendation
+* Make the IO plot to Saxe's recommendation
 
 ### TODO ML
 * Email Johannas about the oasis nan
@@ -43,7 +43,7 @@
 ### Principal directions
 * *symbol*: $V$
 * *size matrix*: ($n_{comps}$ x $n_{neurons}$)
-* *defined by*: eigendecomposition $C = V L V^T$, where $L$ is the (diagonal) matrix with eigenvalues
+* *defined by*: eigendecomposition $ C = V L V^T $, where $L$ is the (diagonal) matrix with eigenvalues
 
 #### Synonyms:
 * Loading matrix
@@ -66,7 +66,7 @@
 ### ------
 
 
-### Principal Ccomponent (Dynamic Activity)
+### Principal Components
 * *symbol*: $Z$
 * *size matrix*: (n_comps x n_times)
 * *defined by*: $Z = V \cdot X$ (Principal directions _dot_ Neural activity)
