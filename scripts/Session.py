@@ -35,6 +35,8 @@ from cycler import cycler
 import warnings
 warnings.simplefilter("ignore", UserWarning)
 
+from IPython.core.debugger import Pdb
+ipdb = Pdb()
 # Taken out to prevent need to clone OASIS to use SessionLite
 #from oasis.functions import deconvolve
 
@@ -232,6 +234,8 @@ class Session:
         self.trial_start = self.run.trial_start
         assert len(self.trial_start) == len(self.tstart_galvo)
         self.galvo_ms = self.run.aligner.B_to_A(self.tstart_galvo)
+        self.first_lick = np.array([licks[0] if len(licks) > 0 else None 
+                                    for licks in self.run.spiral_licks])
         if vverbose >= 1:
             print('microcontroller trial starts occur on average {} ms from galvo trial starts'
               .format(round(np.mean(self.trial_start - self.galvo_ms), 2)))
@@ -365,8 +369,6 @@ class Session:
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]
-        if debug:
-            1/0
         # self.is_target = self.is_target[self.filtered_neurons, :, :]
 
         if vverbose >= 1:
@@ -378,11 +380,11 @@ class Session:
     def find_unrewarded_hits(self):
         """Find unrewarded hit trials that are defined as
         (registered as miss) & (lick before 1000ms) & (not an autorewarded trials )"""
-        spiral_lick = self.run.spiral_licks  # [self.run.spiral_licks[x] for x in self.nonnan_trials]
-        lick_trials = np.zeros(len(spiral_lick))
-        for x in range(len(spiral_lick)):
-            if len(spiral_lick[x] > 0):  # if licks present
-                lick_trials[x] = (spiral_lick[x] < 1000)[0]  # True if first lick < 1000ms
+        self.spiral_lick = self.run.spiral_licks  # [self.run.spiral_licks[x] for x in self.nonnan_trials]
+        lick_trials = np.zeros(len(self.spiral_lick))
+        for x in range(len(self.spiral_lick)):
+            if len(self.spiral_lick[x] > 0):  # if licks present
+                lick_trials[x] = (self.spiral_lick[x] < 1000)[0]  # True if first lick < 1000ms
             else:
                 lick_trials[x] = False  # if no licks, always False
         mismatch = self.decision - lick_trials.astype('int')
@@ -448,6 +450,7 @@ class Session:
         self.unrewarded_hits = self.unrewarded_hits[self.nonnan_trials]
         self.n_trials = len(self.nonnan_trials)
         self.is_target = self.is_target[:, self.nonnan_trials, :]
+        self.first_lick = self.first_lick[self.nonnan_trials]
 
         if vverbose >= 1:
             print(f'{len(self.nonnan_trials)} / {self.behaviour_trials.shape[1]} non nan trials identified')

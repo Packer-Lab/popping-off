@@ -1,14 +1,14 @@
 # TO DO LISTS
 
 ### TODO JR
-- [ ] Discard licks 250ms 
-- [ ] Churchland 2010 natneuro (Do our results match?)
-- [ ] Log the covariates that are better fit by the logs
-- [ ] RERUN WITH NEW PCA Viola's PC plot -> trace of the first PC before hit and miss
-- [ ] Factor analysis
-- [ ] Merge multiple sessions for the logistic classifier
 - [ ] Please plot hit trials traces split by num cells
 - [ ] Fix the model and run on all the data
+- [x] Discard licks 250ms 
+- [x] Churchland 2010 natneuro (Do our results match?)
+- [x] Log the covariates that are better fit by the logs
+- [x] RERUN WITH NEW PCA Viola's PC plot -> trace of the first PC before hit and miss
+- [x] Factor analysis
+- [x] Merge multiple sessions for the logistic classifier
 - [x] Fix markdown checklist
 - [x] Make the IO plot to Saxey's recommendation 
 - [x] Show the distributions of PC loadings before hit and before miss 
