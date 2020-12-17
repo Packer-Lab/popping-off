@@ -24,6 +24,7 @@ ipdb = Pdb()
 USER_PATHS_DICT = loadpaths.loadpaths()
 
 COLORS = [
+
     '#08F7FE',  # teal/cyan
     '#FE53BB',  # pink
     '#F5D300',  # yellow
@@ -52,7 +53,7 @@ def do_fa(X, n_components, plot=False):
 
     for comp in range(n_components):
         varexp.append(
-            square_summed[comp] / (np.sum(square_summed) + np.sum(noise))
+            square_summed[comp] #/ (np.sum(square_summed) + np.sum(noise))
             )
 
     if plot:
@@ -200,16 +201,21 @@ def noise_correlation(flu, signal_trials, frames):
     return np.array(trial_corr)
 
 
-def largest_singular_value(flu, frames):
+def largest_singular_value(flu, frames, centre=False):
 
     singular_values = []
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-        _, s, _ = np.linalg.svd(trial.T)
+        trial = trial.T
+        if centre:
+            mean_ = np.mean(trial, axis=0)
+            trial -= mean_
+        _, s, _ = np.linalg.svd(trial)
         singular_values.append(s[0])
 
     return np.array(singular_values)
+
 
 
 def largest_PC_var(flu, frames):
@@ -234,6 +240,20 @@ def largest_factor_var(flu, frames):
         PC_vars.append(varexp[0])
 
     return np.array(PC_vars)
+
+
+def jonas_metric(flu, frames):
+
+    jm = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        # mean across cells
+        trial -= np.mean(trial)
+        meaned = np.mean(trial, 0)
+        jm.append(np.std(meaned))
+
+    return np.array(jm)
 
 
 def largest_PC_loading(flu, frames):
@@ -262,6 +282,21 @@ def largest_PC_trace(flu, frames):
         traces.append(trace[0, :])
 
     return traces
+    
+
+def get_variance(flu, frames):
+
+    vars_ = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        each_cell_var = np.var(trial, 1)
+        print(each_cell_var.shape)
+        vars_.append(np.mean(each_cell_var))
+        # vars_.append(np.var(trial))
+    return np.array(vars_)
+
+
 
 
 def reward_history(session, window_size=5):
@@ -574,6 +609,7 @@ class LinearModel():
         covariates_dict['largest_singular_value'] = np.log(largest_singular_value(
                                                            flu, self.pre))
 
+        # covariates_dict['largest_PC_var'] = np.log(largest_PC_var(flu, self.pre))
         covariates_dict['largest_PC_var'] = np.log(largest_PC_var(flu, self.pre))
 
         covariates_dict['largest_factor_var'] = np.log(largest_factor_var(flu, self.pre))
@@ -581,21 +617,25 @@ class LinearModel():
         covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
         covariates_dict['ts_s1_pre'] = np.log(np.abs(self.session.tau_dict['S1_pre'][trial_bool]))
-
-        covariates_dict['ts_s2_pre'] = np.log(self.session.tau_dict['S2_pre'][trial_bool])
-
-        covariates_dict['ts_both_pre'] = np.log(self.session.tau_dict['all_pre'][trial_bool])
+        covariates_dict['ts_s2_pre'] = np.log(np.abs(self.session.tau_dict['S2_pre'][trial_bool]))
+        covariates_dict['ts_both_pre'] = np.log(np.abs(self.session.tau_dict['all_pre'][trial_bool]))
 
         covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
 
-        covariates_dict['reward_history'] = reward_history(self.session)[
-                                                           trial_bool]
+        # covariates_dict['variance'] = np.var(flu, self.pre)
+        # covariates_dict['variance_pre'] = np.var(flu[:, :, self.pre], (0, 2))
+        covariates_dict['variance_pre'] = (get_variance(flu, self.pre))
+
+        covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
 
         covariates_dict['n_cells_stimmed'] = self.session.trial_subsets[trial_bool]
 
         covariates_dict['lick'] = self.session.decision[trial_bool]
         covariates_dict['reward'] = (self.session.outcome == 'hit')\
                                      .astype('int')[trial_bool]
+
+        covariates_dict['jonas_metric'] = jonas_metric(flu, self.pre)
+
 
         # for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
             # val = covariates_dict[key]
@@ -1228,7 +1268,10 @@ class LinearModel():
                                  n_comps_include=0,
                                  return_matrix=False,)
 
-        covs_keep = ['mean_pre', 'corr_pre', 'largest_PC_var',
+        # covs_keep = ['mean_pre', 'corr_pre', 'largest_PC_var',
+                     # f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
+
+        covs_keep = ['mean_pre', 'variance_pre',
                      f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
@@ -1275,7 +1318,7 @@ class LinearModel():
             # plt.errorbar(n_points, acc, yerr=std_acc, capsize=20)
             if plot:
                 plt.plot([n_points]*len(results),
-                         results, '.', color=COLORS[1])
+                         results, '.', color=colors[1])
             n_points += 1
 
         np.random.shuffle(y)
@@ -1334,6 +1377,9 @@ class LinearModel():
         covs_keep = ['mean_pre', 'corr_pre',
                     'largest_PC_var', f'ts_{region}_pre', 'reward_history', 'trial_number',
                     'n_cells_stimmed']  # 'PC1', 'PC2', 'PC3',
+
+        covs_keep = ['mean_pre', 'variance_pre', 'flat',
+                     f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
 
@@ -1725,7 +1771,6 @@ class PoolAcrossSessions(AverageTraces):
                     std_accs[k] = np.array(np.std(v))
 
         all_betas = np.array(all_betas)
-        # This is gonna cause an error
         all_betas = all_betas.reshape(all_betas.shape[0] * all_betas.shape[1],
                                       all_betas.shape[-1])
 
@@ -1847,12 +1892,26 @@ class MultiSessionModel(PoolAcrossSessions):
         # Do the same for dict2matrix
         self.dict2matrix = self.linear_models[0].dict2matrix
 
+        self.penalty = 'l1'
+        self.C = 0.5
+        self.solver = 'saga'
+
 
     def across_session_covariates(self, region='s1', norm='zscore'):
 
         covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var', 
                     'largest_factor_var', f'ts_{region}_pre', 'reward_history', 'trial_number',
-                    'n_cells_stimmed']
+                    'n_cells_stimmed', 'jonas_metric', 'variance_pre']
+
+        covs_keep = [
+                     'reward_history', 'trial_number',
+                    'n_cells_stimmed', 'variance_pre', 'ts_s1_pre'
+                    ]
+
+        to_norm =   ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var', 
+                    'largest_factor_var', 'variance_pre']
+                    
+        # to_norm = []
 
         all_X = None
         all_y = None
@@ -1863,6 +1922,9 @@ class MultiSessionModel(PoolAcrossSessions):
             # No normalisation
             norm_func = lambda x: x
 
+        smallest_session = min([sum(np.logical_or(lm.session.outcome == 'hit', 
+                                lm.session.outcome=='miss')) for lm in self.linear_models])
+
         for lm in self.linear_models:
 
             X, y = lm.prepare_data(frames='pre', model='partial',
@@ -1871,9 +1933,18 @@ class MultiSessionModel(PoolAcrossSessions):
                                      n_comps_include=5,
                                      return_matrix=False)
 
-            # Subsample to the covariates you want and apply the
-            # noramlisation function
-            X = {k: norm_func(v) for k, v in X.items() if k in covs_keep}
+            # If you wana take the same number of trials from each session
+            # X = {k: v[:smallest_session-1] for k, v in X.items() if k in covs_keep}
+            # y = y[:smallest_session-1]
+
+            # Subsample to the covariates you want
+            X = {k: v for k, v in X.items() if k in covs_keep}
+
+            # Apply the norm function for the required covariates
+            for k, v in X.items():
+                if k in to_norm:
+                    X[k] = norm_func(v)
+
 
             if all_X is None:
                 all_X = X
@@ -1887,9 +1958,6 @@ class MultiSessionModel(PoolAcrossSessions):
 
     def single_covariate(self, region='s1'):
 
-        self.penalty = 'l1'
-        self.C = 0.5
-        self.solver = 'saga'
 
         n_points = 0
 
@@ -1926,6 +1994,83 @@ class MultiSessionModel(PoolAcrossSessions):
         plt.xticks(np.arange(n_points), labels, rotation=90)
         plt.axhline(0.5, linestyle=':')
 
+
+    def plot_betas(self, region='s1'):
+
+
+        X, y = self.across_session_covariates(region=region)
+
+        # Every covaraite
+        results, models = self.logistic_regression(self.dict2matrix(X), y,
+                                                              penalty=self.penalty, C=self.C,
+                                                              solver=self.solver,
+                                                              n_folds=5,
+                                                              filter_models=False,
+                                                              stratified_kfold=True,
+                                                              return_results=True)
+
+        labels = X.keys()
+
+        x_axis = np.arange(len(labels))
+        for model in models:
+            coefs = model.coef_.ravel()
+            plt.plot(x_axis, coefs, '.', color='blue')
+
+        plt.xticks(x_axis, labels, rotation=90)
+        plt.axhline(0, linestyle=':')
+
+
+    def dropout(self, region='s1'):
+
+        
+        X, y = self.across_session_covariates(region=region)
+
+        n_points = 0
+
+        # Every covaraite
+        results, _ = self.logistic_regression(self.dict2matrix(X), y,
+                                                              penalty=self.penalty, C=self.C,
+                                                              solver=self.solver,
+                                                              n_folds=5,
+                                                              filter_models=False,
+                                                              stratified_kfold=True,
+                                                              return_results=True)
+
+        plt.plot([n_points] * len(results), results, '.', color='blue')
+        plt.errorbar(n_points, np.mean(results), np.std(results), marker='o',
+                     capsize=10, color=COLORS[0])
+        labels = ['All covariate']
+        n_points += 1
+
+        
+        for label, cov in X.items():
+
+            temp_dict = copy.deepcopy(X)
+            temp_dict.pop(label, None)
+            print(temp_dict.keys())
+
+            # Every covaraite
+            results, _ = self.logistic_regression(self.dict2matrix(temp_dict), y,
+                                                                  penalty=self.penalty, C=self.C,
+                                                                  solver=self.solver,
+                                                                  n_folds=5,
+                                                                  filter_models=False,
+                                                                  stratified_kfold=True,
+                                                                  return_results=True)
+
+            plt.plot([n_points] * len(results), results, '.', color='blue')
+
+            plt.errorbar(n_points, np.mean(results), np.std(results), marker='o',
+                         capsize=10, color=COLORS[0])
+            labels.append(label)
+            n_points += 1
+
+        plt.xticks(np.arange(n_points), labels, rotation=90)
+
+        plt.ylim(0.45, 1)
+        plt.axhline(0.5, linestyle=':')
+
+
     @staticmethod
     def dict_merger(a, b):
 
@@ -1936,7 +2081,7 @@ class MultiSessionModel(PoolAcrossSessions):
 
         assert a.keys() == b.keys()
 
-        c={}
+        c ={}
 
         for key, a_val, b_val in zip(a.keys(), a.values(), b.values()):
             c[key]=np.concatenate((a_val, b_val))
