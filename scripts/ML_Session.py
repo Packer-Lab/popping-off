@@ -948,7 +948,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
 
 if __name__ == '__main__':
 
-    flu_flavour = input('Enter a flu_flavour, valid entries are: [dff, raw, denoised, spks]\n\n')
+    flu_flavour = input('Enter a flu_flavour, currently need to type "dff"!!!!\n\n')
 
     if flu_flavour == 'dff':
         flu_flavour = 'flu'
