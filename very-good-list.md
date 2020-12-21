@@ -1,6 +1,13 @@
 # TO DO LISTS
 
 ### TODO JR
+- [ ] Make a function to print flags and sessions included etc
+- [ ] Dropout repeated cross-folds
+- [ ] Check how the churchlands measure variance
+- [ ] Do largest sv and the different variances differ?
+- [ ] Does the variance predict propagation?
+- [x] Distribution plots of different variance flavours
+- [x] Classifier plot of different variance flavours
 - [ ] Please plot hit trials traces split by num cells
 - [ ] Fix the model and run on all the data
 - [x] Discard licks 250ms 
