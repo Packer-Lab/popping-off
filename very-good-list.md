@@ -1,17 +1,17 @@
 # TO DO LISTS
 
 ### TODO JR
-- [ ] Distribution of all neuron firing rates hit vs miss
-- [ ] Distribution of all neuron correlations etc
-- [ ] Make the plot matrix (some e.g. populations metrics wont be possible)
-- [ ] A flag for S1 and S2
-- [ ] The hit and miss eigenspectrum plots
 - [ ] Participation ratio
 - [ ] Dropout repeated cross-folds
 - [ ] Do largest sv and the different variances differ?
 - [ ] Please plot hit trials traces split by num cells
 - [ ] Fix the model and run on all the data
 - [ ] 9th Jan
+- [x] Distribution of all neuron firing rates hit vs miss
+- [x] Distribution of all neuron correlations etc
+- [x] Make the plot matrix (some e.g. populations metrics wont be possible)
+- [x] A flag for S1 and S2
+- [x] The hit and miss eigenspectrum plots
 - [x] Check how the churchlands measure variance
 - [x] Make a function to print flags and sessions included etc
 - [x] Does the variance predict propagation?
