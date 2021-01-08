@@ -1,12 +1,17 @@
 # TO DO LISTS
 
 ### TODO JR
+- [ ] Neuropil signal pre Get Josh to do this?
 - [ ] Participation ratio
-- [ ] Dropout repeated cross-folds
-- [ ] Do largest sv and the different variances differ?
-- [ ] Please plot hit trials traces split by num cells
+- [ ] Does largest SV correspond to any of the variances? 
 - [ ] Fix the model and run on all the data
 - [ ] 9th Jan
+- [x] Add the other variances
+- [x] Add a note to the table about whether there's an effect
+- [x] More PCs? as many as the number of neurons?
+- [x] Thick lines for the PCs. Generally improve graphics
+- [x] Dropout repeated cross-folds
+- [x] Same number of it and miss trials in the firing rate plot
 - [x] Distribution of all neuron firing rates hit vs miss
 - [x] Distribution of all neuron correlations etc
 - [x] Make the plot matrix (some e.g. populations metrics wont be possible)
@@ -84,7 +89,7 @@
 ### ------
 
 
-### Principal Ccomponent (Dynamic Activity)
+### Principal Component (Dynamic Activity)
 * *symbol*: $Z$
 * *size matrix*: (n_comps x n_times)
 * *defined by*: $Z = V \cdot X$ (Principal directions _dot_ Neural activity)
@@ -99,6 +104,12 @@
 * Latent components
 * left singular vector _dot_ (diagonal) singular value matrix
 
+### ------
+
+### Variances
+* variance_pop_mean: take the population mean across cells -> [time]. What is the variance of this vector?
+* variance_cell_rates: take the mean across time for all cells ->  [n_cells]. What is the variance of this vector? 
+* mean_cell_variance: take the variance of each cell through time -> [n_cells]. What is the mean of all the cell variances?
 
 
 ### References:
