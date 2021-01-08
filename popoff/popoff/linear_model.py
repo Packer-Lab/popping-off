@@ -81,6 +81,7 @@ def do_pca(X, n_components, plot=False):
     varexp = np.cumsum(model.explained_variance_ratio_)
     # Projection of neural activity on principal axes
     components = np.dot(model.components_, X)
+    loading = model.components_
     assert components.shape == (n_components, X.shape[1])
 
     if plot:
@@ -88,7 +89,7 @@ def do_pca(X, n_components, plot=False):
         plt.xlabel('Principle Component')
         plt.ylabel("% Variance explained\n(pre-stimulus)")
         plt.xticks(range(n_components), range(n_components))
-    return varexp, components
+    return varexp, components, loading
 
 
 def pca_session(session, cells_include, n_components=100, plot=False,
@@ -217,14 +218,13 @@ def largest_singular_value(flu, frames, centre=False):
     return np.array(singular_values)
 
 
-
 def largest_PC_var(flu, frames):
 
     PC_vars = []
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-        varexp, _ = do_pca(trial, 10, plot=False)
+        varexp, _, _ = do_pca(trial, 10, plot=False)
         PC_vars.append(varexp[0])
 
     return np.array(PC_vars)
@@ -282,21 +282,50 @@ def largest_PC_trace(flu, frames):
         traces.append(trace[0, :])
 
     return traces
-    
 
-def get_variance(flu, frames):
+
+def flattened_variance(flu, frames):
 
     vars_ = []
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-        each_cell_var = np.var(trial, 1)
-        print(each_cell_var.shape)
-        vars_.append(np.mean(each_cell_var))
-        # vars_.append(np.var(trial))
+        vars_.append(np.var(trial))
+
     return np.array(vars_)
 
 
+def variance_cell_rates(flu, frames): 
+
+    vars_ = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        vars_.append(np.var(np.mean(trial, axis=1)))
+
+    return np.array(vars_)
+
+
+def mean_cell_variance(flu, frames):
+
+    vars_ = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        vars_.append(np.mean(np.var(trial, axis=1)))
+
+    return np.array(vars_)
+
+def variance_pop_mean(flu, frames):
+
+    vars_ = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        meaned = np.mean(trial, 0)
+        vars_.append(np.var(meaned))
+
+    return np.array(vars_)
 
 
 def reward_history(session, window_size=5):
@@ -624,7 +653,12 @@ class LinearModel():
 
         # covariates_dict['variance'] = np.var(flu, self.pre)
         # covariates_dict['variance_pre'] = np.var(flu[:, :, self.pre], (0, 2))
-        covariates_dict['variance_pre'] = (get_variance(flu, self.pre))
+        # covariates_dict['variance_pre'] = (get_variance(flu, self.pre))
+        covariates_dict['flattened_variance'] = flattened_variance(flu, self.pre)
+        covariates_dict['variance_pop_mean'] = variance_pop_mean(flu, self.pre)
+        covariates_dict['variance_cell_rates'] = variance_cell_rates(flu, self.pre)
+        covariates_dict['mean_cell_variance'] = mean_cell_variance(flu, self.pre)
+
 
         covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
 
@@ -706,7 +740,7 @@ class LinearModel():
     def logistic_regression(self, X, y, penalty, C, solver='lbfgs', n_folds=5,
                             digital_score=True, compute_confusion=False,
                             random_state=None, filter_models=False,
-                            return_results=False, stratified_kfold=False):
+                            return_results=False, stratified_kfold=True):
         ''' Perform cross validated logistic regression on data
             Driver function for sklearn class https://tinyurl.com/sklearn-logistic
 
@@ -798,6 +832,27 @@ class LinearModel():
             return results, models
         else:
             return np.mean(results), np.std(results), models
+
+    def repeated_crossfold(self, X, y, penalty, C, solver='lbfgs', n_repeats=10, n_folds=5,
+                            digital_score=True, compute_confusion=False,
+                            random_state=None, filter_models=False,
+                            stratified_kfold=True):
+
+        all_results = []
+        for _ in range(n_repeats):
+
+            results, _ = self.logistic_regression(X, y, penalty, C, 
+                                               solver=solver, n_folds=n_folds,
+                                               digital_score=digital_score, 
+                                               compute_confusion=compute_confusion,
+                                               random_state=random_state,
+                                               return_results=True,
+                                               filter_models=filter_models,
+                                               stratified_kfold=stratified_kfold)
+            all_results.append(results)
+
+        return np.array(all_results).ravel()
+
 
     def performance_vs_reg(self, X, y, penalty, solvers):
         ''' Model performance as a function of C.
@@ -1211,6 +1266,7 @@ class LinearModel():
 
         mean_accs = []
         std_accs = []
+        coefs = []
 
         for idx, region in enumerate(regions):
 
@@ -1220,10 +1276,13 @@ class LinearModel():
                                      region=region,
                                      n_comps_include=0)
 
-            mean_acc, std_acc, _ = self.logistic_regression(X, y, penalty,
+            mean_acc, std_acc, models = self.logistic_regression(X, y, penalty,
                                                             C, solver)
             mean_accs.append(mean_acc)
             std_accs.append(std_acc)
+            all_coefs = np.array([np.squeeze(model.coef_) for model in models])
+            coefs.append(np.mean(all_coefs, axis = 0))
+
 
             if plot:
                 plt.errorbar(idx, mean_acc, yerr=std_acc, fmt='o',
@@ -1234,7 +1293,7 @@ class LinearModel():
             plt.axhline(0.25)
             plt.xticks(range(3), regions)
 
-        return mean_accs, std_accs
+        return mean_accs, std_accs, coefs[0]  # coefs will break if you have >1 region
 
     def pca_regions(self, n_components=100, save_PC_matrix=False):
         ''' Driver function for pca_session to build PCs based on cells in
@@ -1271,7 +1330,7 @@ class LinearModel():
         # covs_keep = ['mean_pre', 'corr_pre', 'largest_PC_var',
                      # f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
-        covs_keep = ['mean_pre', 'variance_pre',
+        covs_keep = ['mean_pre', 'variance_cell_rates',
                      f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
@@ -1512,6 +1571,9 @@ class PoolAcrossSessions(AverageTraces):
         # keep linear model to a single session
         super().__init__('dff')
 
+        self.remove_targets = remove_targets
+        self.remove_toosoon = remove_toosoon
+
         self.linear_models = [LinearModel(session, self.times_use,
                                           remove_targets=remove_targets,
                                           remove_toosoon=remove_toosoon)
@@ -1700,12 +1762,14 @@ class PoolAcrossSessions(AverageTraces):
 
         all_means = []
         all_stds = []
+        all_coefs = []
 
         for linear_model in self.linear_models:
-           mean_accs, std_accs = linear_model.compare_regions(
+           mean_accs, std_accs, coefs = linear_model.compare_regions(
                frames=frames, plot=False)
            all_means.append(mean_accs)
            all_stds.append(std_accs)
+           all_coefs.append(coefs)
 
         all_means = np.array(all_means)
         all_stds = np.array(all_stds)
@@ -1721,6 +1785,7 @@ class PoolAcrossSessions(AverageTraces):
         plt.ylim(0, 1)
         plt.axhline(0.5, linestyle=':')
         plt.xticks(range(len(grand_mean)), regions)
+        return all_coefs
 
     def build_confusion_matrix(self):
         ''' Builds a "3d" confusion matrix, allowing you to stack
@@ -1860,6 +1925,26 @@ class PoolAcrossSessions(AverageTraces):
 
         PoolAcrossSessions.display_table(metadata)
 
+    def plot_string(self, is_plot=True, additional_strings=None):
+        string = (f'Hello Adam\n'
+                 f'Remove targets is {self.remove_targets}.\n'
+                 f'Remove too soon is {self.remove_toosoon}\n'
+                 f'Here are the sessions in play:\n' 
+                 f'{[s.__str__() for s in self.sessions.values()]}'
+                 )
+
+        if additional_strings is not None:
+            for s in additional_strings:
+                string = string + '\n' + s
+            
+                    
+        if is_plot:
+            xlims = plt.gca().get_xlim()
+            ylims = plt.gca().get_ylim()
+            plt.text(xlims[1], ylims[0], string, fontsize=20)
+        else:
+            return string
+
     @staticmethod
     def display_table(data):
 
@@ -1886,16 +1971,18 @@ class MultiSessionModel(PoolAcrossSessions):
         super().__init__(save_PCA=False, remove_targets=remove_targets,
                         subsample_sessions=subsample_sessions, remove_toosoon=remove_toosoon)
 
-        # Hijack the logistic_regression from one of the LinearModel objects
-        # as the initialisation isn't important
+
+        self.remove_targets = remove_targets
+        self.remove_toosoon = remove_toosoon
+        # Hijack functions from from one of the 
+        # LinearModel objects where the initialisation isn't important
         self.logistic_regression = self.linear_models[0].logistic_regression
-        # Do the same for dict2matrix
+        self.repeated_crossfold = self.linear_models[0].repeated_crossfold
         self.dict2matrix = self.linear_models[0].dict2matrix
 
         self.penalty = 'l1'
         self.C = 0.5
         self.solver = 'saga'
-
 
     def across_session_covariates(self, region='s1', norm='zscore'):
 
@@ -1904,15 +1991,14 @@ class MultiSessionModel(PoolAcrossSessions):
                     'n_cells_stimmed', 'jonas_metric', 'variance_pre']
 
         covs_keep = [
-                     'reward_history', 'trial_number',
-                    'n_cells_stimmed', 'variance_pre', 'ts_s1_pre'
+                    'reward_history', 'trial_number',
+                    'n_cells_stimmed',
+                    'variance_cell_rates'
                     ]
 
-        to_norm =   ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var', 
-                    'largest_factor_var', 'variance_pre']
+        to_norm =   ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var',
+                     'largest_factor_var', 'variance_pre', ]
                     
-        # to_norm = []
-
         all_X = None
         all_y = None
 
@@ -1922,9 +2008,6 @@ class MultiSessionModel(PoolAcrossSessions):
             # No normalisation
             norm_func = lambda x: x
 
-        smallest_session = min([sum(np.logical_or(lm.session.outcome == 'hit', 
-                                lm.session.outcome=='miss')) for lm in self.linear_models])
-
         for lm in self.linear_models:
 
             X, y = lm.prepare_data(frames='pre', model='partial',
@@ -1932,10 +2015,6 @@ class MultiSessionModel(PoolAcrossSessions):
                                      region=region,
                                      n_comps_include=5,
                                      return_matrix=False)
-
-            # If you wana take the same number of trials from each session
-            # X = {k: v[:smallest_session-1] for k, v in X.items() if k in covs_keep}
-            # y = y[:smallest_session-1]
 
             # Subsample to the covariates you want
             X = {k: v for k, v in X.items() if k in covs_keep}
@@ -2028,13 +2107,13 @@ class MultiSessionModel(PoolAcrossSessions):
         n_points = 0
 
         # Every covaraite
-        results, _ = self.logistic_regression(self.dict2matrix(X), y,
-                                                              penalty=self.penalty, C=self.C,
-                                                              solver=self.solver,
-                                                              n_folds=5,
-                                                              filter_models=False,
-                                                              stratified_kfold=True,
-                                                              return_results=True)
+        results = self.repeated_crossfold(self.dict2matrix(X), y,
+                                         penalty=self.penalty, C=self.C,
+                                         solver=self.solver,
+                                         n_folds=5,
+                                         n_repeats=30,
+                                         filter_models=False,
+                                         stratified_kfold=True)
 
         plt.plot([n_points] * len(results), results, '.', color='blue')
         plt.errorbar(n_points, np.mean(results), np.std(results), marker='o',
@@ -2047,19 +2126,17 @@ class MultiSessionModel(PoolAcrossSessions):
 
             temp_dict = copy.deepcopy(X)
             temp_dict.pop(label, None)
-            print(temp_dict.keys())
 
             # Every covaraite
-            results, _ = self.logistic_regression(self.dict2matrix(temp_dict), y,
-                                                                  penalty=self.penalty, C=self.C,
-                                                                  solver=self.solver,
-                                                                  n_folds=5,
-                                                                  filter_models=False,
-                                                                  stratified_kfold=True,
-                                                                  return_results=True)
+            results = self.repeated_crossfold(self.dict2matrix(temp_dict), y,
+                                              penalty=self.penalty, C=self.C,
+                                              solver=self.solver,
+                                              n_folds=5,
+                                              n_repeats = 30,
+                                              filter_models=False,
+                                              stratified_kfold=True)
 
             plt.plot([n_points] * len(results), results, '.', color='blue')
-
             plt.errorbar(n_points, np.mean(results), np.std(results), marker='o',
                          capsize=10, color=COLORS[0])
             labels.append(label)
@@ -2069,6 +2146,27 @@ class MultiSessionModel(PoolAcrossSessions):
 
         plt.ylim(0.45, 1)
         plt.axhline(0.5, linestyle=':')
+
+
+    def plot_string(self, region, is_plot=True, additional_strings=None):
+        string = (f'Hello Adam\n'
+                 f'Remove targets is {self.remove_targets}.\n'
+                 f'Remove too soon is {self.remove_toosoon}\n'
+                 f'Here are the sessions in play:\n' 
+                 f'{[s.__str__() for s in self.sessions.values()]}\n'
+                 f'Cells in region {region} are included' 
+                 )
+
+        if additional_strings is not None:
+            for s in additional_strings:
+                string = string + '\n' + s
+            
+        if is_plot:
+            xlims = plt.gca().get_xlim()
+            ylims = plt.gca().get_ylim()
+            plt.text(xlims[1], ylims[0], string, fontsize=20)
+        else:
+            return string
 
 
     @staticmethod
