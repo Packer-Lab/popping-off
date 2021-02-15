@@ -167,23 +167,21 @@ def pca_session(session, cells_include, n_components=100, plot=False,
     return session
 
 
-def noise_correlation(flu, signal_trials, frames):
-    ''' Compute trial-wise noise correlation for fluoresence array ->
-        pairwise correlations minus mean
+def mean_cross_correlation(flu, frames):
+
+    ''' Takes the mean of the absolute off-diagonal
+        values of the crosscorrelation matrix
 
 
     Parameters
     ----------
     flu : fluoresence array [n_cells x n_trials x n_frames]
-    signal_trials : which trials do you want to calculate the
-                    mean from for subtraction
     frames : indexing array, frames across which to compute correlation
 
     Returns
     -------
     trial_corr : vector of len n_trials ->
                  mean of correlation coefficient matrix matrix on each trial.
-                 TODO: remove the diagonal (won't make much difference)
 
     '''
 
@@ -192,10 +190,9 @@ def noise_correlation(flu, signal_trials, frames):
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
-
         matrix = np.corrcoef(trial)
         matrix = matrix[~np.eye(matrix.shape[0], dtype=bool)]
-        # mean_cov = np.mean(np.corrcoef(trial), (0, 1))
+        matrix = np.abs(matrix)
         mean_cov = np.mean(matrix)
         trial_corr.append(mean_cov)
 
@@ -481,8 +478,16 @@ class LinearModel():
         self.pre_flu = self.pre_flu[:, :, self.session.frames_use]
 
         # Split the trace into pre=frames-before-stim and post=frames-after-stim
-        self.pre = self.times_use < -0.04  # times_use inherited from AverageTraces
-        self.post = self.times_use > 0.8
+        # times_use inherited from AverageTraces
+        self.pre = np.logical_and(self.times_use < -0.04, self.times_use > -2)
+
+        long_post = False
+        if long_post:
+            self.post = self.times_use > 0.8
+            print('long post time')
+        else:
+            self.post = np.logical_and(self.times_use > 0.8, self.times_use < 1.8)
+            print('short post time')
         self.remove_artifact = np.logical_or(self.pre, self.post)
 
         # Allows future functions to use 'frames' argument as a string
@@ -535,7 +540,7 @@ class LinearModel():
 
         if prereward:
             flu = self.pre_flu
-            y = np.ones(flu.shape[1])
+            y = np.zeros(flu.shape[1])
             trial_bool = y.astype('bool')
 
         else:
@@ -553,6 +558,7 @@ class LinearModel():
             # Fit encoder on data that is independent of the trial
             # order in the session
             self.encoder.fit(outcome)
+            print(self.encoder)
             y = self.encoder.transform(outcome)
 
         # Select cells from required region
@@ -628,32 +634,29 @@ class LinearModel():
         covariates_dict['mean_post'] = np.mean(flu[:, :, self.post], (0, 2))
 
         # Mean trace correlation pre stim
-        covariates_dict['corr_pre'] = np.log(np.abs(noise_correlation(flu, 
-                                                               self.session.photostim == 1,
-                                                               self.frames_map['pre'])))
+        covariates_dict['corr_pre'] = np.log((mean_cross_correlation(flu, 
+                                                    self.frames_map['pre'])))
         # Mean trace correlation post stim
-        covariates_dict['corr_post'] = np.log(np.abs(noise_correlation(flu, 
-                                       self.session.photostim == 1, self.frames_map['post'])))
+        covariates_dict['corr_post'] = np.log((mean_cross_correlation(flu, 
+                                                     self.frames_map['post'])))
 
         covariates_dict['largest_singular_value'] = np.log(largest_singular_value(
                                                            flu, self.pre))
 
-        # covariates_dict['largest_PC_var'] = np.log(largest_PC_var(flu, self.pre))
         covariates_dict['largest_PC_var'] = np.log(largest_PC_var(flu, self.pre))
+        # covariates_dict['largest_PC_var'] = largest_PC_var(flu, self.pre)
 
         covariates_dict['largest_factor_var'] = np.log(largest_factor_var(flu, self.pre))
 
         covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
-        covariates_dict['ts_s1_pre'] = np.log(np.abs(self.session.tau_dict['S1_pre'][trial_bool]))
-        covariates_dict['ts_s2_pre'] = np.log(np.abs(self.session.tau_dict['S2_pre'][trial_bool]))
-        covariates_dict['ts_both_pre'] = np.log(np.abs(self.session.tau_dict['all_pre'][trial_bool]))
+        # The log of the timescales is taken further down
+        covariates_dict['ts_s1_pre'] = np.log((np.abs(self.session.tau_dict['S1_pre'][trial_bool])))
+        covariates_dict['ts_s2_pre'] = np.log((np.abs(self.session.tau_dict['S2_pre'][trial_bool])))
+        covariates_dict['ts_both_pre'] = np.log((np.abs(self.session.tau_dict['all_pre'][trial_bool])))
 
         covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
 
-        # covariates_dict['variance'] = np.var(flu, self.pre)
-        # covariates_dict['variance_pre'] = np.var(flu[:, :, self.pre], (0, 2))
-        # covariates_dict['variance_pre'] = (get_variance(flu, self.pre))
         covariates_dict['flattened_variance'] = flattened_variance(flu, self.pre)
         covariates_dict['variance_pop_mean'] = variance_pop_mean(flu, self.pre)
         covariates_dict['variance_cell_rates'] = variance_cell_rates(flu, self.pre)
@@ -673,8 +676,8 @@ class LinearModel():
 
         # for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
             # val = covariates_dict[key]
-            # val[np.logical_or(val < 30, val > 3000)] = 0
-            # covariates_dict[key] = val
+            # val[np.logical_or(val < 30, val > 3000)] = 30
+            # covariates_dict[key] = np.log(val)
 
         # if prereward:
             # if region != 'all':
@@ -741,6 +744,7 @@ class LinearModel():
                             digital_score=True, compute_confusion=False,
                             random_state=None, filter_models=False,
                             return_results=False, stratified_kfold=True):
+
         ''' Perform cross validated logistic regression on data
             Driver function for sklearn class https://tinyurl.com/sklearn-logistic
 
@@ -808,6 +812,10 @@ class LinearModel():
             model = sklearn.linear_model.LogisticRegression(penalty=penalty, C=C,
                                                             class_weight='balanced', solver=solver,
                                                             random_state=random_state)
+
+            model.idx_dict = {'train': train_idx,
+                              'test': test_idx}
+
             model.fit(X=X_train, y=y_train)
 
             if not filter_models or model.score(X_test, y_test) > 0.55:
@@ -823,8 +831,11 @@ class LinearModel():
                 # results.append(model.score(X_test, y_test))
                 # results.append(roc_auc_score(y_test, model.predict(X_test)))
                 # results.append(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
+                # print(y_test)
+                # print(model.predict(X_test))
+                # print('\n')
                 results.append(balanced_accuracy_score(
-                    y_test, model.predict(X_test)))
+                               y_test, model.predict(X_test)))
             else:
                 results.append(score_nonbinary(model, X_test, y_test))
 
@@ -1186,7 +1197,96 @@ class LinearModel():
 
             plt.xlim(-0.5, 1.5)
 
-    def project_model(self, frames='all', model='full', plot=False, digital_score=True):
+
+    def performance_covariate_correlation(self, covariate, frames='subbed', plot=False):
+
+
+        # These hyperparams give the best performance across sessions
+        penalty = 'l1'
+        solver = 'saga'
+        C = 0.1
+
+        # Prepare data for a hit vs fp classifier
+        X, y = self.prepare_data(frames=frames, model='full', region='s2',
+                                 outcomes=['hit', 'fp'],
+                                 n_comps_include=10)
+
+        # Train n_folds stim classifers
+        _, _, models = self.logistic_regression(
+                       X, y, penalty=penalty, C=C, solver=solver, digital_score=True)
+
+        # X_hit = X[hit_idx, :]
+
+        # Get the partial covariates pre in S1
+        X_partial, y = self.prepare_data(frames='pre', model='partial',
+                                 outcomes=['hit', 'fp'],
+                                 region='s1',
+                                 n_comps_include=10,
+                                 return_matrix=False)
+
+        # Pull just the covariate you're correlating out of the 
+        # partial dictionary
+        # X_partial = X_partial[covariate]
+
+        # hit_cov = X[covariate][hit_idx]
+        
+
+        # Just want to look at hit trials
+        hit_idx = np.where(y==0)[0]
+        # If you wana remove easy trials
+        not_easy = np.where(np.isin(X_partial['n_cells_stimmed'], [5,10,20,30,40,50]))[0]
+
+        X_partial = X_partial[covariate]
+        hit_confidence = []
+        hit_cov = []
+
+        for model in models:
+            # The indexs of the test set for this model
+            test_idx = model.idx_dict['test']
+            # Indexes of test hit trials
+            test_hit = np.intersect1d(hit_idx, test_idx)
+            test_hit = np.intersect1d(test_hit, not_easy)
+            
+            confidence = model.predict_proba(X[test_hit, :])
+            hit_confidence.append(confidence[:, 0])
+            hit_cov.append(X_partial[test_hit])
+            
+        # hit_confidence = np.mean(np.array(hit_confidence), 0)
+
+        hit_confidence = np.concatenate(hit_confidence)
+        hit_cov = np.concatenate(hit_cov)
+
+        
+        # assert len(hit_cov) == len(hit_idx)
+
+
+        if plot:
+
+            plt.plot(hit_cov, hit_confidence, '.')
+
+            slope, intercept, r_value, p_value, std_err = stats.linregress(hit_cov, hit_confidence)
+            x_lims = (min(hit_cov), max(hit_cov))
+            y_lims = (min(hit_confidence), max(hit_confidence))
+
+
+            corr, p = stats.spearmanr(hit_cov, hit_confidence)
+
+
+            # plt.text((x_lims[0] + x_lims[1]) / 2, (y_lims[1] + y_lims[0])/2, 
+                     # f'r^2 = {round(r_value**2, 2)}\ngradient = {round(slope, 4)}'
+                     # f'\np={p_value:.2e}\nSR={stats.spearmanr(hit_cov, hit_confidence)}',
+                     # fontsize=16)
+            plt.text((x_lims[0] + x_lims[1]) / 2, (y_lims[1] + y_lims[0])/2,
+                     f'{round(corr, 2)} {round(p, 3)}',
+                     fontsize=16)
+
+            plt.plot(hit_cov, intercept + slope * hit_cov, '-', color='black')
+
+        return hit_confidence, hit_cov
+
+
+    def project_model(self, frames='all', model='full', region='both', plot=False, 
+                      digital_score=True):
         ''' Train a model to classify hit and miss and then test
             it on catch and prereward trials.
 
@@ -1204,65 +1304,80 @@ class LinearModel():
         # These hyperparams give the best performance across sessions
         penalty = 'l1'
         solver = 'saga'
-        C = 0.5
+        C =  0.1
 
-        # Prepare data for hit and miss trials
+        region = 's2'
+
+        # Prepare data for hit and fp trials
         X, y = self.prepare_data(frames=frames, model=model,
-                                 outcomes=['hit', 'miss'],
+                                 region=region,
+                                 outcomes=['hit', 'fp'],
                                  n_comps_include=10)
+
+
+        # y[np.isin(y, [0,1])] = 1
+        # y[np.isin(y, [2,3])] = 0
 
         # Prepare data for hit and miss trials
         # X, y = self.prepare_data(frames=frames, model=model, n_comps_include=10)
         # Prepare data for fp vs cr trials
-        X_catch, y_catch = self.prepare_data(frames=frames, model=model,
-                                             outcomes=['fp', 'cr'],
+        X_catch, y_catch = self.prepare_data(frames=frames, model=model, region=region,
+                                             outcomes=['miss', 'cr'],
                                              n_comps_include=10)
 
         # Prepare data for prereward trials
-        X_pre, y_pre = self.prepare_data(frames=frames, model=model,
+        X_pre, y_pre = self.prepare_data(frames=frames, model=model, region=region,
                                          n_comps_include=10,
                                          prereward=True)
 
+        # X = np.vstack((X, X_pre))
+        # y = np.hstack((y, y_pre))
+
         # Cross validated full model accuracy
         mean_test, std_test, models = self.logistic_regression(
-            X, y, penalty=penalty, C=C, solver=solver, digital_score=digital_score)
+            X, y, penalty=penalty, C=C, solver=solver, n_folds=5, digital_score=digital_score)
 
         # Test different trial types on each of the 5 models fit on hit vs miss
-        accs_catch = []
+        accs_miss = []
         accs_pre = []
         for model in models:
             if digital_score:
-                accs_catch.append(model.score(X_catch, y_catch))
+                accs_miss.append(model.score(X_catch, y_catch))
                 accs_pre.append(model.score(X_pre, y_pre))
+                # print(model.predict(X_pre))
+                # print(y_pre)
+                # accs_pre.append(balanced_accuracy_score(model.predict(X_pre), y_pre))
             else:
-                accs_catch.append(score_nonbinary(model, X_catch, y_catch))
+
+                accs_miss.append(score_nonbinary(model, X_catch, y_catch))
                 accs_pre.append(score_nonbinary(model, X_pre, y_pre))
 
         if plot:
             plt.errorbar(0, mean_test, std_test, marker='o',
                          capsize=10, color=COLORS[0])
-            plt.errorbar(1, np.mean(accs_catch), np.std(accs_catch),
+            # DOESNT MAKE SENSE WITH THE PROPAGATION MODEL
+            plt.errorbar(1, np.mean(accs_miss), np.std(accs_miss),
                          marker='o', capsize=10, color=COLORS[1])
             plt.errorbar(2, np.mean(accs_pre), np.std(accs_pre),
                          marker='o', capsize=10, color=COLORS[2])
 
-            plt.xticks([0, 1, 2], ['Hit vs Miss', 'FP vs CR', 'Spont'],
+            plt.xticks([0, 1, 2], ['Hit vs FP', 'Miss vs Cr', 'Spont'],
                        rotation=45)
 
-            plt.axhline(0.5, linestyle=':')
+            plt.axhline(1/len(set(y)), linestyle=':')
 
         return ((mean_test, std_test),
-                (np.mean(accs_catch), np.std(accs_catch)),
+                (np.mean(accs_miss), np.std(accs_miss)),
                 (np.mean(accs_pre), np.std(accs_pre)))
 
-    def compare_regions(self, frames='all', plot=True):
+    def compare_regions(self, frames='all', outcomes=['hit', 'fp'], plot=True):
 
         penalty = 'l1'
         C = 0.5
         solver = 'saga'
 
-        # regions = ['s1', 's2', 'all']
-        regions = ['all']
+        regions = ['s1', 's2', 'all']
+        # regions = ['all']
 
         mean_accs = []
         std_accs = []
@@ -1271,8 +1386,7 @@ class LinearModel():
         for idx, region in enumerate(regions):
 
             X, y = self.prepare_data(frames=frames, model='full',
-                                     # outcomes=['hit', 'miss', 'fp', 'cr'],
-                                     outcomes=['hit', 'miss'],
+                                     outcomes=outcomes,
                                      region=region,
                                      n_comps_include=0)
 
@@ -1540,7 +1654,8 @@ class LinearModel():
 
 class PoolAcrossSessions(AverageTraces):
 
-    def __init__(self, save_PCA=False, remove_targets=False, subsample_sessions=True, remove_toosoon=False):
+    def __init__(self, save_PCA=False, remove_targets=False, subsample_sessions=True, remove_toosoon=False,
+                 remove_too_few_cells=True):
         ''' Build object to pool across multiple LinearModel objects
 
         Allows you to build the useful attributes and make the plots
@@ -1573,6 +1688,14 @@ class PoolAcrossSessions(AverageTraces):
 
         self.remove_targets = remove_targets
         self.remove_toosoon = remove_toosoon
+
+        idxs_remove = []
+        for idx, session in self.sessions.items():    
+            if session.n_cells < 200:
+                idxs_remove.append(idx)
+
+        for idx in idxs_remove:
+            self.sessions.pop(idx, None)
 
         self.linear_models = [LinearModel(session, self.times_use,
                                           remove_targets=remove_targets,
@@ -1616,13 +1739,19 @@ class PoolAcrossSessions(AverageTraces):
         keep_sessions = [0, 3, 7]
         # Match it to the daddy sessions using the __repr__ string that contains
         # mouse id and session number
+
         if subsample_sessions:
             timescale_sessions = {key: session for key, session in timescale_sessions.items()
                                   if key in keep_sessions}
 
         # reprs of the timescales sessions, switch key value order to lookup key later
         session_stamps = {session.__repr__(): key for key,
-                                           session in timescale_sessions.items()}
+                          session in timescale_sessions.items()}
+
+        # [print(s) for s in timescale_sessions.values()]
+        # print('\n')
+        # [print(s) for s in self.sessions.values()]
+
 
         # Subsample self.sessions to get the same as timescale sessions
         temp = {}
@@ -1633,6 +1762,7 @@ class PoolAcrossSessions(AverageTraces):
         if subsample_sessions:
             self.sessions = temp
         else:
+            self.sessions = temp
             print('ALERT SESSIONS NOT SUBSAMPLED')
 
         # Get the tau_dict into the daddy session Need to adjust this so it
@@ -1643,6 +1773,7 @@ class PoolAcrossSessions(AverageTraces):
             except KeyError:
                 continue
 
+        # ipdb.set_trace()
         # # This is a shitty fix redefining this variable but it allows for caching
         # # of the pca_dict variable
         self.linear_models = [LinearModel(session, self.times_use,
@@ -1651,10 +1782,18 @@ class PoolAcrossSessions(AverageTraces):
 
     def project_model(self, frames='all', model='full'):
 
-        results = [linear_model.project_model(frames=frames,
-                                              model=model,
-                                              plot=False)
-                  for linear_model in self.linear_models]
+
+        results = []
+
+        for linear_model in self.linear_models:
+            try:
+                res = linear_model.project_model(frames=frames,
+                                           model=model, region='s2', 
+                                           plot=False)
+                results.append(res)
+            except ValueError:
+                print(linear_model.session)
+
 
         results = np.array(results)
         means = results[:, :, 0]
@@ -1662,6 +1801,18 @@ class PoolAcrossSessions(AverageTraces):
 
         grand_mean = np.mean(means, 0)
         grand_std = self.combine_stds(stds)
+
+        plt.errorbar(0, grand_mean[0], grand_std[0], marker='o',
+                     capsize=10, color=COLORS[0])
+        plt.errorbar(1, grand_mean[1], grand_std[1],
+                     marker='o', capsize=10, color=COLORS[1])
+        plt.errorbar(2, grand_mean[2], grand_std[2],
+                     marker='o', capsize=10, color=COLORS[2])
+
+        plt.xticks([0, 1, 2], ['Hit vs FP', 'Miss vs cr', 'Spont'],
+                   rotation=45)
+
+        plt.axhline(0.5, linestyle=':')
 
         return grand_mean, grand_std
 
@@ -1897,6 +2048,37 @@ class PoolAcrossSessions(AverageTraces):
         plt.title(region)
         plt.axhline(0.5, linestyle=':')
 
+    def performance_covariate_correlation(self, covariate, frames='subbed'):
+        
+        x = []
+        y = []
+        for linear_model in self.linear_models:
+            try:
+                hit_confidence, hit_cov = linear_model.\
+                                    performance_covariate_correlation(covariate,
+                                                                   frames=frames)
+                x.append(hit_cov)
+                y.append(hit_confidence)
+            except ValueError:
+                print(linear_model.session)
+
+        x = np.concatenate(x)
+        y = np.concatenate(y)
+
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        x_lims = (min(x), max(x))
+        y_lims = (min(y), max(y))
+
+        plt.plot(x, y, '.')
+        plt.plot(x, intercept + slope * x, '-', color='black')
+        plt.text(x_lims[1], (y_lims[1] + y_lims[0])/2, 
+                 f'r^2 = {round(r_value**2, 2)}\ngradient = {round(slope, 4)}\np={p_value:.2e}',
+                 fontsize=16)
+         
+
+
+        
+
     def summary_table(self):
 
         metadata = []
@@ -1926,11 +2108,16 @@ class PoolAcrossSessions(AverageTraces):
         PoolAcrossSessions.display_table(metadata)
 
     def plot_string(self, is_plot=True, additional_strings=None):
+        lm = self.linear_models[0]
         string = (f'Hello Adam\n'
                  f'Remove targets is {self.remove_targets}.\n'
                  f'Remove too soon is {self.remove_toosoon}\n'
                  f'Here are the sessions in play:\n' 
-                 f'{[s.__str__() for s in self.sessions.values()]}'
+                 f'{[s.__str__() for s in self.sessions.values()]}\n'
+                 f'pre-frames spans {round(np.min(lm.times_use[lm.pre]), 2)} to '
+                 f'{round(np.max(lm.times_use[lm.pre]), 2)} inclusive\n'
+                 f'post-frames spans {round(np.min(lm.times_use[lm.post]), 2)} to '
+                 f'{round(np.max(lm.times_use[lm.post]), 2)} inclusive'
                  )
 
         if additional_strings is not None:
@@ -2149,12 +2336,17 @@ class MultiSessionModel(PoolAcrossSessions):
 
 
     def plot_string(self, region, is_plot=True, additional_strings=None):
+        lm = self.linear_models[0]
         string = (f'Hello Adam\n'
                  f'Remove targets is {self.remove_targets}.\n'
                  f'Remove too soon is {self.remove_toosoon}\n'
                  f'Here are the sessions in play:\n' 
                  f'{[s.__str__() for s in self.sessions.values()]}\n'
                  f'Cells in region {region} are included' 
+                 f'pre-frames spans {round(np.min(lm.times_use[lm.pre]), 2)} to '
+                 f'{round(np.max(lm.times_use[lm.pre]), 2)} inclusive\n'
+                 f'post-frames spans {round(np.min(lm.times_use[lm.post]), 2)} to '
+                 f' {round(np.max(lm.times_use[lm.post]), 2)} inclusive'
                  )
 
         if additional_strings is not None:

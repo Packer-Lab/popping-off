@@ -360,8 +360,9 @@ class Session:
         -----------------
             abs_threshold, float, default=10
                 upper bound on mean(abs(df/f))"""
-        # mean_abs_df = np.max(np.abs(self.run.flu), 1)
         mean_abs_df = np.max(self.run.flu, 1)
+        # mean_abs_df = np.max(np.abs(self.run.flu), 1)
+        #### Now uses the max rather than the mean
         self.unfiltered_n_cells = self.run.flu.shape[0]
         self.filtered_neurons = np.where(mean_abs_df < abs_threshold)[0]
         self.behaviour_trials = self.behaviour_trials[self.filtered_neurons, :, :]
@@ -614,7 +615,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
             try:
                 session = SessionLite(mouse, run_number, folder_path, 
                                       flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, post_seconds=8, 
+                                      post_gap_seconds=0, pre_seconds=8, post_seconds=8, 
                                       filter_threshold=5)
 
                 save_dict[total_ds] = session
