@@ -1,4 +1,0 @@
-name: jimmys_base
-channels:
-  - defaults
-prefix: /home/jrowland/anaconda3/envs/jimmys_base
