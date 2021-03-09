@@ -10,12 +10,19 @@ USER_PATHS_DICT = loadpaths.loadpaths()
 
 path_to_vape = USER_PATHS_DICT['vape_path']
 
-sys.path.append(path_to_vape)
-sys.path.append(os.path.join(path_to_vape, 'jupyter'))
-sys.path.append(os.path.join(path_to_vape, 'utils'))
+sys.path.append(str(path_to_vape))
+sys.path.append(str(os.path.join(path_to_vape, 'jupyter')))
+sys.path.append(str(os.path.join(path_to_vape, 'utils')))
 
 oasis_path = USER_PATHS_DICT['oasis_path']
-sys.path.append(oasis_path)
+sys.path.append(str(oasis_path))
+#print([x for x in sys.path if type(x) is not str])
+sys_path_list = sys.path.copy()  # ensure all itmes in sys.path are strs (to prevent failure with core packages that use str only operations)
+for x in sys_path_list:
+    if type(x) is not str:
+        sys.path.remove(x)
+        if str(x) not in sys.path:
+            sys.path.append(str(x))
 
 import numpy as np
 from tqdm import tqdm
