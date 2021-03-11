@@ -51,7 +51,8 @@ def beh_metric(sessions, metric='accuracy',
             fp = np.sum(session.outcome[trial_inds] == 'fp')
             tn = np.sum(session.outcome[trial_inds] == 'cr')
             fn = np.sum(session.outcome[trial_inds] == 'miss')
-            assert (tp + fp + tn + fn) == len(session.outcome[trial_inds])
+            too_early = np.sum(session.outcome[trial_inds] == 'too_')
+            assert (tp + fp + tn + fn + too_early) == len(session.outcome[trial_inds])
             if metric == 'accuracy':
                 acc[i_session, i_stim] = (tp + tn) / (tp + fp + tn + fn)
             elif metric == 'sensitivity':
@@ -1137,7 +1138,7 @@ def wilcoxon_test(acc_dict):
             s2_array = [acc_dict[ms2][tp] for ms2 in mouse_s2_list]
 
         stat, pval = scipy.stats.wilcoxon(x=s1_array, y=s2_array, alternative='two-sided')
-        p_vals[tp] = pval.copy()
+        p_vals[tp] = pval#.copy()
     return p_vals
 
 def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0):
