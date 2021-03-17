@@ -85,9 +85,9 @@ def do_pca(X, n_components, plot=False):
     assert components.shape == (n_components, X.shape[1])
 
     if plot:
-        plt.plot(model.explained_variance_ratio_*100, color='black', lw=4)
-        plt.xlabel('Principle Component')
-        plt.ylabel("% Variance explained\n(pre-stimulus)")
+        plt.plot(model.explained_variance_ratio_, color='black', lw=4)
+        plt.xlabel('Principal Component')
+        plt.ylabel("Variance explained\n(pre-stimulus)")
         plt.xticks(range(n_components), range(n_components))
     return varexp, components, loading
 
@@ -481,7 +481,7 @@ class LinearModel():
         # times_use inherited from AverageTraces
         self.pre = np.logical_and(self.times_use < -0.04, self.times_use > -2)
 
-        long_post = False
+        long_post = True
         if long_post:
             self.post = self.times_use > 0.8
             print('long post time')
@@ -651,9 +651,9 @@ class LinearModel():
         covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
         # The log of the timescales is taken further down
-        covariates_dict['ts_s1_pre'] = np.log((np.abs(self.session.tau_dict['S1_pre'][trial_bool])))
-        covariates_dict['ts_s2_pre'] = np.log((np.abs(self.session.tau_dict['S2_pre'][trial_bool])))
-        covariates_dict['ts_both_pre'] = np.log((np.abs(self.session.tau_dict['all_pre'][trial_bool])))
+        covariates_dict['ts_s1_pre'] = (np.abs(self.session.tau_dict['S1_pre'][trial_bool]))
+        covariates_dict['ts_s2_pre'] = (np.abs(self.session.tau_dict['S2_pre'][trial_bool]))
+        covariates_dict['ts_both_pre'] = (np.abs(self.session.tau_dict['all_pre'][trial_bool]))
 
         covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
 
@@ -674,10 +674,10 @@ class LinearModel():
         covariates_dict['jonas_metric'] = jonas_metric(flu, self.pre)
 
 
-        # for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
-            # val = covariates_dict[key]
-            # val[np.logical_or(val < 30, val > 3000)] = 30
-            # covariates_dict[key] = np.log(val)
+        for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
+            val = covariates_dict[key]
+            val[np.logical_or(val < 30, val > 3000)] = np.nan
+            covariates_dict[key] = np.log(val)
 
         # if prereward:
             # if region != 'all':
@@ -1370,14 +1370,14 @@ class LinearModel():
                 (np.mean(accs_miss), np.std(accs_miss)),
                 (np.mean(accs_pre), np.std(accs_pre)))
 
-    def compare_regions(self, frames='all', outcomes=['hit', 'fp'], plot=True):
+    def compare_regions(self, frames='all', outcomes=['hit', 'miss'], plot=True):
 
         penalty = 'l1'
         C = 0.5
         solver = 'saga'
 
         regions = ['s1', 's2', 'all']
-        # regions = ['all']
+        regions = ['all']
 
         mean_accs = []
         std_accs = []
@@ -1444,8 +1444,8 @@ class LinearModel():
         # covs_keep = ['mean_pre', 'corr_pre', 'largest_PC_var',
                      # f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
 
-        covs_keep = ['mean_pre', 'variance_cell_rates',
-                     f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
+        covs_keep = ['mean_pre', 'variance_cell_rates', 'largest_PC_var',
+                     'reward_history', 'trial_number', 'n_cells_stimmed']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
 
@@ -1542,6 +1542,7 @@ class LinearModel():
                                  outcomes=['hit', 'miss'],
                                  region=region,
                                  n_comps_include=n_comps_include,
+                                 remove_easy=True,
                                  return_matrix=False)
 
         # for i in range(n_comps_include):
@@ -1553,6 +1554,11 @@ class LinearModel():
 
         covs_keep = ['mean_pre', 'variance_pre', 'flat',
                      f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
+
+
+        covs_keep = ['mean_pre', 'variance_cell_rates', 'largest_PC_var',
+                     'reward_history', 'trial_number', 'n_cells_stimmed',
+                     'largest_singular_value']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
 

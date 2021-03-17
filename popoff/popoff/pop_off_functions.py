@@ -22,6 +22,11 @@ import scipy.stats
 from Session import Session  # class that holds all data per session
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
+def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.savefig(os.path.join(base_path, f'{name}.pdf'), 
+                bbox_inches='tight', transparent=True)
+
 def beh_metric(sessions, metric='accuracy',
                stim_array=[0, 5, 10, 20, 30, 40, 50]):
     """Compute metric to quantify behavioural performance for sessions.
