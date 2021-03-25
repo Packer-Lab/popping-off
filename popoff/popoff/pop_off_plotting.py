@@ -131,12 +131,12 @@ def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor=
             return same handle
         """
     assert len(time_array) == len(plot_array)
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
+    time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     if zero_mean:
         plot_array = plot_array - np.mean(plot_array)
-    ax.plot(time_array[:breakpoint], plot_array[:breakpoint],  linewidth=llinewidth, linestyle=linest,
+    ax.plot(time_array[:time_breakpoint], plot_array[:time_breakpoint],  linewidth=llinewidth, linestyle=linest,
                 markersize=12, color=ccolor, label=llabel, alpha=aalpha)
-    ax.plot(time_array[breakpoint:], plot_array[breakpoint:],  linewidth=llinewidth, linestyle=linest,
+    ax.plot(time_array[time_breakpoint:], plot_array[time_breakpoint:],  linewidth=llinewidth, linestyle=linest,
                 markersize=12, color=ccolor, alpha=aalpha, label=None)
     return ax
 
@@ -191,9 +191,9 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
 
     """
 
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
-    time_1 = time_array[:breakpoint]  # time before & after PS
-    time_2 = time_array[breakpoint:]
+    time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
+    time_1 = time_array[:time_breakpoint]  # time before & after PS
+    time_2 = time_array[time_breakpoint:]
     region_list = np.array(region_list)
     if plot_diff_s1s2:
         assert len(region_list) == 2
@@ -207,34 +207,34 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
                     av_mean = data[:, 0]
                     std_means = data[:, 1]
                     if plot_errorbar is False:  # plot gruup means
-                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
+                        ax.plot(time_1, av_mean[:time_breakpoint],  linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
-                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
+                        ax.plot(time_2, av_mean[time_breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
+                        ax.errorbar(time_1, av_mean[:time_breakpoint], yerr=std_means[:time_breakpoint], linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
+                        ax.errorbar(time_2, av_mean[time_breakpoint:], yerr=std_means[time_breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
 #                         if len(region_list) == 1:
 #                         std_label = f'Std {llabel} {rr.upper()}'
 #                         elif len(region_list) == 2:
 #                             std_label = f'Group std {rr.upper()}'
-                        ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
+                        ax.fill_between(x=time_1, y1=av_mean[:time_breakpoint] - std_means[:time_breakpoint],
+                                                y2=av_mean[:time_breakpoint] + std_means[:time_breakpoint], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
-                        ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
-                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
+                        ax.fill_between(x=time_2, y1=av_mean[time_breakpoint:] - std_means[time_breakpoint:],
+                                       y2=av_mean[time_breakpoint:] + std_means[time_breakpoint:], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
         elif plot_diff_s1s2:
             assert (region_list == np.array(['s1', 's2'])).all() and len(plot_array) == len(average_mean)
             diff_data = plot_array['s1'] - plot_array['s2']
             assert diff_data.ndim == 2 and diff_data.shape[1] == 2
             diff_mean = diff_data[:, 0]
-            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
+            ax.plot(time_1, diff_mean[:time_breakpoint],  linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
-            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
+            ax.plot(time_2, diff_mean[time_breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if plot_laser:  # plot laser
         ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1,
@@ -289,11 +289,13 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
         mean over data sets
 
     """
-
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
-    time_1 = time_array[:breakpoint]  # time before & after PS
-    time_2 = time_array[breakpoint:]
+    one_sided_window_size = 1
+    window_size = int(2 * one_sided_window_size + 1)
+    time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
+    time_1 = time_array[:time_breakpoint]  # time before & after PS
+    time_2 = time_array[time_breakpoint:]
     mouse_list = list(plot_array.keys())  # all data sets (including _s1 and _s2 )
+    assert mouse_list[0][:-2] == mouse_list[1][:-2] and mouse_list[0][-2:] == 's1' and mouse_list[1][-2:] == 's2'
     region_list = np.array(region_list)
     if plot_diff_s1s2:
         assert len(region_list) == 2
@@ -301,7 +303,7 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
         individual_mouse_list = mouse_list
     linest = {'s1': '-', 's2': '-'}
     average_mean = {x: np.zeros(plot_array[mouse_list[0]].shape[0]) for x in region_list}
-    all_means = {x: np.zeros((int(len(mouse_list) / 2), plot_array[mouse_list[0]].shape[0])) for x in region_list}
+    all_means = {x: np.zeros((int(len(mouse_list) / 2), plot_array[mouse_list[0]].shape[0])) for x in region_list}  # mouse_list / 2 beacuse of separate entries for s1 and s2
     count_means = {x: 0 for x in region_list}
     for i_m, mouse in enumerate(mouse_list):  # loop through individuals
         reg = mouse[-2:]
@@ -310,47 +312,49 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                 plot_mean = plot_array[mouse][:, 0]
             elif plot_array[mouse].ndim == 1:
                 plot_mean = plot_array[mouse]
-            average_mean[mouse[-2:]] += plot_mean / len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
-            all_means[mouse[-2:]][count_means[reg] ,:] = plot_mean.copy()  # save data for std
+            plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
+            average_mean[reg] += plot_mean / len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
+            all_means[reg][count_means[reg] ,:] = plot_mean.copy()  # save data for std
             count_means[reg] += 1
             if plot_indiv and mouse in individual_mouse_list and not plot_diff_s1s2:  # plot individual traces
-                ax.plot(time_1, plot_mean[:breakpoint],  linewidth=2, linestyle=linest[reg],
+                ax.plot(time_1, plot_mean[:time_breakpoint],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, label=None, alpha=0.2)
-                ax.plot(time_2, plot_mean[breakpoint:],  linewidth=2, linestyle=linest[reg],
+                ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, alpha=0.2, label=None)
     if plot_groupav:
         #         region_hatch = {'s1': '/', 's2': "\ " }
         if plot_diff_s1s2 is False:
             for rr, av_mean in average_mean.items():
+                # av_mean[2:-2] = np.convolve(av_mean, np.ones(window_size), mode='valid') / window_size
                 if rr in region_list:
-                    std_means = np.std(all_means[rr], 0)
-                    if plot_errorbar is False:  # plot gruup means
-                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
+                    std_means = np.std(all_means[rr], 0) / 2
+                    if plot_errorbar is False:  # plot group means
+                        ax.plot(time_1, av_mean[:time_breakpoint],  linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
-                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
+                        ax.plot(time_2, av_mean[time_breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
+                        ax.errorbar(time_1, av_mean[:time_breakpoint], yerr=std_means[:time_breakpoint], linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
+                        ax.errorbar(time_2, av_mean[time_breakpoint:], yerr=std_means[time_breakpoint:], linewidth=4, linestyle=linest[rr],
                                     markersize=12, color=ccolor, alpha=0.9, label=None)
                     if plot_std_area:  # plot std area
 #                         if len(region_list) == 1:
 #                         std_label = f'Std {llabel} {rr.upper()}'
 #                         elif len(region_list) == 2:
 #                             std_label = f'Group std {rr.upper()}'
-                        ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
+                        ax.fill_between(x=time_1, y1=av_mean[:time_breakpoint] - std_means[:time_breakpoint],
+                                                y2=av_mean[:time_breakpoint] + std_means[:time_breakpoint], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
-                        ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
-                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
+                        ax.fill_between(x=time_2, y1=av_mean[time_breakpoint:] - std_means[time_breakpoint:],
+                                       y2=av_mean[time_breakpoint:] + std_means[time_breakpoint:], color=ccolor, alpha=0.1,
                                         label=None)#, hatch=region_hatch[rr])
         elif plot_diff_s1s2:
             assert (region_list == np.array(['s1', 's2'])).all() and len(region_list) == len(average_mean)
             diff_mean = average_mean['s1'] - average_mean['s2']
-            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
+            ax.plot(time_1, diff_mean[:time_breakpoint],  linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
-            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
+            ax.plot(time_2, diff_mean[time_breakpoint:], linewidth=4, linestyle='-',
                         markersize=12, color=ccolor, alpha=0.9, label=None)
     if len(region_list) == 2:
         assert count_means[region_list[0]] == count_means[region_list[1]]
@@ -647,11 +651,10 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None):
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick], 
-                            ccolor=colors_plot[reg][i_lick], plot_indiv=False, plot_laser=False, #i_lick, 
-                            plot_errorbar=False, plot_std_area=True, region_list=[reg])
+                            ccolor=colors_plot[reg][i_lick], plot_indiv=True, plot_laser=False, #i_lick, 
+                            plot_errorbar=False, plot_std_area=False, region_list=[reg])
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
     ax.legend(loc='upper left'); ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
-    ax.set_ylim([0.39, 0.8])
     return ax
 
 def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=None, p_val_thresh=0.05):
@@ -672,7 +675,17 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
     ax.set_ylim([-0.05, 0.2])
     return ax
 
-   
+def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False):
+    fig = plt.figure(constrained_layout=False, figsize=(12, 3))
+    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.4, 
+                            bottom=0, top=1)
+    ax_acc_ps = {}
+    for i_reg, reg in enumerate(['s1', 's2']):
+        ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
+        _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
+                                    reg=reg, ax=ax_acc_ps[reg])
+    if save_fig:
+        plt.savefig('fourway_dyn_dec.pdf', bbox_to_inches='tight')
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
@@ -684,17 +697,14 @@ def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test,
     
     p_val_thresh = 0.05  # P val for wilcoxon sr test.
     tp_violin = list(violin_df_test.keys())
-    # time_array = 
-    ## Average S1 & S2
-    # plot_interrupted_trace_average_per_mouse(ax=ax_acc_ps2,  time_array=time_array, plot_array=ps_acc, plot_indiv=False,
-    #                        llabel='Average', ccolor=color_dict_stand[7])  # average between regions
-
+    
     ## S1 & S2 figures:
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
                                     reg=reg, ax=ax_acc_ps[reg])
+        ax_acc_ps[reg].set_ylim([0.39, 0.8])
         for tp in tp_violin:
             ax_acc_ps[reg].scatter([tp], [.45], marker='^', s=50, color='k')
             ax_acc_ps[reg].text(s=f'{tp}s', x=tp - 0.45, y=0.4)
