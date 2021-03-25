@@ -7,11 +7,11 @@ sys.path.append(os.path.join(path_to_vape, 'jupyter'))
 sys.path.append(os.path.join(path_to_vape, 'utils'))
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
-import utils_funcs as utils
-import run_functions as rf
-from subsets_analysis import Subsets
+# import utils_funcs as utils
+# import run_functions as rf
+# from subsets_analysis import Subsets
 import pickle
 import sklearn.decomposition
 from cycler import cycler
@@ -21,6 +21,11 @@ from tqdm import tqdm
 import scipy.stats
 from Session import Session  # class that holds all data per session
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
+
+def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.savefig(os.path.join(base_path, f'{name}.pdf'), 
+                bbox_inches='tight', transparent=True)
 
 def beh_metric(sessions, metric='accuracy',
                stim_array=[0, 5, 10, 20, 30, 40, 50]):
@@ -372,56 +377,6 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     elif return_decoder_weights:
         return df_prediction_train, df_prediction_test, dec_weights
 
-def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None, type_scatter='strip', ccolor='grey', aalpha=1):
-    """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        df containing predictions
-    xx : str
-        x axis
-    yy : str
-        y axis
-    hh : str
-        hue
-    plot_line : bool, default=True
-        if True, plot line of means
-    xticklabels : list, default=None
-        if not None, defines x axis tick labels
-    type_scatter : str, dfeault='strip'
-        possibiltiies: 'swarm', 'violin', 'strip'
-    ccolor : str or tuple, default=;grey
-        color`.
-    aalpha : float 0<aalpha<1
-        transparency
-
-    Returns
-    -------
-    type
-        Description of returned object.
-
-    """
-#     yy = yy + '_proj'
-    if plot_line and hh is None:
-        sns.pointplot(data=df, x=xx, y=yy, color=ccolor, ci='sd', label=None)
-    elif plot_line and hh is not None:
-        sns.pointplot(data=df, x=xx, y=yy, hue=hh, ci='sd', label=None)
-    if type_scatter == 'strip':
-        trial_plot_fun = sns.stripplot
-    elif type_scatter == 'violin':
-        trial_plot_fun = sns.violinplot
-    elif type_scatter == 'swarm':
-        trial_plot_fun = sns.swarmplot
-    if hh is None:
-        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, label=None, color=ccolor, alpha=aalpha)
-    else:
-        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, label=None, alpha=aalpha)
-    if type_scatter == 'violin':
-        plt.setp(tmp.collections, alpha=aalpha)
-    if xticklabels is not None:
-        tmp.set_xticklabels(xticklabels)
-
 
 ## Some functions that can be used as accuracy assessment
 def prob_correct(binary_truth, estimate):
@@ -733,7 +688,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
 
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
-region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
+region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
     Parameters
@@ -788,7 +743,10 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
     lick_half = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}  # naive with P=0.5 for 2 options (lick={0, 1})
     ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
-    ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per lick conditoin
+    if split_fourway is False:
+        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per lick conditoin
+    elif split_fourway is True:
+        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per lick conditoin
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
@@ -833,8 +791,13 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
 #                         ps_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=ps[lick == i_ps], estimate=pred_ps[lick == i_ps])) / len(np.unique(lick))
 
                     for x, arr in ps_acc_split.items():
-                        arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
-                                                  estimate=pred_ps[lick == x])
+                        if split_fourway is False:  # split two ways by lick decision
+                            arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
+                                                    estimate=pred_ps[lick == x])
+                        elif split_fourway is True:  # split two ways by lick decision
+                            arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
+                                                    estimate=pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
+
                 angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
 
     return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
@@ -846,264 +809,6 @@ for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
     if ii > 8:
         break  # after 8 it repeats (for ever)
 
-def plot_interrupted_trace_simple(ax, time_array, plot_array, llabel='', ccolor='grey',
-                                 linest='-', aalpha=1, zero_mean=False, llinewidth=3):
-    """Plot plot_array vs time_array, where time_array has 1 gap, which is not plotted.
-
-    Parameters
-    ----------
-    ax: Axis Handle
-        to plot
-    time_array: np.array
-        of time points,
-    plot_array: dict of np.array
-        each item is a data set to plot
-    llabel : str
-        label of these data
-    ccolor : str
-        color
-    linest: str
-        linestyle
-    aalpha: float 0 < a < 1
-        transparency
-    zero_mean, bool, default=False
-        zero mean data first
-    llinewidth; int
-        linewidth
-
-    Returns:
-    ---------------
-        ax: Axis Handle
-            return same handle
-        """
-    assert len(time_array) == len(plot_array)
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
-    if zero_mean:
-        plot_array = plot_array - np.mean(plot_array)
-    ax.plot(time_array[:breakpoint], plot_array[:breakpoint],  linewidth=llinewidth, linestyle=linest,
-                markersize=12, color=ccolor, label=llabel, alpha=aalpha)
-    ax.plot(time_array[breakpoint:], plot_array[breakpoint:],  linewidth=llinewidth, linestyle=linest,
-                markersize=12, color=ccolor, alpha=aalpha, label=None)
-    return ax
-
-
-
-def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
-                           plot_laser=True, ccolor='grey',
-                           plot_groupav=True,
-                           plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
-                           plot_diff_s1s2=False, freq=5):
-    """"Same as plot_interrupted_trace_average_per_mouse(), but customised to plot_array being a dictionary
-    of just two s1 and s2 traces. Can plot individual traces & group average. needs checking #TODO 
-
-    Parameters
-    ----------
-    ax: Axis Handle
-        to plot
-    time_array: np.array
-        of time points,
-    plot_array: dict of np.array
-        each item is a data set to plot
-    llabel : str
-        label of these data
-    plot_laser : bool
-        plot vertical bar during PS
-    ccolor : str
-        color
-    plot_indiv : bool, default=False
-        plot individual data sets
-    plot_groupav : bool default=True
-        plot group average of data sets
-    individual_mouse_list : list or None
-        if list, only plot these mice (i.e. data set keys)
-    plot_errorbar : True,
-        plot error bars
-    plot_std_area : type
-        plot shaded std area
-    region_list : list of regions
-        to plot
-    plot_diff_s1s2 : bool, default=False
-        if true, plot s1-s2 difference
-    freq : int, default=5
-        frequency of time_array (used for laser plot)
-
-    Returns
-    -------
-    ax: Axis Handle
-        return same handle
-    average_mean: np .array
-        mean over data sets
-
-    """
-
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
-    time_1 = time_array[:breakpoint]  # time before & after PS
-    time_2 = time_array[breakpoint:]
-    region_list = np.array(region_list)
-    if plot_diff_s1s2:
-        assert len(region_list) == 2
-    linest = {'s1': '-', 's2': '-'}
-    if plot_groupav:
-        #         region_hatch = {'s1': '/', 's2': "\ " }
-        if plot_diff_s1s2 is False:
-            for rr, data in plot_array.items():
-                if rr in region_list:
-                    assert data.ndim == 2
-                    av_mean = data[:, 0]
-                    std_means = data[:, 1]
-                    if plot_errorbar is False:  # plot gruup means
-                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
-                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
-                    elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
-                    if plot_std_area:  # plot std area
-#                         if len(region_list) == 1:
-#                         std_label = f'Std {llabel} {rr.upper()}'
-#                         elif len(region_list) == 2:
-#                             std_label = f'Group std {rr.upper()}'
-                        ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
-                                        label=None)#, hatch=region_hatch[rr])
-                        ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
-                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
-                                        label=None)#, hatch=region_hatch[rr])
-        elif plot_diff_s1s2:
-            assert (region_list == np.array(['s1', 's2'])).all() and len(plot_array) == len(average_mean)
-            diff_data = plot_array['s1'] - plot_array['s2']
-            assert diff_data.ndim == 2 and diff_data.shape[1] == 2
-            diff_mean = diff_data[:, 0]
-            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
-            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, alpha=0.9, label=None)
-    if plot_laser:  # plot laser
-        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1,
-                   ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
-    return ax, None
-
-
-
-def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='',
-            plot_laser=True, ccolor='grey', plot_indiv=False,
-            plot_groupav=True, individual_mouse_list=None, plot_errorbar=False,
-            plot_std_area=False, region_list=['s1', 's2'],
-            plot_diff_s1s2=False, freq=5):
-    """"Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
-    of individual mouse traces. Can plot individual traces & group average.
-
-    Parameters
-    ----------
-    ax: Axis Handle
-        to plot
-    time_array: np.array
-        of time points,
-    plot_array: dict of np.array
-        each item is a data set to plot
-    llabel : str
-        label of these data
-    plot_laser : bool
-        plot vertical bar during PS
-    ccolor : str
-        color
-    plot_indiv : bool, default=False
-        plot individual data sets
-    plot_groupav : bool default=True
-        plot group average of data sets
-    individual_mouse_list : list or None
-        if list, only plot these mice (i.e. data set keys)
-    plot_errorbar : True,
-        plot error bars
-    plot_std_area : type
-        plot shaded std area
-    region_list : list of regions
-        to plot
-    plot_diff_s1s2 : bool, default=False
-        if true, plot s1-s2 difference
-    freq : int, default=5
-        frequency of time_array (used for laser plot)
-
-    Returns
-    -------
-    ax: Axis Handle
-        return same handle
-    average_mean: np .array
-        mean over data sets
-
-    """
-
-    breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
-    time_1 = time_array[:breakpoint]  # time before & after PS
-    time_2 = time_array[breakpoint:]
-    mouse_list = list(plot_array.keys())  # all data sets (including _s1 and _s2 )
-    region_list = np.array(region_list)
-    if plot_diff_s1s2:
-        assert len(region_list) == 2
-    if individual_mouse_list is None:
-        individual_mouse_list = mouse_list
-    linest = {'s1': '-', 's2': '-'}
-    average_mean = {x: np.zeros(plot_array[mouse_list[0]].shape[0]) for x in region_list}
-    all_means = {x: np.zeros((int(len(mouse_list) / 2), plot_array[mouse_list[0]].shape[0])) for x in region_list}
-    count_means = {x: 0 for x in region_list}
-    for i_m, mouse in enumerate(mouse_list):  # loop through individuals
-        reg = mouse[-2:]
-        if reg in region_list:  # if in region list
-            if plot_array[mouse].ndim == 2:
-                plot_mean = plot_array[mouse][:, 0]
-            elif plot_array[mouse].ndim == 1:
-                plot_mean = plot_array[mouse]
-            average_mean[mouse[-2:]] += plot_mean / len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
-            all_means[mouse[-2:]][count_means[reg] ,:] = plot_mean.copy()  # save data for std
-            count_means[reg] += 1
-            if plot_indiv and mouse in individual_mouse_list and not plot_diff_s1s2:  # plot individual traces
-                ax.plot(time_1, plot_mean[:breakpoint],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, color=ccolor, label=None, alpha=0.2)
-                ax.plot(time_2, plot_mean[breakpoint:],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, color=ccolor, alpha=0.2, label=None)
-    if plot_groupav:
-        #         region_hatch = {'s1': '/', 's2': "\ " }
-        if plot_diff_s1s2 is False:
-            for rr, av_mean in average_mean.items():
-                if rr in region_list:
-                    std_means = np.std(all_means[rr], 0)
-                    if plot_errorbar is False:  # plot gruup means
-                        ax.plot(time_1, av_mean[:breakpoint],  linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
-                        ax.plot(time_2, av_mean[breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
-                    elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:breakpoint], yerr=std_means[:breakpoint], linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[breakpoint:], yerr=std_means[breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
-                    if plot_std_area:  # plot std area
-#                         if len(region_list) == 1:
-#                         std_label = f'Std {llabel} {rr.upper()}'
-#                         elif len(region_list) == 2:
-#                             std_label = f'Group std {rr.upper()}'
-                        ax.fill_between(x=time_1, y1=av_mean[:breakpoint] - std_means[:breakpoint],
-                                                y2=av_mean[:breakpoint] + std_means[:breakpoint], color=ccolor, alpha=0.1,
-                                        label=None)#, hatch=region_hatch[rr])
-                        ax.fill_between(x=time_2, y1=av_mean[breakpoint:] - std_means[breakpoint:],
-                                       y2=av_mean[breakpoint:] + std_means[breakpoint:], color=ccolor, alpha=0.1,
-                                        label=None)#, hatch=region_hatch[rr])
-        elif plot_diff_s1s2:
-            assert (region_list == np.array(['s1', 's2'])).all() and len(region_list) == len(average_mean)
-            diff_mean = average_mean['s1'] - average_mean['s2']
-            ax.plot(time_1, diff_mean[:breakpoint],  linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, label=f'{llabel}', alpha=0.9) # S1 - S2 diff.
-            ax.plot(time_2, diff_mean[breakpoint:], linewidth=4, linestyle='-',
-                        markersize=12, color=ccolor, alpha=0.9, label=None)
-    if len(region_list) == 2:
-        assert count_means[region_list[0]] == count_means[region_list[1]]
-    if plot_laser:  # plot laser
-        ax.axvspan(xmin=time_1[-1] + 1 / freq, xmax=time_2[0] - 1 / freq, ymin=0.1,
-                   ymax=0.9, alpha=0.2, label=None, edgecolor='k', facecolor='red')
-    return ax, average_mean
 
 
 def wilcoxon_test(acc_dict):
@@ -1362,3 +1067,165 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
     if metric.shape == ():  # if only 1 element it is not yet an array, while the separate trial output can be, so change for consistency
         metric = np.array([metric]) #  pack into 1D array
     return metric
+
+def create_df_differences(sessions):
+    ## Compute pre stim window vs post stim window
+    dict_diff_wind = {name: np.zeros(8 * len(sessions), dtype='object') for name in ['diff_dff', 'region', 'trial_type', 'session']}
+    ind_data = 0
+    for _, sess in sessions.items():
+        for reg in ['s1', 's2']:
+            for tt in ['hit', 'fp', 'miss', 'cr']:
+                mean_diff = difference_pre_post(ss=sess, 
+                        tt=tt, reg=reg, duration_window=1)
+                if len(mean_diff) == 0:
+                    pass
+                else:
+                    dict_diff_wind['diff_dff'][ind_data] = mean_diff[0]
+                    dict_diff_wind['region'][ind_data] = reg.upper()
+                    dict_diff_wind['trial_type'][ind_data] = tt
+                    dict_diff_wind['session'][ind_data] = sess.signature
+                    ind_data += 1
+
+    df_differences = pd.DataFrame(dict_diff_wind)        
+    return df_differences
+
+def create_df_dyn_differences(sessions, tp_dict):
+    # list_tp = tp_dict['mutual'][np.where(np.logical_and(tp_dict['mutual'] >= -2, tp_dict['mutual'] <= 5))]
+    list_tp = tp_dict['mutual'][np.where(tp_dict['mutual'] >= -2)[0]]
+    list_tt = ['hit', 'fp', 'miss', 'cr', 'ur_hit', 'ar_miss']
+    # dict_diff = {name: np.zeros(2 * len(list_tt) * len(sessions) * 
+    #                             len(list_tp), dtype='object') for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}
+    ind_data = 0
+    dict_diff = {name: np.array([]) for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}  # initiate empy dicts
+    for _, sess in tqdm(sessions.items()):
+        for tp in list_tp:
+            for reg in ['s1', 's2']:
+                for tt in list_tt:
+    #                 dict_diff['diff_dff'][ind_data] = pof.difference_pre_post_dynamic(ss=sess, 
+    #                                           general_tt=tt, reg=reg, duration_window_pre=2, 
+    #                                           tp_post=tp, odd_tt_only=True)
+    #                 dict_diff['region'][ind_data] = reg.upper()
+    #                 dict_diff['trial_type'][ind_data] = tt
+    #                 dict_diff['session'][ind_data] = sess.signature
+    #                 dict_diff['timepoint'][ind_data] = tp.copy()
+    #                 ind_data += 1
+                    mean_trials = difference_pre_post_dynamic(ss=sess, 
+                                            tt=tt, reg=reg, duration_window_pre=2, 
+                                            tp_post=tp, return_trials_separate=True)
+                    if len(mean_trials) == 0:
+    #                     print(tp, reg, sess, tt ,'   no trials')
+                        pass
+                    else:  # add array of new values
+                        dict_diff['diff_dff'] = np.concatenate((dict_diff['diff_dff'], mean_trials))
+                        dict_diff['region'] = np.concatenate((dict_diff['region'], [reg.upper() for x in range(len(mean_trials))]))
+                        dict_diff['trial_type'] = np.concatenate((dict_diff['trial_type'], [tt for x in range(len(mean_trials))]))
+                        dict_diff['session'] = np.concatenate((dict_diff['session'], [sess.signature for x in range(len(mean_trials))]))
+                        dict_diff['timepoint'] = np.concatenate((dict_diff['timepoint'], [tp.copy() for x in range(len(mean_trials))]))
+                        dict_diff['new_trial_id'] = np.concatenate((dict_diff['new_trial_id'], [ind_data + x for x in range(1, len(mean_trials) + 1)]))  # continuing indices
+                        ind_data = dict_diff['new_trial_id'][-1]
+    dict_diff['timepoint'] = dict_diff['timepoint'].astype('float32')
+    dict_diff['diff_dff'] = dict_diff['diff_dff'].astype('float32')
+    df_dyn_differences = pd.DataFrame(dict_diff)
+    return df_dyn_differences
+
+def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
+    ## Which time points to include in violin plots:
+      # in seconds
+
+    region_list = ['s1', 's2']
+    dict_df_test = {reg: {} for reg in region_list}
+    for reg in region_list:
+        for tp in tp_list:  # retrain (deterministic) decoders for these time points, and save detailed info
+            _, dict_df_test[reg][tp] = train_test_all_sessions(sessions=sessions, verbose=0,# n_split=n_split,
+                                        trial_times_use=np.array([tp]), return_decoder_weights=False,
+                                        hitmiss_only=False,# list_test=['dec', 'stim'],
+                                        include_autoreward=False, neurons_selection=reg,
+                                        C_value=50, reg_type='l2', train_projected=False)
+
+    ## turn into df that can be used for violin plots efficiently,
+    ## normalised so that each animals is equally important in averaging
+    violin_df_test = make_violin_df_custom(input_dict_df=dict_df_test, 
+                                            flat_normalise_ntrials=True, verbose=1) 
+    return violin_df_test
+
+
+def create_df_table_details(sessions):
+    """Create Dataframe table with details of sessions."""
+    n_sessions = len(sessions)
+    column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
+                    r"$N$" + 'S1', r"$N$" + 'S2',
+                    'Trials', 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early']
+    dict_details = {cc: np.zeros(n_sessions, dtype='object') for cc in column_names}
+    for key, ss in sessions.items():
+        dict_details['Mouse'][key] = ss.mouse
+        dict_details['Run'][key] = ss.run_number
+        dict_details['f (Hz)'][key] = ss.frequency
+#         dict_details['# Imaging planes'][key] = len(np.unique(ss.plane_number))
+        dict_details[r"$N$" + 'S1'][key] = np.sum(ss.s1_bool)
+        dict_details[r"$N$" + 'S2'][key] = np.sum(ss.s2_bool)
+        leave_out_150_inds = ss.photostim < 2
+        dict_details['Trials'][key] = len(ss.outcome[leave_out_150_inds])
+        print(ss.name, ss.n_trials, len(ss.outcome))
+        dict_details['Hit'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'hit')
+        dict_details['FP'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'fp')
+        dict_details['Miss'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == 'miss',
+                                                          ss.autorewarded[leave_out_150_inds] == False))
+        dict_details['CR'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'cr')
+        dict_details['Too early'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'too_')
+        dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
+        dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
+        assert np.sum([dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss']]) == dict_details['Trials'][key], 'total number of trials is not correct'
+    df_details = pd.DataFrame(dict_details)
+    df_details = df_details.sort_values(by=['Mouse', 'Run'])
+    df_details = df_details.reset_index()
+    del df_details['index']
+    return df_details
+
+def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
+    """Takes max over regions if both are given"""
+    max_acc_scores = {}
+    for key, ss in sessions.items():
+        print(ss)
+        ## First without reg:
+        max_dec_values = np.zeros((len(c_value_array) + 1, 2))
+        (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, 
+                 angle_dec, dec_weights) = pof.compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
+                                                              projected_data=False, reg_type='none',
+                                                              region_list=reg_list,
+                                                              average_fun=pof.class_av_mean_accuracy)
+        assert len(lick_acc) == 1
+        mr_name = list(lick_acc.keys())[0]
+        max_lick_dec = np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
+        max_ps_dec = np.max(ps_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in ps_acc.items()])
+        max_dec_values[0, :] = max_lick_dec.copy(), max_ps_dec.copy()  
+        ## Then with varying reg strengths:
+        for i_c, c_value in enumerate(c_value_array):
+            ## Compute results
+            (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, 
+                 angle_dec, dec_weights) = pof.compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
+                                                              projected_data=False, 
+                                                              reg_type='l2', regularizer=c_value,
+                                                              region_list=reg_list,
+                                                              average_fun=pof.class_av_mean_accuracy)
+            assert len(lick_acc) == 1
+#             mr_name = list(lick_acc.keys())[0]
+            max_lick_dec = np.max(lick_acc[reg][:, 0]) # np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
+            max_ps_dec = np.max(ps_acc[reg][:, 0]) #np.max(ps_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in ps_acc.items()])
+            max_dec_values[i_c + 1, :] = max_lick_dec.copy(), max_ps_dec.copy()
+        ## Save:
+        max_acc_scores[key] = max_dec_values.copy()
+    return max_acc_scores
+
+def create_tp_dict(sessions):
+    ## Integrate different imaging frequencies to create an array of mutual (shared) time points:
+    freqs = np.unique([ss.frequency for _, ss in sessions.items()])
+    tp_dict = {}
+    for ff in freqs:
+        for _, ss in sessions.items():   # assume pre_seconds & post_seconds equal for all sessions
+            if ss.frequency == ff:
+                tp_dict[ff] = ss.filter_ps_time
+    if len(freqs) == 2:  # for hard-coded bit next up
+        tp_dict['mutual'] = np.intersect1d(ar1=tp_dict[freqs[0]], ar2=tp_dict[freqs[1]])
+    elif len(freqs) == 1:
+        tp_dict['mutual'] = tp_dict[freqs[0]]
+    return tp_dict
