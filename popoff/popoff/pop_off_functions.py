@@ -1062,3 +1062,165 @@ def difference_pre_post_dynamic(ss, tt='hit', reg='s1', duration_window_pre=1.2,
     if metric.shape == ():  # if only 1 element it is not yet an array, while the separate trial output can be, so change for consistency
         metric = np.array([metric]) #  pack into 1D array
     return metric
+
+def create_df_differences(sessions):
+    ## Compute pre stim window vs post stim window
+    dict_diff_wind = {name: np.zeros(8 * len(sessions), dtype='object') for name in ['diff_dff', 'region', 'trial_type', 'session']}
+    ind_data = 0
+    for _, sess in sessions.items():
+        for reg in ['s1', 's2']:
+            for tt in ['hit', 'fp', 'miss', 'cr']:
+                mean_diff = difference_pre_post(ss=sess, 
+                        tt=tt, reg=reg, duration_window=1)
+                if len(mean_diff) == 0:
+                    pass
+                else:
+                    dict_diff_wind['diff_dff'][ind_data] = mean_diff[0]
+                    dict_diff_wind['region'][ind_data] = reg.upper()
+                    dict_diff_wind['trial_type'][ind_data] = tt
+                    dict_diff_wind['session'][ind_data] = sess.signature
+                    ind_data += 1
+
+    df_differences = pd.DataFrame(dict_diff_wind)        
+    return df_differences
+
+def create_df_dyn_differences(sessions, tp_dict):
+    # list_tp = tp_dict['mutual'][np.where(np.logical_and(tp_dict['mutual'] >= -2, tp_dict['mutual'] <= 5))]
+    list_tp = tp_dict['mutual'][np.where(tp_dict['mutual'] >= -2)[0]]
+    list_tt = ['hit', 'fp', 'miss', 'cr', 'ur_hit', 'ar_miss']
+    # dict_diff = {name: np.zeros(2 * len(list_tt) * len(sessions) * 
+    #                             len(list_tp), dtype='object') for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}
+    ind_data = 0
+    dict_diff = {name: np.array([]) for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}  # initiate empy dicts
+    for _, sess in tqdm(sessions.items()):
+        for tp in list_tp:
+            for reg in ['s1', 's2']:
+                for tt in list_tt:
+    #                 dict_diff['diff_dff'][ind_data] = pof.difference_pre_post_dynamic(ss=sess, 
+    #                                           general_tt=tt, reg=reg, duration_window_pre=2, 
+    #                                           tp_post=tp, odd_tt_only=True)
+    #                 dict_diff['region'][ind_data] = reg.upper()
+    #                 dict_diff['trial_type'][ind_data] = tt
+    #                 dict_diff['session'][ind_data] = sess.signature
+    #                 dict_diff['timepoint'][ind_data] = tp.copy()
+    #                 ind_data += 1
+                    mean_trials = difference_pre_post_dynamic(ss=sess, 
+                                            tt=tt, reg=reg, duration_window_pre=2, 
+                                            tp_post=tp, return_trials_separate=True)
+                    if len(mean_trials) == 0:
+    #                     print(tp, reg, sess, tt ,'   no trials')
+                        pass
+                    else:  # add array of new values
+                        dict_diff['diff_dff'] = np.concatenate((dict_diff['diff_dff'], mean_trials))
+                        dict_diff['region'] = np.concatenate((dict_diff['region'], [reg.upper() for x in range(len(mean_trials))]))
+                        dict_diff['trial_type'] = np.concatenate((dict_diff['trial_type'], [tt for x in range(len(mean_trials))]))
+                        dict_diff['session'] = np.concatenate((dict_diff['session'], [sess.signature for x in range(len(mean_trials))]))
+                        dict_diff['timepoint'] = np.concatenate((dict_diff['timepoint'], [tp.copy() for x in range(len(mean_trials))]))
+                        dict_diff['new_trial_id'] = np.concatenate((dict_diff['new_trial_id'], [ind_data + x for x in range(1, len(mean_trials) + 1)]))  # continuing indices
+                        ind_data = dict_diff['new_trial_id'][-1]
+    dict_diff['timepoint'] = dict_diff['timepoint'].astype('float32')
+    dict_diff['diff_dff'] = dict_diff['diff_dff'].astype('float32')
+    df_dyn_differences = pd.DataFrame(dict_diff)
+    return df_dyn_differences
+
+def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
+    ## Which time points to include in violin plots:
+      # in seconds
+
+    region_list = ['s1', 's2']
+    dict_df_test = {reg: {} for reg in region_list}
+    for reg in region_list:
+        for tp in tp_list:  # retrain (deterministic) decoders for these time points, and save detailed info
+            _, dict_df_test[reg][tp] = train_test_all_sessions(sessions=sessions, verbose=0,# n_split=n_split,
+                                        trial_times_use=np.array([tp]), return_decoder_weights=False,
+                                        hitmiss_only=False,# list_test=['dec', 'stim'],
+                                        include_autoreward=False, neurons_selection=reg,
+                                        C_value=50, reg_type='l2', train_projected=False)
+
+    ## turn into df that can be used for violin plots efficiently,
+    ## normalised so that each animals is equally important in averaging
+    violin_df_test = make_violin_df_custom(input_dict_df=dict_df_test, 
+                                            flat_normalise_ntrials=True, verbose=1) 
+    return violin_df_test
+
+
+def create_df_table_details(sessions):
+    """Create Dataframe table with details of sessions."""
+    n_sessions = len(sessions)
+    column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
+                    r"$N$" + 'S1', r"$N$" + 'S2',
+                    'Trials', 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early']
+    dict_details = {cc: np.zeros(n_sessions, dtype='object') for cc in column_names}
+    for key, ss in sessions.items():
+        dict_details['Mouse'][key] = ss.mouse
+        dict_details['Run'][key] = ss.run_number
+        dict_details['f (Hz)'][key] = ss.frequency
+#         dict_details['# Imaging planes'][key] = len(np.unique(ss.plane_number))
+        dict_details[r"$N$" + 'S1'][key] = np.sum(ss.s1_bool)
+        dict_details[r"$N$" + 'S2'][key] = np.sum(ss.s2_bool)
+        leave_out_150_inds = ss.photostim < 2
+        dict_details['Trials'][key] = len(ss.outcome[leave_out_150_inds])
+        print(ss.name, ss.n_trials, len(ss.outcome))
+        dict_details['Hit'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'hit')
+        dict_details['FP'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'fp')
+        dict_details['Miss'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == 'miss',
+                                                          ss.autorewarded[leave_out_150_inds] == False))
+        dict_details['CR'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'cr')
+        dict_details['Too early'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'too_')
+        dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
+        dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
+        assert np.sum([dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss']]) == dict_details['Trials'][key], 'total number of trials is not correct'
+    df_details = pd.DataFrame(dict_details)
+    df_details = df_details.sort_values(by=['Mouse', 'Run'])
+    df_details = df_details.reset_index()
+    del df_details['index']
+    return df_details
+
+def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
+    """Takes max over regions if both are given"""
+    max_acc_scores = {}
+    for key, ss in sessions.items():
+        print(ss)
+        ## First without reg:
+        max_dec_values = np.zeros((len(c_value_array) + 1, 2))
+        (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, 
+                 angle_dec, dec_weights) = pof.compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
+                                                              projected_data=False, reg_type='none',
+                                                              region_list=reg_list,
+                                                              average_fun=pof.class_av_mean_accuracy)
+        assert len(lick_acc) == 1
+        mr_name = list(lick_acc.keys())[0]
+        max_lick_dec = np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
+        max_ps_dec = np.max(ps_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in ps_acc.items()])
+        max_dec_values[0, :] = max_lick_dec.copy(), max_ps_dec.copy()  
+        ## Then with varying reg strengths:
+        for i_c, c_value in enumerate(c_value_array):
+            ## Compute results
+            (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, 
+                 angle_dec, dec_weights) = pof.compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
+                                                              projected_data=False, 
+                                                              reg_type='l2', regularizer=c_value,
+                                                              region_list=reg_list,
+                                                              average_fun=pof.class_av_mean_accuracy)
+            assert len(lick_acc) == 1
+#             mr_name = list(lick_acc.keys())[0]
+            max_lick_dec = np.max(lick_acc[reg][:, 0]) # np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
+            max_ps_dec = np.max(ps_acc[reg][:, 0]) #np.max(ps_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in ps_acc.items()])
+            max_dec_values[i_c + 1, :] = max_lick_dec.copy(), max_ps_dec.copy()
+        ## Save:
+        max_acc_scores[key] = max_dec_values.copy()
+    return max_acc_scores
+
+def create_tp_dict(sessions):
+    ## Integrate different imaging frequencies to create an array of mutual (shared) time points:
+    freqs = np.unique([ss.frequency for _, ss in sessions.items()])
+    tp_dict = {}
+    for ff in freqs:
+        for _, ss in sessions.items():   # assume pre_seconds & post_seconds equal for all sessions
+            if ss.frequency == ff:
+                tp_dict[ff] = ss.filter_ps_time
+    if len(freqs) == 2:  # for hard-coded bit next up
+        tp_dict['mutual'] = np.intersect1d(ar1=tp_dict[freqs[0]], ar2=tp_dict[freqs[1]])
+    elif len(freqs) == 1:
+        tp_dict['mutual'] = tp_dict[freqs[0]]
+    return tp_dict
