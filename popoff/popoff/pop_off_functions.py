@@ -744,9 +744,11 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=
     lick_half = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}  # naive with P=0.5 for 2 options (lick={0, 1})
     ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
     if split_fourway is False:
-        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per lick conditoin
+        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per trial type
+        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list} 
     elif split_fourway is True:
-        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per lick conditoin
+        ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per lick condition
+        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list} 
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
@@ -798,9 +800,15 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=
                             arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
                                                     estimate=pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
 
+                    for x, arr in ps_pred_split.items():
+                        if split_fourway is False:  # split two ways by lick decision
+                            arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[lick == x]), np.std(pred_ps[lick == x])]
+                        elif split_fourway is True:  # split two ways by lick decision
+                            arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), np.std(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
+
                 angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
 
-    return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
+    return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
 
 ## Create list with standard colors:
 color_dict_stand = {}
@@ -1192,7 +1200,7 @@ def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
                  angle_dec, dec_weights) = pof.compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
                                                               projected_data=False, reg_type='none',
                                                               region_list=reg_list,
-                                                              average_fun=pof.class_av_mean_accuracy)
+                                                              average_fun=class_av_mean_accuracy)
         assert len(lick_acc) == 1
         mr_name = list(lick_acc.keys())[0]
         max_lick_dec = np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
@@ -1206,7 +1214,7 @@ def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
                                                               projected_data=False, 
                                                               reg_type='l2', regularizer=c_value,
                                                               region_list=reg_list,
-                                                              average_fun=pof.class_av_mean_accuracy)
+                                                              average_fun=class_av_mean_accuracy)
             assert len(lick_acc) == 1
 #             mr_name = list(lick_acc.keys())[0]
             max_lick_dec = np.max(lick_acc[reg][:, 0]) # np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])

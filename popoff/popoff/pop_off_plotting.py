@@ -246,7 +246,7 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
             plot_laser=True, ccolor='grey', plot_indiv=False,
             plot_groupav=True, individual_mouse_list=None, plot_errorbar=False,
             plot_std_area=False, region_list=['s1', 's2'],
-            plot_diff_s1s2=False, freq=30):
+            plot_diff_s1s2=False, freq=30, running_average_smooth=True, one_sided_window_size=1):
     """"Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
     of individual mouse traces. Can plot individual traces & group average.
 
@@ -289,7 +289,6 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
         mean over data sets
 
     """
-    one_sided_window_size = 1
     window_size = int(2 * one_sided_window_size + 1)
     time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:time_breakpoint]  # time before & after PS
@@ -309,10 +308,11 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
         reg = mouse[-2:]
         if reg in region_list:  # if in region list
             if plot_array[mouse].ndim == 2:
-                plot_mean = plot_array[mouse][:, 0]
+                plot_mean = plot_array[mouse][:, 0].copy()
             elif plot_array[mouse].ndim == 1:
-                plot_mean = plot_array[mouse]
-            plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
+                plot_mean = plot_array[mouse].copy()
+            if running_average_smooth:
+                plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
             average_mean[reg] += plot_mean / len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
             all_means[reg][count_means[reg] ,:] = plot_mean.copy()  # save data for std
             count_means[reg] += 1
@@ -602,7 +602,7 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
     df_prediction_train, df_prediction_test, tmp = pof.train_test_all_sessions(sessions=ss_dict, verbose=1, n_split=n_splits,
                                                 trial_times_use=np.array([time_frame]), return_decoder_weights=True,
                                             hitmiss_only=False,# list_test=['dec', 'stim'],
-                                            include_autoreward=True, neurons_selection='s1',
+                                            include_autoreward=False, neurons_selection='s1',
                                             C_value=50, train_projected=True, proj_dir='same')
 
     fig, ax = plt.subplots(2,2, figsize=(7, 6), gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
@@ -643,7 +643,8 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
 
     return (df_prediction_train, df_prediction_test)
 
-def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None):
+def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
+                                smooth_traces=False, one_sided_window_size=1):
     if ax is None:
         ax = plt.subplot(111)
     plot_interrupted_trace_simple(ax=ax, time_array=time_array, 
@@ -651,10 +652,11 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None):
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick], 
-                            ccolor=colors_plot[reg][i_lick], plot_indiv=True, plot_laser=False, #i_lick, 
-                            plot_errorbar=False, plot_std_area=False, region_list=[reg])
+                            ccolor=colors_plot[reg][i_lick], plot_indiv=False, plot_laser=False, #i_lick, 
+                            plot_errorbar=False, plot_std_area=True, region_list=[reg],
+                            running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
-    ax.legend(loc='upper left'); ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
+    ax.legend(loc='upper left', frameon=False); ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
     return ax
 
 def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=None, p_val_thresh=0.05):
@@ -675,15 +677,29 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
     ax.set_ylim([-0.05, 0.2])
     return ax
 
-def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False):
+def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
+                                      smooth_traces=True, one_sided_window_size=1):
     fig = plt.figure(constrained_layout=False, figsize=(12, 3))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.4, 
-                            bottom=0, top=1)
+                            bottom=0.05, top=0.95, left=0.05, right=0.95)
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
-                                    reg=reg, ax=ax_acc_ps[reg])
+                                    reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces, 
+                                    one_sided_window_size=one_sided_window_size)
+
+        if yaxis_type == 'accuracy':
+            ax_acc_ps[reg].set_ylabel('Prediction accuracy')
+        elif yaxis_type == 'prediction':
+            ax_acc_ps[reg].set_ylabel('Network prediction P(PS)')
+        else:
+            print('WARNING: yaxis_type not recognised')
+        ax_acc_ps[reg].set_ylim([0.1, 0.9])
+        ax_acc_ps[reg].set_xlim([-4, 8.5])
+        ax_acc_ps[reg].spines['top'].set_visible(False)
+        ax_acc_ps[reg].spines['right'].set_visible(False)
+
     if save_fig:
         plt.savefig('fourway_dyn_dec.pdf', bbox_to_inches='tight')
 
