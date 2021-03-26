@@ -701,7 +701,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         ax_acc_ps[reg].spines['right'].set_visible(False)
 
     if save_fig:
-        plt.savefig('fourway_dyn_dec.pdf', bbox_to_inches='tight')
+        plt.savefig('fourway_dyn_dec.pdf')#, bbox_to_inches='tight')
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
