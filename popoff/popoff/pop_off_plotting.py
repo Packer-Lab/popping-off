@@ -681,7 +681,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
                                       smooth_traces=True, one_sided_window_size=1):
     fig = plt.figure(constrained_layout=False, figsize=(12, 4))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3, 
-                            bottom=0.05, top=0.95, left=0.05, right=0.95)
+                            bottom=0.05, top=0.95, left=0.05, right=0.95, hspace=0.4)
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
