@@ -679,8 +679,8 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1):
-    fig = plt.figure(constrained_layout=False, figsize=(12, 3))
-    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.4, 
+    fig = plt.figure(constrained_layout=False, figsize=(12, 4))
+    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3, 
                             bottom=0.05, top=0.95, left=0.05, right=0.95)
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
