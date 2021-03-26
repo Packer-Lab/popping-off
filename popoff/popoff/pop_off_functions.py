@@ -151,7 +151,7 @@ def create_dict_pred(nl, train_proj, lt):
 
 def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test = ['dec', 'stim'],
                             hitmiss_only=False, include_150 = False, return_decoder_weights=False,
-                            n_split = 4, include_autoreward=True, neurons_selection='all',
+                            n_split = 4, include_autoreward=True, include_unrewardedhit=False, neurons_selection='all',
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
@@ -201,6 +201,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             weights of all decoders
 
     """
+    if train_projected:
+        print("TRAINING Projected")
     if hitmiss_only:
         if verbose >= 1:
             print('Using hit/miss trials only.')
@@ -222,6 +224,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     for mouse in mouse_list:
         angle_decoders = np.zeros((len(sessions), n_split))
         dict_predictions_train, dict_predictions_test = create_dict_pred(nl=name_list, train_proj=train_projected, lt=list_test)
+        dict_predictions_test['used_for_training'] = np.array([])
         for i_session, session in sessions.items():  # loop through sessions/runs and concatenate results (in dicts)
             if session.mouse == mouse:  # only evaluate current mouse
                 if verbose >= 1:
@@ -247,23 +250,41 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     neurons_include = np.where(session.s2_bool)[0]
                 if verbose >= 2:
                     print(f'n neurons: {len(neurons_include)}/{session.n_cells}, {neurons_selection}')
+
                 ## Set trial inds
+                ## trial_inds: used for training & testing
+                ## eval_only_inds: only used for testing (Spont Rew; Auto Rew Miss; Un Rew Hit)
                 if include_150 is False:
                     trial_inds = np.where(session.photostim < 2)[0]
                 else:
                     trial_inds = np.arange(len(session.photostim))
-
+                
                 if hitmiss_only:
                     hitmiss_trials = np.where(np.logical_or(session.outcome == 'hit', session.outcome == 'miss'))[0]
                     if verbose == 2:
                         print(f'Size hm {hitmiss_trials.size}, trial inds {trial_inds.size}')
                     trial_inds = np.intersect1d(trial_inds, hitmiss_trials)
+                    assert False, 'Hit miss only selected - but not implemented for eval_only_inds'
 
+                eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0], 
+                                                 np.where(session.unrewarded_hits == True)[0]))
+                eval_only_labels = ['arm'] * np.sum(session.autorewarded) + ['urh'] * np.sum(session.unrewarded_hits)
+                assert len(eval_only_inds) == np.sum(session.autorewarded) + np.sum(session.unrewarded_hits)
                 if include_autoreward is False:
                     ar_exclude = np.where(session.autorewarded == False)[0]
                     if verbose == 2:
                         print(f'{np.sum(session.autorewarded)} autorewarded trials found and excluded')
                     trial_inds = np.intersect1d(trial_inds, ar_exclude)
+                else:
+                    print('WARNING: ARM not excluded!')
+
+                if include_unrewardedhit is False:
+                    uhr_excluded = np.where(session.unrewarded_hits == False)[0]
+                    if verbose == 2:
+                        print(f'{np.sum(session.unrewarded_hits)} unrewarded_hits found and excluded')
+                    trial_inds = np.intersect1d(trial_inds, uhr_excluded)
+                else:
+                    print('WARNING: URH not excluded!')
 
                 if verbose == 2:
                     print(f'final size {trial_inds.size}')
@@ -271,15 +292,36 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 if verbose == 2:
                     print(f'Total number of trials is {n_trials}. Number of splits is {n_split}')
 
-                # Prepare data with selections
+                ## Prepare data with selections
+                ## Filter neurons
                 data_use = session.behaviour_trials[neurons_include, :, :]
+                data_eval = session.behaviour_trials[neurons_include, :, :]
+                data_spont  = session.pre_rew_trials[neurons_include, :, :]
+                ## Select time frame(s)
                 data_use = data_use[:, :, trial_frames_use]
+                data_eval = data_eval[:, :, trial_frames_use]
+                data_spont = data_spont[:, :, trial_frames_use]  # use all trials
+                ## Select trials
                 data_use = data_use[:, trial_inds, :]
+                assert len(eval_only_inds) > 0, f'ERROR: {session} has no eval-only trials, which has not been really taken care of here'
+                data_eval = data_eval[:, eval_only_inds, :]
+                assert data_spont.ndim == 3
+                n_spont_trials = data_spont.shape[1]
+                ## Squeeze time frames
                 data_use = fun_return_2d(data_use)
-                stand_scale = sklearn.preprocessing.StandardScaler()
+                data_eval = fun_return_2d(data_eval)
+                data_spont = fun_return_2d(data_spont)
+                ## Stack & fit scaler
+                data_stacked = np.hstack((data_use, data_eval, data_spont))  # stack for scaling
+                assert (data_stacked[:, len(trial_inds):(len(trial_inds) + len(eval_only_inds))] == data_eval).all()
+                stand_scale = sklearn.preprocessing.StandardScaler().fit(data_stacked.T) # use all data to fit scaler, then scale indiviudally
+                ## Scale
+                data_use = stand_scale.transform(data_use.T)
+                data_eval = stand_scale.transform(data_eval.T)
+                data_spont = stand_scale.transform(data_spont.T)
                 data_use = data_use.T
-                data_use = stand_scale.fit_transform(data_use)
-                data_use = data_use.T
+                data_eval = data_eval.T
+                data_spont = data_spont.T
                 sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
                 if verbose == 2:
                     print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
@@ -292,6 +334,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 if return_decoder_weights:
                     for x in list_test:
                         dec_weights[x][session.signature] = np.zeros((n_split, len(neurons_include)))
+                
+                pred_proba_eval = {x: {} for x in range(n_split)} # dict per cv loop, average later.
+                pred_proba_spont = {x: {} for x in range(n_split)}
                 for train_inds, test_inds in sss.split(X=np.zeros(n_trials), y=session.outcome[trial_inds]):  # loop through different train/test folds, concat results
                     train_data, test_data = data_use[:, train_inds], data_use[:, test_inds]
                     if i_loop == 0:
@@ -342,6 +387,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     ## Predict test data
                     pred_proba_train = {x: dec[x].predict_proba(X=train_data.transpose())[:, 1] for x in list_test}
                     pred_proba_test = {x: dec[x].predict_proba(X=test_data.transpose())[:, 1] for x in list_test}
+                    pred_proba_eval[i_loop] = {x: dec[x].predict_proba(X=data_eval.transpose())[:, 1] for x in list_test}
+                    pred_proba_spont[i_loop] = {x: dec[x].predict_proba(X=data_spont.transpose())[:, 1] for x in list_test} 
+                    
                     if train_projected:
                         pred_proba_train_proj = {x: dec_proj[x].predict_proba(X=train_data_proj)[:, 1] for x in list_test}
                         pred_proba_test_proj = {x: dec_proj[x].predict_proba(X=test_data_proj)[:, 1] for x in list_test}
@@ -365,7 +413,40 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], unrewarded_hits[test_inds]))
                     dict_predictions_train['true_dec_train'] = np.concatenate((dict_predictions_train['true_dec_train'], train_labels['dec']))
                     dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], test_labels['dec']))
+                    dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.ones(len(test_inds))))
                     i_loop += 1
+
+                ## Add results of eval_only trials (average of decoder CVs):
+
+                ## eval onlY:
+                assert (np.array(list(pred_proba_eval.keys())) == np.arange(n_split)).all()
+                for x in list_test:
+                    mat_predictions = np.array([pred_proba_eval[nn][x] for nn in range(n_split)])                
+                    assert mat_predictions.shape[0] == n_split
+                    dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], np.mean(mat_predictions, 0)))  
+                dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], session.trial_subsets[eval_only_inds].astype('int')))
+                dict_predictions_test['outcome_test'] = np.concatenate((dict_predictions_test['outcome_test'], eval_only_labels))
+                dict_predictions_test['autorewarded_miss_test'] = np.concatenate((dict_predictions_test['autorewarded_miss_test'], session.autorewarded[eval_only_inds]))
+                dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], session.unrewarded_hits[eval_only_inds]))
+                dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], session.decision[eval_only_inds]))
+                dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(len(eval_only_inds))))
+
+                ## spontaneous:
+                if n_spont_trials > 0:
+                    assert (np.array(list(pred_proba_spont.keys())) == np.arange(n_split)).all()
+                    for x in list_test:
+                        mat_predictions = np.array([pred_proba_spont[nn][x] for nn in range(n_split)])                
+                        assert mat_predictions.shape[0] == n_split, mat_predictions.shape[1] == n_spont_trials
+                        dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], np.mean(mat_predictions, 0)))
+                    dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], np.zeros(n_spont_trials)))
+                    dict_predictions_test['outcome_test'] = np.concatenate((dict_predictions_test['outcome_test'], np.array(['spont'] * n_spont_trials)))
+                    dict_predictions_test['autorewarded_miss_test'] = np.concatenate((dict_predictions_test['autorewarded_miss_test'], np.zeros(n_spont_trials)))
+                    dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], np.zeros(n_spont_trials)))
+                    dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], np.ones(n_spont_trials)))
+                    dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(n_spont_trials)))
+                else:
+                    print('NO SPONT TRIALS IN SESSION', session)
+
         if verbose == 2:
             print(f'length test: {len(dict_predictions_test["true_dec_test"])}')
         ## Put dictionary results into dataframes:
@@ -688,7 +769,8 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
 
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
-region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False):
+                                                  region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False,
+                                                  tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont']):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
     Parameters
@@ -729,7 +811,6 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=
     """
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
-    tt_list = ['hit', 'fp', 'miss', 'cr']
     dec_list = [0, 1]  # hard_coded!!
     mouse_s_list = []
     for mouse in mouse_list:
@@ -766,39 +847,43 @@ region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
 
             for mouse in df_prediction_train.keys():
+                assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['unrewarded_hit_test'].sum() == 0
+                assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['autorewarded_miss_test'].sum() == 0
+            
+                inds_training = np.where(df_prediction_test[mouse]['used_for_training'] == 1)[0]
                 lick = df_prediction_test[mouse]['true_dec_test'].copy()
                 ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
                 if projected_data is False:
                     pred_lick = df_prediction_test[mouse]['pred_dec_test'].copy()
                 else:
                     pred_lick = df_prediction_test[mouse]['pred_dec_test_proj']
-                lick_half[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick, estimate=(np.zeros_like(lick) + 0.5))  # control for P=0.5
-                lick_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick, estimate=pred_lick)
+                lick_half[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[inds_training], estimate=(np.zeros_like(lick[inds_training]) + 0.5))  # control for P=0.5
+                lick_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[inds_training], estimate=pred_lick[inds_training])
 #                 lick_acc[mouse + '_' + reg][i_tp, :] = 0
 #                 for i_lick in np.unique(lick):
 #                     lick_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=lick[lick == i_lick], estimate=pred_lick[lick == i_lick])) / len(np.unique(lick))
 
                 for x, arr in lick_acc_split.items():
                     arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
-                                              estimate=pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
+                                                                  estimate=pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
 
                 if 'pred_stim_test' in df_prediction_test[mouse].columns:
                     if projected_data is False:
                         pred_ps = df_prediction_test[mouse]['pred_stim_test']
                     else:
                         pred_ps = df_prediction_test[mouse]['pred_stim_test_proj']
-                    ps_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps, estimate=pred_ps)
+                    ps_acc[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[inds_training], estimate=pred_ps[inds_training])
 #                     ps_acc[mouse + '_' + reg][i_tp, :] = 0
 #                     for i_ps in np.unique(lick):
 #                         ps_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=ps[lick == i_ps], estimate=pred_ps[lick == i_ps])) / len(np.unique(lick))
 
                     for x, arr in ps_acc_split.items():
                         if split_fourway is False:  # split two ways by lick decision
-                            arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
-                                                    estimate=pred_ps[lick == x])
+                            arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.intersect1d(np.where(lick == x)[0], inds_training)],
+                                                                          estimate=pred_ps[np.intersect1d(np.where(lick == x)[0], inds_training)])
                         elif split_fourway is True:  # split two ways by lick decision
                             arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
-                                                    estimate=pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
+                                                                          estimate=pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
 
                     for x, arr in ps_pred_split.items():
                         if split_fourway is False:  # split two ways by lick decision

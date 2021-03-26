@@ -30,9 +30,9 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
 color_tt = {'hit': 'green', 'miss': 'grey', 'fp': 'magenta', 'cr': 'brown', 
-            'ur_hit': '#7b85d4', 'ar_miss': '#e9d043'}
+            'urh': '#7b85d4', 'arm': '#e9d043', 'spont': 'k'}
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
-            'ur_hit': 'UR Hit', 'ar_miss': 'AR Miss'}
+            'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -293,6 +293,7 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
     time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:time_breakpoint]  # time before & after PS
     time_2 = time_array[time_breakpoint:]
+
     mouse_list = list(plot_array.keys())  # all data sets (including _s1 and _s2 )
     assert mouse_list[0][:-2] == mouse_list[1][:-2] and mouse_list[0][-2:] == 's1' and mouse_list[1][-2:] == 's2'
     region_list = np.array(region_list)
@@ -311,9 +312,13 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                 plot_mean = plot_array[mouse][:, 0].copy()
             elif plot_array[mouse].ndim == 1:
                 plot_mean = plot_array[mouse].copy()
+
+            if np.isnan(plot_mean).sum() > 0:  #nans present if this trial type did not occur for this mouse (eg URH)
+                print('skipping', mouse)
+                continue
             if running_average_smooth:
                 plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
-            average_mean[reg] += plot_mean / len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
+            average_mean[reg] += plot_mean #/ len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
             all_means[reg][count_means[reg] ,:] = plot_mean.copy()  # save data for std
             count_means[reg] += 1
             if plot_indiv and mouse in individual_mouse_list and not plot_diff_s1s2:  # plot individual traces
@@ -321,6 +326,8 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                             markersize=12, color=ccolor, label=None, alpha=0.2)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, alpha=0.2, label=None)
+    for reg in average_mean.keys():
+        average_mean[reg] = average_mean[reg] / count_means[reg]
     if plot_groupav:
         #         region_hatch = {'s1': '/', 's2': "\ " }
         if plot_diff_s1s2 is False:
@@ -574,7 +581,7 @@ def plot_mean_trace_across_sessions(df_dyn_differences, regions=['s1', 's2'],
 
 def plot_mean_trace_overview_across_sessions(df_dyn_differences, plot_laser=True,
                                              plot_zero_line=True, save_fig=False,
-                                             tuple_list_tt=[('hit', 'miss'), ('fp', 'cr'), ('ur_hit', 'ar_miss')]):
+                                             tuple_list_tt=[('hit', 'miss'), ('fp', 'cr'), ('urh', 'arm')]):
     ## Custom
     fig, ax_ov = plt.subplots(2, len(tuple_list_tt), figsize=(5 * len(tuple_list_tt), 7), 
                               gridspec_kw={'wspace': 0.4, 'hspace': 0.4})
@@ -603,7 +610,7 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
                                                 trial_times_use=np.array([time_frame]), return_decoder_weights=True,
                                             hitmiss_only=False,# list_test=['dec', 'stim'],
                                             include_autoreward=False, neurons_selection='s1',
-                                            C_value=50, train_projected=True, proj_dir='same')
+                                            C_value=50, train_projected=False, proj_dir='same')
 
     fig, ax = plt.subplots(2,2, figsize=(7, 6), gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
     
@@ -611,13 +618,13 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
     # for mouse in df_prediction_train.keys():
     for mouse in [ss_dict[0].mouse]:
         if 'pred_stim_train' in df_prediction_train[mouse].columns:
-            plot_df_stats(df=df_prediction_train[mouse], xx='true_stim_train', yy='pred_stim_train_proj', 
+            plot_df_stats(df=df_prediction_train[mouse], xx='true_stim_train', yy='pred_stim_train', # _proj
                               hh='true_dec_train', ax=ax[0][0])  # set hh=None or hh='dec_train'
             ax[0][0].set_xlabel('Number of cells PS'); ax[0][0].set_ylabel('Predicted probability of PS'); 
             ax[0][0].set_title('TRAIN - PS', weight='bold')
             ax[0][0].legend([], frameon=False)
 
-            plot_df_stats(df=df_prediction_test[mouse], xx='true_stim_test', yy='pred_stim_test_proj', 
+            plot_df_stats(df=df_prediction_test[mouse], xx='true_stim_test', yy='pred_stim_test', 
                               hh='true_dec_test', ax=ax[0][1])  # set hh=None or hh='dec_test'
             ax[0][1].set_xlabel('Number of cells PS'); ax[0][1].set_ylabel('Predicted probability of PS'); 
             ax[0][1].set_title('TEST - PS', weight='bold')
@@ -625,13 +632,13 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
     #         print(f'Accuracy PS: {pof.class_av_mean_accuracy(binary_truth=(df_prediction_test[mouse]["true_stim_test"] > 0).astype("int"), estimate=df_prediction_test[mouse]["pred_stim_test_proj"])[0]}')
             
         if 'pred_dec_train' in df_prediction_train[mouse].columns:  
-            plot_df_stats(df=df_prediction_train[mouse], xx='true_dec_train', yy='pred_dec_train_proj', 
+            plot_df_stats(df=df_prediction_train[mouse], xx='true_dec_train', yy='pred_dec_train', 
                               hh=None, xticklabels=['no lick', 'lick'], ax=ax[1][0])
             ax[1][0].set_xlabel('Decision'); ax[1][0].set_ylabel('Predicted probability of lick'); 
             ax[1][0].set_title('TRAIN - LICK', weight='bold')
             ax[1][0].legend('No lick', 'lick', frameon=False)
 
-            plot_df_stats(df=df_prediction_test[mouse], xx='true_dec_test', yy='pred_dec_test_proj', 
+            plot_df_stats(df=df_prediction_test[mouse], xx='true_dec_test', yy='pred_dec_test', 
                               hh='true_stim_test', xticklabels=['no lick', 'lick'], type_scatter='strip', ax=ax[1][1])
             ax[1][1].set_xlabel('Decision'); ax[1][1].set_ylabel('Predicted probability of lick'); 
             ax[1][1].set_title('TEST - LICK', weight='bold');
@@ -701,7 +708,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         ax_acc_ps[reg].spines['right'].set_visible(False)
 
     if save_fig:
-        plt.savefig('fourway_dyn_dec.pdf')#, bbox_to_inches='tight')
+        plt.savefig('sevenway_dyn_dec.pdf')#, bbox_to_inches='tight')
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
