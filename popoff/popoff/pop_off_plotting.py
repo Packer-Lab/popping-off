@@ -29,8 +29,8 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
                's2': {lick: 1.1 * np.array(color_dict_stand[lick]) for lick in [0, 1]}}
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
-color_tt = {'hit': 'green', 'miss': 'grey', 'fp': 'magenta', 'cr': 'brown', 
-            'urh': '#7b85d4', 'arm': '#e9d043', 'spont': 'k'}
+color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77', 
+            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288'}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.'}
 linest_reg = {'s1': '-', 's2': '-'}
@@ -290,11 +290,13 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
 
     """
     window_size = int(2 * one_sided_window_size + 1)
-    time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
+    time_breakpoint = 1
+    # time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:time_breakpoint]  # time before & after PS
     time_2 = time_array[time_breakpoint:]
 
     mouse_list = list(plot_array.keys())  # all data sets (including _s1 and _s2 )
+    # mouse_list = ['J065_s1', 'J065_s2']
     assert mouse_list[0][:-2] == mouse_list[1][:-2] and mouse_list[0][-2:] == 's1' and mouse_list[1][-2:] == 's2'
     region_list = np.array(region_list)
     if plot_diff_s1s2:
@@ -325,9 +327,10 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                 ax.plot(time_1, plot_mean[:time_breakpoint],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, label=None, alpha=0.2)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, color=ccolor, alpha=0.2, label=None)
+                            markersize=12, alpha=0.8, label=mouse)
     for reg in average_mean.keys():
         average_mean[reg] = average_mean[reg] / count_means[reg]
+    # print(average_mean)
     if plot_groupav:
         #         region_hatch = {'s1': '/', 's2': "\ " }
         if plot_diff_s1s2 is False:
@@ -651,7 +654,8 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
     return (df_prediction_train, df_prediction_test)
 
 def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
-                                smooth_traces=False, one_sided_window_size=1):
+                                smooth_traces=False, one_sided_window_size=1,
+                                plot_indiv=False, plot_std_area=True):
     if ax is None:
         ax = plt.subplot(111)
     plot_interrupted_trace_simple(ax=ax, time_array=time_array, 
@@ -659,8 +663,8 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick], 
-                            ccolor=colors_plot[reg][i_lick], plot_indiv=False, plot_laser=False, #i_lick, 
-                            plot_errorbar=False, plot_std_area=True, region_list=[reg],
+                            ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_laser=False, #i_lick, 
+                            plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
                             running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
     ax.legend(loc='upper left', frameon=False); ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
@@ -685,8 +689,9 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
     return ax
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
-                                      smooth_traces=True, one_sided_window_size=1):
-    fig = plt.figure(constrained_layout=False, figsize=(12, 4))
+                                      smooth_traces=True, one_sided_window_size=1,
+                                      plot_std_area=True, plot_indiv=False):
+    fig = plt.figure(constrained_layout=False, figsize=(24, 8))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3, 
                             bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
     ax_acc_ps = {}
@@ -694,7 +699,8 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
                                     reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces, 
-                                    one_sided_window_size=one_sided_window_size)
+                                    one_sided_window_size=one_sided_window_size, plot_indiv=plot_indiv,
+                                    plot_std_area=plot_std_area)
 
         if yaxis_type == 'accuracy':
             ax_acc_ps[reg].set_ylabel('Prediction accuracy')
@@ -702,7 +708,8 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
             ax_acc_ps[reg].set_ylabel('Network prediction P(PS)')
         else:
             print('WARNING: yaxis_type not recognised')
-        ax_acc_ps[reg].set_ylim([0.1, 0.9])
+        
+        # ax_acc_ps[reg].set_ylim([0.1, 0.9])
         ax_acc_ps[reg].set_xlim([-4, 8.5])
         ax_acc_ps[reg].spines['top'].set_visible(False)
         ax_acc_ps[reg].spines['right'].set_visible(False)

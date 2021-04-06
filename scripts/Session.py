@@ -9,6 +9,7 @@ print(loadpaths.__file__)
 USER_PATHS_DICT = loadpaths.loadpaths()
 
 path_to_vape = USER_PATHS_DICT['vape_path']
+print(path_to_vape)
 
 sys.path.append(str(path_to_vape))
 sys.path.append(str(os.path.join(path_to_vape, 'jupyter')))
