@@ -432,6 +432,38 @@ def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
         plt.savefig(save_name, bbox_inches='tight')
     return ax_perf
     
+def smooth_trace(trace, one_sided_window_size=3):
+
+    window_size = int(2 * one_sided_window_size + 1)
+    trace[one_sided_window_size:-one_sided_window_size] = np.convolve(trace, np.ones(window_size), mode='valid') / window_size
+    return trace
+
+def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, demean=True):
+
+    fig, ax = plt.subplots(2, 3, figsize=(12, 7), gridspec_kw={'hspace': 0.4, 'wspace': 0.4})
+
+    tt_list = ['hit', 'fp', 'miss', 'cr']
+
+    start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start 
+    stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
+    pre_stim_frame = np.argmin(np.abs(session.filter_ps_time + stim_window))  # up to stim ( to avoid using stim artefact)
+   
+    time_arr = session.filter_ps_time[start_frame:]
+
+    for i_tt, tt in enumerate(tt_list):
+        trial_inds = np.where(np.logical_and(session.outcome == tt, session.photostim < 2))[0]
+        cell_data = session.behaviour_trials[n, :, :][trial_inds, :][:, start_frame:]
+        if demean:
+            cell_data = cell_data - np.mean(cell_data[:, :(pre_stim_frame - start_frame)], 1)[:, None]
+        for i_trial_n, trial_n in enumerate(trial_inds):
+            ax[(0 if i_tt < 3 else 1)][i_tt % 3].plot(time_arr, smooth_trace(cell_data[i_trial_n, :], one_sided_window_size=3),
+                          c='grey', alpha=0.8, linewidth=1)
+        ax[(0 if i_tt < 3 else 1)][i_tt % 3].plot(time_arr, np.mean(cell_data, 0),
+                          c=color_tt[tt], alpha=0.9, linewidth=3)  
+        ax[(0 if i_tt < 3 else 1)][i_tt % 3].set_xlabel('Time (s)')
+        ax[(0 if i_tt < 3 else 1)][i_tt % 3].set_ylabel("DF/F")
+        ax[(0 if i_tt < 3 else 1)][i_tt % 3].set_title(f'{tt} trials, N={len(trial_inds)}')      
+        ax[(0 if i_tt < 3 else 1)][i_tt % 3].set_ylim([-0.2, 0.2])             
 
 def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit',
                                               plot_averages=False, stim_window=0.3,
@@ -453,6 +485,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
     ## Sort neurons by pearosn corr of post-stim response of demean_tt
     ol_neurons_s1, _ = pof.opt_leaf(session.behaviour_trials[session.s1_bool, :, :][:, session.outcome == demean_tt, :][:, :, stim_frame:].mean(1))
     ol_neurons_s2, _ = pof.opt_leaf(session.behaviour_trials[session.s2_bool, :, :][:, session.outcome == demean_tt, :][:, :, stim_frame:].mean(1))
+    sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}  
     reg_names = ['S1' ,'S2']
 
     ## plot cell-averaged traces
@@ -486,9 +519,16 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
     ax_st = (1 if plot_averages else 0)
     for i_x, xx in enumerate(['hit', 'fp', 'miss', 'cr']): 
         ## S1
-        data_mat = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
-                                            session.photostim < 2), :][:, :, start_frame:][session.s1_bool, :, :], 1)
-        im = ax[0][ax_st + i_x].imshow(data_mat[ol_neurons_s1, :] - np.mean(data_mat[ol_neurons_s1, :][:, :(pre_stim_frame - start_frame)], 1)[:, None], 
+        data_mat = session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
+                                            session.photostim < 2), :][:, :, start_frame:][session.s1_bool, :, :]
+        data_mat = data_mat[ol_neurons_s1, :, :] 
+        if False:    
+            data_mat = np.mean(data_mat, 1)
+            data_mat = data_mat - np.mean(data_mat[:, :(pre_stim_frame - start_frame)], 1)[:, None]
+        elif True:
+            data_mat = data_mat - np.mean(data_mat[:, :, :(pre_stim_frame - start_frame)], (1, 2))[:, None, None]
+            data_mat = np.mean(data_mat, 1)
+        im = ax[0][ax_st + i_x].imshow(data_mat, 
                     aspect='auto', vmin=-c_lim, vmax=c_lim, cmap='BrBG_r')
         ax[0][ax_st + i_x].set_title('Trial averaged ' + xx + ' S1'); 
         
@@ -503,7 +543,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
             ax[ii][ax_st + i_x].set_xticklabels(time_tick_labels)
             ax[ii][ax_st + i_x].set_xlabel('Time (s)')
             ax[ii][ax_st].set_ylabel(f'Neuron ID sorted by {reg_names[ii]}-{demean_tt} post-stim trial correlation', fontdict={'weight': 'bold'})
-
+            ax[ii][ax_st + i_x].set_ylim([35, 50])
     ## Spont S1
     data_mat = np.mean(session.pre_rew_trials[:, :, start_frame:][session.s1_bool, :, :], 1)
     im = ax[0][ax_st + 4].imshow(data_mat[ol_neurons_s1, :] - np.mean(data_mat[ol_neurons_s1, :][:, :(pre_stim_frame - start_frame)], 1)[:, None], 
@@ -527,7 +567,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
         if save_name is None:
             save_name = f'Rasters_{session.signature}.pdf'
         plt.savefig(os.path.join(save_folder, save_name), bbox_inches='tight')
-    return fig
+    return fig, sorted_neurons_dict
 
 def plot_mean_traces_per_session(sessions):
     n_cols = 4

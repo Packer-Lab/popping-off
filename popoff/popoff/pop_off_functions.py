@@ -1387,11 +1387,8 @@ def create_tp_dict(sessions):
     return tp_dict
 
 def opt_leaf(w_mat, dim=0, link_metric='correlation'):
-    '''create optimal leaf order over dim, of matrix w_mat. if w_mat is not an
-    np.array then its assumed to be a RNN layer.
+    '''create optimal leaf order over dim, of matrix w_mat.
     see also: https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.optimal_leaf_ordering.html#scipy.cluster.hierarchy.optimal_leaf_ordering'''
-    # if type(w_mat) != np.ndarray:  # assume it's an rnn layer
-    #     w_mat = [x for x in w_mat.parameters()][0].detach().numpy()
     assert w_mat.ndim == 2
     if dim == 1:  # transpose to get right dim in shape
         w_mat = w_mat.T
