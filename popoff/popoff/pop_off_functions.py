@@ -18,7 +18,7 @@ from cycler import cycler
 import pandas as pd
 import math, cmath
 from tqdm import tqdm
-import scipy.stats
+import scipy.stats, scipy.spatial
 from Session import Session  # class that holds all data per session
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
@@ -150,9 +150,10 @@ def create_dict_pred(nl, train_proj, lt):
     return dict_predictions_train, dict_predictions_test
 
 def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test = ['dec', 'stim'],
-                            hitmiss_only=False, hitspont_only=False, include_150 = False, return_decoder_weights=False,
+                            hitmiss_only=False, hitspont_only=False, include_150 = False, 
+                            return_decoder_weights=False, spont_used_for_training=True,
                             n_split = 4, include_autoreward=False, include_unrewardedhit=False, 
-                            neurons_selection='all', include_too_early=True,
+                            neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
@@ -210,12 +211,13 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             print('Using hit/miss trials only.')
         if 'stim' in list_test:
             list_test.remove('stim')  # no point in estimating stim, because only PS
-    elif hitspont_only:
+    if hitspont_only:
+        spont_used_for_training = True
         if verbose >= 1:
             print('Using hit/spont trials only.')
         if 'dec' in list_test:
             list_test.remove('dec')  # no point in estimating dec, because only PS
-
+    
     name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
         name_list.append('pred_' + nn)  # prediction
@@ -294,9 +296,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 if include_too_early is False:
                     too_early_excl = np.where(session.outcome != 'too_')[0]
-                    print(len(trial_inds))
                     trial_inds = np.intersect1d(trial_inds, too_early_excl)
-                    print(len(trial_inds))
                 else:
                     print('WARNING: too early not excluded!')
 
@@ -333,7 +333,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_eval = data_eval[:, eval_only_inds, :]
                 assert data_spont.ndim == 3
                 n_spont_trials = data_spont.shape[1]
-                if hitspont_only:
+                if n_spont_trials == 0:
+                    print('NO SPONT TRIALS in ', session)
+                if spont_used_for_training:
                     data_use = np.hstack((data_use, data_spont))
                     trial_outcomes = np.concatenate((trial_outcomes, ['spont'] * n_spont_trials))
                     stim_trials = np.concatenate((session.photostim[trial_inds], np.zeros(n_spont_trials)))
@@ -341,7 +343,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                     detailed_ps_labels = np.concatenate((session.trial_subsets[trial_inds].astype('int'), np.zeros(n_spont_trials)))
                     rewarded_trials = np.concatenate((np.logical_or(session.outcome[trial_inds] == 'hit', session.outcome[trial_inds] == 'too_'), np.ones(n_spont_trials)))
-                    assert len(rewarded_trials) == np.sum(rewarded_trials)
+                    if hitspont_only:
+                        assert len(rewarded_trials) == np.sum(rewarded_trials)
                     autorewarded = np.concatenate((session.autorewarded[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
                     rewarded_trials[autorewarded] = True
                     unrewarded_hits = np.concatenate((session.unrewarded_hits[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
@@ -361,7 +364,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_eval = fun_return_2d(data_eval)
                 data_spont = fun_return_2d(data_spont)
                 ## Stack & fit scaler
-                if hitspont_only:
+                if spont_used_for_training:
                     data_stacked = np.hstack((data_use, data_eval))  # stack for scaling
                     assert (data_stacked[:, (len(trial_inds) + n_spont_trials):(len(trial_inds) + len(eval_only_inds) + n_spont_trials)] == data_eval).all()
                 else:
@@ -491,7 +494,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(len(eval_only_inds))))
 
                 ## spontaneous:
-                if n_spont_trials > 0:
+                if n_spont_trials > 0 and (spont_used_for_training is False):
                     assert (np.array(list(pred_proba_spont.keys())) == np.arange(n_split)).all()
                     for x in list_test:
                         mat_predictions = np.array([pred_proba_spont[nn][x] for nn in range(n_split)])                
@@ -504,8 +507,6 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], np.zeros(n_spont_trials)))
                     dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], np.ones(n_spont_trials)))
                     dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(n_spont_trials)))
-                else:
-                    print('NO SPONT TRIALS IN SESSION', session)
 
         if verbose == 2:
             print(f'length test: {len(dict_predictions_test["true_dec_test"])}')
@@ -514,9 +515,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         df_prediction_test[mouse] = pd.DataFrame(dict_predictions_test)
 
     if return_decoder_weights is False:
-        return df_prediction_train, df_prediction_test
+        return df_prediction_train, df_prediction_test, None, (data_use, trial_outcomes)
     elif return_decoder_weights:
-        return df_prediction_train, df_prediction_test, dec_weights
+        return df_prediction_train, df_prediction_test, dec_weights, (data_use, trial_outcomes)
 
 
 ## Some functions that can be used as accuracy assessment
@@ -785,7 +786,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
 
         for reg in region_list:
             df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
-            df_prediction_train, df_prediction_test[reg][tp], dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+            df_prediction_train, df_prediction_test[reg][tp], dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
                                                           verbose=0, hitmiss_only=False, include_150=False,
                                                           include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                           train_projected=projected_data, return_decoder_weights=True,
@@ -897,7 +898,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                        's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
         for reg in region_list:
-            df_prediction_train, df_prediction_test, dec_w = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+            df_prediction_train, df_prediction_test, dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
                                                           verbose=0, hitmiss_only=False, include_150=False,
                                                           include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                           train_projected=projected_data, return_decoder_weights=True,
@@ -1291,7 +1292,7 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
     dict_df_test = {reg: {} for reg in region_list}
     for reg in region_list:
         for tp in tp_list:  # retrain (deterministic) decoders for these time points, and save detailed info
-            _, dict_df_test[reg][tp] = train_test_all_sessions(sessions=sessions, verbose=0,# n_split=n_split,
+            _, dict_df_test[reg][tp], __, ___ = train_test_all_sessions(sessions=sessions, verbose=0,# n_split=n_split,
                                         trial_times_use=np.array([tp]), return_decoder_weights=False,
                                         hitmiss_only=False,# list_test=['dec', 'stim'],
                                         include_autoreward=False, neurons_selection=reg,
@@ -1384,3 +1385,21 @@ def create_tp_dict(sessions):
     elif len(freqs) == 1:
         tp_dict['mutual'] = tp_dict[freqs[0]]
     return tp_dict
+
+def opt_leaf(w_mat, dim=0, link_metric='correlation'):
+    '''create optimal leaf order over dim, of matrix w_mat. if w_mat is not an
+    np.array then its assumed to be a RNN layer.
+    see also: https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.optimal_leaf_ordering.html#scipy.cluster.hierarchy.optimal_leaf_ordering'''
+    # if type(w_mat) != np.ndarray:  # assume it's an rnn layer
+    #     w_mat = [x for x in w_mat.parameters()][0].detach().numpy()
+    assert w_mat.ndim == 2
+    if dim == 1:  # transpose to get right dim in shape
+        w_mat = w_mat.T
+    dist = scipy.spatial.distance.pdist(w_mat, metric=link_metric)  # distanc ematrix
+    link_mat = scipy.cluster.hierarchy.ward(dist)  # linkage matrix
+    if link_metric == 'euclidean' and True:
+        opt_leaves = scipy.cluster.hierarchy.leaves_list(scipy.cluster.hierarchy.optimal_leaf_ordering(link_mat, dist))
+        print('OPTIMAL LEAF SOSRTING AND EUCLIDEAN USED')
+    else:
+        opt_leaves = scipy.cluster.hierarchy.leaves_list(link_mat)
+    return opt_leaves, (link_mat, dist)

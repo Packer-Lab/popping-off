@@ -433,49 +433,94 @@ def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
     return ax_perf
     
 
-def plot_raster_plots_trial_types_one_session(session):
+def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit',
+                                              plot_averages=False, stim_time=240,
+                                              save_fig=False, save_name=None, 
+                                              save_folder='/home/tplas/repos/popping-off/figures/raster_plots/'):
 
-    fig, ax = plt.subplots(2, 5, figsize=(24, 15), gridspec_kw={'wspace': 0.3})
+    fig, ax = plt.subplots(2, (6 if plot_averages else 5), figsize=(30, 15), gridspec_kw={'wspace': 0.3, 'width_ratios':([1, 1, 1 ,1, 1, 1.2] if plot_averages else [1, 1, 1, 1, 1.2])})
     # plt.rcParams['figure.figsize']= (24, 15)
     # plt.subplots_adjust(wspace=0.3)
 
-    for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
-        mean_trace = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
-                                        session.photostim < 2), :][:, :, session.filter_ps_array][session.s1_bool, :, :], (0, 1))
-    #     print(np.sum(mean_trace))
+    ol_neurons_s1, _ = pof.opt_leaf(session.behaviour_trials[session.s1_bool, :, :][:, session.outcome == demean_tt, :][:, :, stim_time:].mean(1))
+    ol_neurons_s2, _ = pof.opt_leaf(session.behaviour_trials[session.s2_bool, :, :][:, session.outcome == demean_tt, :][:, :, stim_time:].mean(1))
+    reg_names = ['S1' ,'S2']
+
+    if plot_averages:
+        for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
+            data_mat = session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
+                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s1_bool, :, :]
+            mean_trace = np.mean(data_mat, (0, 1))
+            plot_interrupted_trace_simple(ax[0][0], session.filter_ps_time, mean_trace,
+                                            llabel=xx, llinewidth=2, ccolor=color_tt[xx])
+        mean_trace = np.mean(session.pre_rew_trials[:, :, session.filter_ps_array][session.s1_bool, :, :], (0, 1))
         plot_interrupted_trace_simple(ax[0][0], session.filter_ps_time, mean_trace,
-                                        llabel=xx, llinewidth=2, ccolor=color_dict_stand[i_x])
-    ax[0][0].legend(); ax[0][0].set_title('Average over all S1 neurons & trials'); 
-    ax[0][0].set_xlabel('Time (s)'); ax[0][0].set_ylabel('DF/F')
+                                        llabel='spont', llinewidth=2, ccolor=color_tt['spont'])
+        ax[0][0].legend(frameon=False); ax[0][0].set_title('Average over all S1 neurons & trials'); 
+        ax[0][0].set_xlabel('Time (s)'); ax[0][0].set_ylabel('DF/F')
 
-    for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
-        mean_trace = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
-                                        session.photostim < 2), :][:, :, session.filter_ps_array][session.s2_bool, :, :], (0, 1))
-    #     print(np.sum(mean_trace))
+        for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
+            mean_trace = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
+                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s2_bool, :, :], (0, 1))
+        #     print(np.sum(mean_trace))
+            plot_interrupted_trace_simple(ax[1][0], session.filter_ps_time, mean_trace,
+                                            llabel=xx, llinewidth=2, ccolor=color_tt[xx])
+        mean_trace = np.mean(session.pre_rew_trials[:, :, session.filter_ps_array][session.s2_bool, :, :], (0, 1))
         plot_interrupted_trace_simple(ax[1][0], session.filter_ps_time, mean_trace,
-                                        llabel=xx, llinewidth=2, ccolor=color_dict_stand[i_x])
-    ax[1][0].legend(); ax[1][0].set_title('Average over all S2 neurons & trials'); 
-    ax[1][0].set_xlabel('Time (s)'); ax[1][0].set_ylabel('DF/F')
+                                        llabel='spont', llinewidth=2, ccolor=color_tt['spont'])
+        ax[1][0].legend(frameon=False); ax[1][0].set_title('Average over all S2 neurons & trials'); 
+        ax[1][0].set_xlabel('Time (s)'); ax[1][0].set_ylabel('DF/F')
 
+    ax_st = (1 if plot_averages else 0)
     for i_x, xx in enumerate(['hit', 'fp', 'miss', 'cr']):
-        im = ax[0][1 + i_x].imshow(np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
-                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s1_bool, :, :], 1), 
+        data_mat = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
+                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s1_bool, :, :], 1)
+        im = ax[0][ax_st + i_x].imshow(data_mat[ol_neurons_s1, :] - np.mean(data_mat[ol_neurons_s1, :][:, :stim_time], 1)[:, None], 
     #                aspect='auto', vmin=-0.2, vmax=1, cmap='plasma')
-                    aspect='auto', vmin=-0.5, vmax=0.5, cmap='PiYG')
-        plt.colorbar(im ,ax=ax[0][1 + i_x])
-        ax[0][1 + i_x].set_title(xx + ' S1'); 
+                    aspect='auto', vmin=-c_lim, vmax=c_lim, cmap='BrBG_r')
+        # plt.colorbar(im ,ax=ax[0][ax_st + i_x])
+        ax[0][ax_st + i_x].set_title('Trial averaged ' + xx + ' S1'); 
         
-        im = ax[1][1 + i_x].imshow(np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
-                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s2_bool, :, :], 1), 
+        data_mat = np.mean(session.behaviour_trials[:, np.logical_and(session.outcome == xx, 
+                                            session.photostim < 2), :][:, :, session.filter_ps_array][session.s2_bool, :, :], 1)
+        im = ax[1][ax_st + i_x].imshow(data_mat[ol_neurons_s2, :] - np.mean(data_mat[ol_neurons_s2, :][:, :stim_time], 1)[:, None], 
     #                aspect='auto', vmin=-0.2, vmax=1, cmap='plasma')
-                    aspect='auto', vmin=-0.5, vmax=0.5, cmap='PiYG')
-        plt.colorbar(im, ax=ax[1][1+ i_x])
-        ax[1][1 + i_x].set_title(xx + ' S2');
+                    aspect='auto', vmin=-c_lim, vmax=c_lim, cmap='BrBG_r')
+        # plt.colorbar(im, ax=ax[1][ax_st + i_x])
+        ax[1][ax_st + i_x].set_title('Trial averaged ' + xx + ' S2')
         for ii in [0, 1]:
-            ax[ii][1 + i_x].set_ylabel('neuron id')
-            ax[ii][1 + i_x].set_xlabel('Time')
+            ax[ii][ax_st + i_x].set_xticks(np.arange(8) * 60)
+            ax[ii][ax_st + i_x].set_xticklabels([np.round(x) for x in session.filter_ps_time[np.arange(8) * 60]])#,
+                                                # rotation=90, minor=False, ha='center')
+            # ax[ii][ax_st + i_x].tick_params('x', which='major', length=10, width=3)
+            ax[ii][ax_st + i_x].set_xlabel('Time (s)')
+            ax[ii][ax_st].set_ylabel(f'Neuron ID sorted by {reg_names[ii]}-{demean_tt} post-stim trial correlation', fontdict={'weight': 'bold'})
 
-    print(session)
+    data_mat = np.mean(session.pre_rew_trials[:, :, session.filter_ps_array][session.s1_bool, :, :], 1)
+    im = ax[0][ax_st + 4].imshow(data_mat[ol_neurons_s1, :] - np.mean(data_mat[ol_neurons_s1, :][:, :stim_time], 1)[:, None], 
+#                aspect='auto', vmin=-0.2, vmax=1, cmap='plasma')
+                aspect='auto', vmin=-c_lim, vmax=c_lim, cmap='BrBG_r')
+    plt.colorbar(im, ax=ax[0][ax_st + 4]).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
+    ax[0][ax_st + 4].set_title('Trial averaged Spont S1'); 
+    
+    data_mat = np.mean(session.pre_rew_trials[:, :, session.filter_ps_array][session.s2_bool, :, :], 1)
+    im = ax[1][ax_st + 4].imshow(data_mat[ol_neurons_s2, :] - np.mean(data_mat[ol_neurons_s2, :][:, :stim_time], 1)[:, None], 
+#                aspect='auto', vmin=-0.2, vmax=1, cmap='plasma')
+                aspect='auto', vmin=-c_lim, vmax=c_lim, cmap='BrBG_r')
+    plt.colorbar(im, ax=ax[1][ax_st + 4]).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
+    ax[1][ax_st + 4].set_title('Trial averaged Spont S2')
+    for ii in [0, 1]:
+        ax[ii][ax_st + 4].set_xticks(np.arange(8) * 60)
+        ax[ii][ax_st + 4].set_xticklabels([np.round(x) for x in session.filter_ps_time[np.arange(8) * 60]])
+
+    # print(session)
+    ax[0][2].annotate(s=session, xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
+
+
+    if save_fig:
+        if save_name is None:
+            save_name = f'Rasters_{session.signature}.pdf'
+        plt.savefig(os.path.join(save_folder, save_name), bbox_to_inches='tight')
     return fig
 
 def plot_mean_traces_per_session(sessions):
@@ -609,12 +654,11 @@ def plot_mean_trace_overview_across_sessions(df_dyn_differences, plot_laser=True
 
 def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, n_splits=4):
     ss_dict = {0: session}  # create dict to be compatible with funciton
-    df_prediction_train, df_prediction_test, tmp = pof.train_test_all_sessions(sessions=ss_dict, verbose=1, n_split=n_splits,
+    df_prediction_train, df_prediction_test, _, __ = pof.train_test_all_sessions(sessions=ss_dict, verbose=1, n_split=n_splits,
                                                 trial_times_use=np.array([time_frame]), return_decoder_weights=True,
                                             hitmiss_only=False,# list_test=['dec', 'stim'],
                                             include_autoreward=False, neurons_selection='s1',
                                             C_value=50, train_projected=False, proj_dir='same')
-
     fig, ax = plt.subplots(2,2, figsize=(7, 6), gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
     
     ## NB: To not plot with hue, set hh=None
