@@ -528,7 +528,7 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
 def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_lim=0.2,
                             imshow_interpolation='nearest', plot_cbar=False, print_ylabel=False,
                             demean_tt='NA', n_trials=None, time_ticks=[], time_tick_labels=[],
-                            s1_lim=None, s2_lim=None, plot_targets=True, ol_neurons_s1=None,
+                            s1_lim=None, s2_lim=None, plot_targets=True, spec_target_trial=None, ol_neurons_s1=None,
                             ol_neurons_s2=None):
 
     if ax is None:
@@ -561,7 +561,11 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
         elif reg == 'S2':
             reg_bool = session.s2_bool
         assert len(np.unique(session.is_target.mean((0, 1)))) == 1  # same for all time points
-        neuron_targ = np.mean(session.is_target, (1, 2))
+        if spec_target_trial is None:
+            neuron_targ = np.mean(session.is_target, (1, 2))
+        else:
+            neuron_targ = np.mean(session.is_target, 2)
+            neuron_targ = neuron_targ[:, spec_target_trial]
         neuron_targ_reg = neuron_targ[reg_bool]  # select region 
         if reg == 'S1':
             neuron_targ_reg = neuron_targ_reg[ol_neurons_s1]  # sort
@@ -582,7 +586,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
 
 def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit',
                                               plot_averages=False, stim_window=0.3,
-                                              start_time=-4, start_neuron=None, end_neuron=None,
+                                              start_time=-4, 
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
@@ -657,81 +661,125 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
     return fig, sorted_neurons_dict
 
 
-def plot_raster_plots_all_trials_one_session(session, c_lim=0.2, demean_tt='hit',
-                                              plot_averages=False, stim_window=0.3,
-                                              start_time=-4, start_neuron=None, end_neuron=None,
+def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, demean_tt='hit',
+                                              stim_window=0.3, start_time=-4, 
+                                              n_cols=6, reg='S1',
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
                                               save_fig=False, save_name=None, 
-                                              save_folder='/home/tplas/repos/popping-off/figures/raster_plots/'):
+                                              save_folder='/home/tplas/repos/popping-off/figures/raster_plots/individual_trials/'):
 
-    fig, ax = plt.subplots(2, (6 if plot_averages else 5), figsize=(30, 15), gridspec_kw={'wspace': 0.3, 'width_ratios':([1, 1, 1 ,1, 1, 1.2] if plot_averages else [1, 1, 1, 1, 1.2])})
-    
     (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
         time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, demean_tt=demean_tt)
-    sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}  
-    reg_names = ['S1' ,'S2']
+    
+    if tt_plot == 'spont':
+        abs_trial_arr = []
+        n_trials = data_spont_mat_norm.shape[1]
+    else: # use session.outcome b/c outcome_arr does not include photostim == 2 and therefore not full length
+        abs_trial_arr = np.where(outcome_arr == tt_plot)[0] 
+        abs_trial_arr = np.where(session.photostim < 2)[0][abs_trial_arr]
+        assert len(np.unique(session.outcome[abs_trial_arr])) == 1 and session.outcome[abs_trial_arr][0] == tt_plot
+        n_trials = np.sum(outcome_arr == tt_plot)
 
-    ## plot cell-averaged traces
-    if plot_averages:  
-        for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
-            mean_trace = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], (0, 1))  # S1
-            plot_interrupted_trace_simple(ax[0][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
-                                            llabel=xx, llinewidth=3, ccolor=color_tt[xx])  # plot all except spont
+    n_rows = int(np.ceil(n_trials / n_cols)) + 1  # plus 1 for averages
+    fig, ax = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 7 * n_rows), gridspec_kw={'wspace': 0.2})
 
-            mean_trace = np.mean(data_use_mat_norm_s2[:, outcome_arr == xx, :], (0, 1))  # S2
-            plot_interrupted_trace_simple(ax[1][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
-                                            llabel=xx, llinewidth=3, ccolor=color_tt[xx])
+    ## Plot average raster plot
+    if reg == 'S1':
+        if tt_plot == 'spont':
+            data_mat = np.mean(data_spont_mat_norm[session.s1_bool, :, :], 1)  # Spont S2
+            data_mat = data_mat[ol_neurons_s1, :]
+            tmp_n_trials = data_spont_mat_norm.shape[1]
+        else:
+            tmp_n_trials = np.sum(outcome_arr == tt_plot)
+            data_mat = np.mean(data_use_mat_norm_s1[:, outcome_arr == tt_plot, :], 1)  # S1
 
-        for i_ax, reg_bool in enumerate([session.s1_bool, session.s2_bool]):  
-            mean_trace = np.mean(data_spont_mat_norm[reg_bool, :, :], (0, 1))  # spontaneous 
-            plot_interrupted_trace_simple(ax[i_ax][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
-                                            llabel='spont', llinewidth=3, ccolor=color_tt['spont'])  # plot spont
-
-            ax[i_ax][0].legend(frameon=False); ax[i_ax][0].set_title(f'Average over all {reg_names[i_ax]} neurons & trials'); 
-            ax[i_ax][0].set_xlabel('Time (s)'); ax[i_ax][0].set_ylabel('DF/F')
-            ax[i_ax][0].set_ylim([-0.2, 0.25])
-
-    ## Plot raster plots
-    ax_st = (1 if plot_averages else 0)
-    for i_x, xx in enumerate(['hit', 'fp', 'miss', 'cr']): 
-        data_mat = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], 1)  # S1
-        plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][ax_st + i_x], reg='S1', tt=xx, c_lim=c_lim,
-                            imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(xx == 'hit'),
-                            demean_tt=demean_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+        plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][0], reg='S1', tt=tt_plot, c_lim=c_lim,
+                            imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=True,
+                            demean_tt=demean_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                             ol_neurons_s2=ol_neurons_s2)
+    elif reg == 'S2':
 
-        data_mat = np.mean(data_use_mat_norm_s2[:, outcome_arr == xx, :], 1)  # S2
-        plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[1][ax_st + i_x], reg='S2', tt=xx, c_lim=c_lim,
-                    imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(xx == 'hit'),
-                    demean_tt=demean_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
-                    s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
-                    ol_neurons_s2=ol_neurons_s2)
-        
-    data_mat = np.mean(data_spont_mat_norm[session.s1_bool, :, :], 1)  # Spont S1
-    plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=ax[0][ax_st + 4], reg='S1', tt='spont', c_lim=c_lim,
-                    imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
-                    demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+        if tt_plot == 'spont':
+            data_mat = np.mean(data_spont_mat_norm[session.s2_bool, :, :], 1)  # Spont S2
+            data_mat = data_mat[ol_neurons_s2, :]
+            tmp_n_trials = data_spont_mat_norm.shape[1]
+        else:
+            tmp_n_trials = np.sum(outcome_arr == tt_plot)        
+            data_mat = np.mean(data_use_mat_norm_s2[:, outcome_arr == tt_plot, :], 1)  # S2
+
+        plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][0], reg='S2', tt=tt_plot, c_lim=c_lim,
+                    imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=True,
+                    demean_tt=demean_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
 
-    data_mat = np.mean(data_spont_mat_norm[session.s2_bool, :, :], 1)  # Spont S2
-    plot_single_raster_plot(data_mat=data_mat[ol_neurons_s2, :], session=session, ax=ax[1][ax_st + 4], reg='S2', tt='spont', c_lim=c_lim,
-                    imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
-                    demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
-                    s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
-                    ol_neurons_s2=ol_neurons_s2)
+    for i_col in range(1, n_cols):
+        ax[0][i_col].set_xticks([])
+        ax[0][i_col].set_yticks([])
+        ax[0][i_col].axis('off')
+
+    ## Plot individual trial raster plots
+    for i_trial in range(n_trials):
+        i_col = i_trial % n_cols
+        i_row = int(np.ceil(i_trial / n_cols + 0.0001))
+        if tt_plot != 'spont':
+            abs_trial_n = abs_trial_arr[i_trial]
+        else:
+            abs_trial_n = i_trial
+        curr_ax = ax[i_row][i_col]
+        if reg == 'S1':
+            if tt_plot == 'spont':
+                data_mat = data_spont_mat_norm[session.s1_bool, :, :][:, i_trial, :]  # Spont S1
+                plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=curr_ax, reg='S1', tt='spont', c_lim=c_lim,
+                        imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
+                        demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                        s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=False, ol_neurons_s1=ol_neurons_s1,
+                        ol_neurons_s2=ol_neurons_s2)
+
+            else:
+                data_mat = data_use_mat_norm_s1[:, outcome_arr == tt_plot, :][:, i_trial, :]  # S1
+                plot_single_raster_plot(data_mat=data_mat, session=session, ax=curr_ax, reg='S1', tt=tt_plot, c_lim=c_lim,
+                                    imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
+                                    demean_tt=demean_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                                    s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, spec_target_trial=abs_trial_n, ol_neurons_s1=ol_neurons_s1,
+                                    ol_neurons_s2=ol_neurons_s2)
+
+        elif reg == 'S2':
+            if tt_plot == 'spont':
+                data_mat = data_spont_mat_norm[session.s2_bool, :, :][:, i_trial, :]  # Spont S2
+                plot_single_raster_plot(data_mat=data_mat[ol_neurons_s2, :], session=session, ax=curr_ax, reg='S2', tt='spont', c_lim=c_lim,
+                                            imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
+                                            demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                                            s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=False, ol_neurons_s1=ol_neurons_s1,
+                                            ol_neurons_s2=ol_neurons_s2)
+            else:
+                data_mat = data_use_mat_norm_s2[:, outcome_arr == tt_plot, :][:, i_trial, :]  # S2
+                plot_single_raster_plot(data_mat=data_mat, session=session, ax=curr_ax, reg='S2', tt=tt_plot, c_lim=c_lim,
+                            imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
+                            demean_tt=demean_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                            s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, spec_target_trial=abs_trial_n, ol_neurons_s1=ol_neurons_s1,
+                            ol_neurons_s2=ol_neurons_s2)
+        curr_ax.set_title(f'Trial #{i_trial, abs_trial_n}')
     
-    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method}', xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
+
+    if i_col != n_cols - 1:
+        for ii_col in range(i_col + 1, n_cols):
+            ax[-1][ii_col].set_xticks([])
+            ax[-1][ii_col].set_yticks([])
+            ax[-1][ii_col].axis('off')
+        
+    
+    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method}\nAll {tt_plot} trials are shown with {imshow_interpolation} interpolation', xy=(0.8, 0.5), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
     if save_fig:
         if save_name is None:
-            save_name = f'Rasters_{session.signature}.pdf'
+            save_name = f'Indiv_rasters_{session.signature}_{reg}_{tt_plot}.pdf'
         plt.savefig(os.path.join(save_folder, save_name), bbox_inches='tight')
-    return fig, sorted_neurons_dict
+    return fig
 
 def plot_mean_traces_per_session(sessions):
     n_cols = 4
