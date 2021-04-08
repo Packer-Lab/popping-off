@@ -1394,9 +1394,9 @@ def opt_leaf(w_mat, dim=0, link_metric='correlation'):
         w_mat = w_mat.T
     dist = scipy.spatial.distance.pdist(w_mat, metric=link_metric)  # distanc ematrix
     link_mat = scipy.cluster.hierarchy.ward(dist)  # linkage matrix
-    if link_metric == 'euclidean' and True:
+    if link_metric == 'euclidean':
         opt_leaves = scipy.cluster.hierarchy.leaves_list(scipy.cluster.hierarchy.optimal_leaf_ordering(link_mat, dist))
-        print('OPTIMAL LEAF SOSRTING AND EUCLIDEAN USED')
-    else:
+        # print('OPTIMAL LEAF SOSRTING AND EUCLIDEAN USED')
+    elif link_metric == 'correlation':
         opt_leaves = scipy.cluster.hierarchy.leaves_list(link_mat)
     return opt_leaves, (link_mat, dist)
