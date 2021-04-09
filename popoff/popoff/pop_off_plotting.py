@@ -496,6 +496,7 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, de
 
     ax[1][2].axis('off')
     ax[1][2].text(s=f'Traces smoothed with {2 * osws + 1}-frames window', x=0, y=0.5)
+    ax[1][2].text(s=f'Cell ID: {n}, session {str(session)}, Suite-2P ID {session.suite2p_id[n]}', x=-0.2, y=0.8, fontdict={'weight': 'bold'})
               
 
 def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation'):
