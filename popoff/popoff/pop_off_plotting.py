@@ -590,6 +590,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
+                                              show_plot=True,
                                               save_fig=False, save_name=None, 
                                               save_folder='/home/tplas/repos/popping-off/figures/raster_plots/'):
 
@@ -651,14 +652,18 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
     
-    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method}', xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
+    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation', 
+                      xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
     if save_fig:
         if save_name is None:
-            save_name = f'Rasters_{session.signature}.pdf'
+            save_name = f'Rasters_{session.signature}_{imshow_interpolation}.pdf'
         plt.savefig(os.path.join(save_folder, save_name), bbox_inches='tight')
-    return fig, sorted_neurons_dict
+
+    if show_plot is False:
+        plt.close()
+    return sorted_neurons_dict
 
 
 def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, demean_tt='hit',
@@ -667,6 +672,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
+                                              show_plot=True,
                                               save_fig=False, save_name=None, 
                                               save_folder='/home/tplas/repos/popping-off/figures/raster_plots/individual_trials/'):
 
@@ -779,8 +785,10 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
         if save_name is None:
             save_name = f'Indiv_rasters_{session.signature}_{reg}_{tt_plot}.pdf'
         plt.savefig(os.path.join(save_folder, save_name), bbox_inches='tight')
-    return fig
 
+    if show_plot is False:
+        plt.close()
+    
 def plot_mean_traces_per_session(sessions):
     n_cols = 4
     n_rows = int(np.ceil(len(sessions) / n_cols))
