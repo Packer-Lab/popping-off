@@ -57,7 +57,9 @@ def beh_metric(sessions, metric='accuracy',
             tn = np.sum(session.outcome[trial_inds] == 'cr')
             fn = np.sum(session.outcome[trial_inds] == 'miss')
             too_early = np.sum(session.outcome[trial_inds] == 'too_')
-            assert (tp + fp + tn + fn + too_early) == len(session.outcome[trial_inds])
+            arm = np.sum(session.outcome[trial_inds] == 'arm')
+            urh = np.sum(session.outcome[trial_inds] == 'urh')
+            assert (tp + fp + tn + fn + too_early + arm + urh) == len(session.outcome[trial_inds]), f'{np.unique(session.outcome[trial_inds])}'
             if metric == 'accuracy':
                 acc[i_session, i_stim] = (tp + tn) / (tp + fp + tn + fn)
             elif metric == 'sensitivity':

@@ -436,7 +436,7 @@ def smooth_trace(trace, one_sided_window_size=3):
     trace[one_sided_window_size:-one_sided_window_size] = np.convolve(trace, np.ones(window_size), mode='valid') / window_size
     return trace
 
-def transform_cell_number(session, n_reg_sorted, sort_dict, reg='S1'):
+def transform_reg_sorted_cell_number(session, n_reg_sorted, sort_dict, reg='S1'):
     if reg == 'S1':
         n_reg = sort_dict['s1'][n_reg_sorted]
         reg_arr = np.where(session.s1_bool)[0]
@@ -448,7 +448,12 @@ def transform_cell_number(session, n_reg_sorted, sort_dict, reg='S1'):
         assert len(reg_arr) == len(sort_dict['s2']), f'{len(reg_arr)} and {len(sort_dict["s2"])}'
         n = reg_arr[n_reg]
     return n
-        
+
+def transform_suite2p_cell_number(session, n_suite2p):
+    suite2p_arr = session.suite2p_id
+    n = np.where(suite2p_arr == n_suite2p)[0]
+    assert len(n) == 1, f'Suite2p ID {n_suite2p} not in {session}'
+    return int(n[0])        
 
 def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, demean=True, y_lim=None, osws=3):
 
@@ -463,7 +468,7 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, de
    
     # (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
     #     time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method='euclidean',   # also sorting is False so doesn't matter
-    #                                                                             demean_tt=demean_tt, sort_neurons=False)
+    #                                                                             sort_tt=sort_tt, sort_neurons=False)
 
     time_arr = session.filter_ps_time[start_frame:]
 
@@ -497,6 +502,7 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, de
     ax[1][2].axis('off')
     ax[1][2].text(s=f'Traces smoothed with {2 * osws + 1}-frames window', x=0, y=0.5)
     ax[1][2].text(s=f'Cell ID: {n}, session {str(session)}, Suite-2P ID {session.suite2p_id[n]}', x=-0.2, y=0.8, fontdict={'weight': 'bold'})
+    ax[1][2].text(s=f'This cell was targeted {int(np.sum(np.mean(session.is_target[n, :, :], 1)))} times', x=0, y=0.2)
               
 
 def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation'):
@@ -524,9 +530,12 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation')
             sorting = np.argsort(neuron_targ_reg)[::-1] 
     elif sorting_method == 'normal':
         return np.arange(data.shape[0])
+    elif sorting_method == 'amplitude':
+        max_val_arr = np.max(data, 1)
+        sorting = np.argsort(max_val_arr)[::-1]
     return sorting
 
-def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_method='correlation', demean_tt='hit', sort_neurons=True):
+def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_method='correlation', sort_tt='hit', sort_neurons=True):
 
     start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start 
     stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
@@ -535,7 +544,7 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
     time_ticks = np.arange(n_time_ticks) * 2 * session.frequency
     time_tick_labels = [str(np.round(x)) for x in session.filter_ps_time[start_frame:][time_ticks]]
 
-    ## Sort neurons by pearosn corr of post-stim response of demean_tt
+    ## Sort neurons by pearosn corr of post-stim response of sort_tt
     data_use_mat = session.behaviour_trials[:, session.photostim < 2, :][:, :, start_frame:]  # discarded 150 cells PS & discared pre -4 seconds
     data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, :(pre_stim_frame - start_frame)], 2)[:, :, None]  # normalize by pre-stim activity per neuron
     # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, :(pre_stim_frame - start_frame)], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
@@ -549,12 +558,12 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
     outcome_arr[session.unrewarded_hits] = 'urh'
     outcome_arr = outcome_arr[session.photostim < 2]
 
-    if demean_tt == 'spont':
-        ol_neurons_s1 = sort_data_matrix(data_spont_mat_norm[session.s1_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (demean_tt) trials, post stim activity 
+    if sort_tt == 'spont':
+        ol_neurons_s1 = sort_data_matrix(data_spont_mat_norm[session.s1_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity 
         ol_neurons_s2 = sort_data_matrix(data_spont_mat_norm[session.s2_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
     else:
-        ol_neurons_s1 = sort_data_matrix(data_use_mat_norm_s1[:, outcome_arr == demean_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (demean_tt) trials, post stim activity 
-        ol_neurons_s2 = sort_data_matrix(data_use_mat_norm_s2[:, outcome_arr == demean_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
+        ol_neurons_s1 = sort_data_matrix(data_use_mat_norm_s1[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity 
+        ol_neurons_s2 = sort_data_matrix(data_use_mat_norm_s2[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
     
     if sort_neurons:
         data_use_mat_norm_s1 = data_use_mat_norm_s1[ol_neurons_s1, :, :]
@@ -564,7 +573,7 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
     
 def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_lim=0.2,
                             imshow_interpolation='nearest', plot_cbar=False, print_ylabel=False,
-                            demean_tt='NA', n_trials=None, time_ticks=[], time_tick_labels=[],
+                            sort_tt='NA', n_trials=None, time_ticks=[], time_tick_labels=[],
                             s1_lim=None, s2_lim=None, plot_targets=True, spec_target_trial=None, ol_neurons_s1=None,
                             ol_neurons_s2=None):
 
@@ -578,7 +587,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
         plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
     
     if print_ylabel:
-        ax.set_ylabel(f'Neuron ID sorted by {reg}-{demean_tt} post-stim trial correlation', fontdict={'weight': 'bold'})
+        ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt} post-stim trial correlation', fontdict={'weight': 'bold'})
     ax.set_title(f'Trial averaged {tt} {reg} (N={n_trials})')
     ax.set_xlabel(f'Time (s)')
     ax.set_xticks(time_ticks)
@@ -621,7 +630,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
     return ax
 
 
-def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit',
+def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
                                               plot_averages=False, stim_window=0.3,
                                               start_time=-4, 
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
@@ -634,7 +643,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
     fig, ax = plt.subplots(2, (6 if plot_averages else 5), figsize=(30, 15), gridspec_kw={'wspace': 0.3, 'width_ratios':([1, 1, 1 ,1, 1, 1.2] if plot_averages else [1, 1, 1, 1, 1.2])})
     
     (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
-        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, demean_tt=demean_tt, sort_neurons=True)
+        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
     sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}  
     reg_names = ['S1' ,'S2']
 
@@ -664,28 +673,28 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
         data_mat = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], 1)  # S1
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][ax_st + i_x], reg='S1', tt=xx, c_lim=c_lim,
                             imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(xx == 'hit'),
-                            demean_tt=demean_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                            sort_tt=sort_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                             ol_neurons_s2=ol_neurons_s2)
 
         data_mat = np.mean(data_use_mat_norm_s2[:, outcome_arr == xx, :], 1)  # S2
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[1][ax_st + i_x], reg='S2', tt=xx, c_lim=c_lim,
                     imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(xx == 'hit'),
-                    demean_tt=demean_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                    sort_tt=sort_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
         
     data_mat = np.mean(data_spont_mat_norm[session.s1_bool, :, :], 1)  # Spont S1
     plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=ax[0][ax_st + 4], reg='S1', tt='spont', c_lim=c_lim,
                     imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
-                    demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                    sort_tt=sort_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
 
     data_mat = np.mean(data_spont_mat_norm[session.s2_bool, :, :], 1)  # Spont S2
     plot_single_raster_plot(data_mat=data_mat[ol_neurons_s2, :], session=session, ax=ax[1][ax_st + 4], reg='S2', tt='spont', c_lim=c_lim,
                     imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
-                    demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                    sort_tt=sort_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
     
@@ -703,7 +712,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, demean_tt='hit
     return sorted_neurons_dict
 
 
-def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, demean_tt='hit',
+def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, sort_tt='hit',
                                               stim_window=0.3, start_time=-4, 
                                               n_cols=6, reg='S1',
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
@@ -714,7 +723,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                                               save_folder='/home/tplas/repos/popping-off/figures/raster_plots/individual_trials/'):
 
     (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
-        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, demean_tt=demean_tt, sort_neurons=True)
+        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
     
     if tt_plot == 'spont':
         abs_trial_arr = []
@@ -740,7 +749,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
 
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][0], reg='S1', tt=tt_plot, c_lim=c_lim,
                             imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=True,
-                            demean_tt=demean_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                            sort_tt=sort_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                             ol_neurons_s2=ol_neurons_s2)
     elif reg == 'S2':
@@ -755,7 +764,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
 
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][0], reg='S2', tt=tt_plot, c_lim=c_lim,
                     imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=True,
-                    demean_tt=demean_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                    sort_tt=sort_tt, n_trials=tmp_n_trials, time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
 
@@ -778,7 +787,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                 data_mat = data_spont_mat_norm[session.s1_bool, :, :][:, i_trial, :]  # Spont S1
                 plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=curr_ax, reg='S1', tt='spont', c_lim=c_lim,
                         imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
-                        demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                        sort_tt=sort_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                         s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=False, ol_neurons_s1=ol_neurons_s1,
                         ol_neurons_s2=ol_neurons_s2)
 
@@ -786,7 +795,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                 data_mat = data_use_mat_norm_s1[:, outcome_arr == tt_plot, :][:, i_trial, :]  # S1
                 plot_single_raster_plot(data_mat=data_mat, session=session, ax=curr_ax, reg='S1', tt=tt_plot, c_lim=c_lim,
                                     imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
-                                    demean_tt=demean_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                                    sort_tt=sort_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, spec_target_trial=abs_trial_n, ol_neurons_s1=ol_neurons_s1,
                                     ol_neurons_s2=ol_neurons_s2)
 
@@ -795,14 +804,14 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                 data_mat = data_spont_mat_norm[session.s2_bool, :, :][:, i_trial, :]  # Spont S2
                 plot_single_raster_plot(data_mat=data_mat[ol_neurons_s2, :], session=session, ax=curr_ax, reg='S2', tt='spont', c_lim=c_lim,
                                             imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
-                                            demean_tt=demean_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                                            sort_tt=sort_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=False, ol_neurons_s1=ol_neurons_s1,
                                             ol_neurons_s2=ol_neurons_s2)
             else:
                 data_mat = data_use_mat_norm_s2[:, outcome_arr == tt_plot, :][:, i_trial, :]  # S2
                 plot_single_raster_plot(data_mat=data_mat, session=session, ax=curr_ax, reg='S2', tt=tt_plot, c_lim=c_lim,
                             imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(i_col == 0),
-                            demean_tt=demean_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
+                            sort_tt=sort_tt, n_trials=np.sum(outcome_arr == tt_plot), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, spec_target_trial=abs_trial_n, ol_neurons_s1=ol_neurons_s1,
                             ol_neurons_s2=ol_neurons_s2)
         curr_ax.set_title(f'Trial #{i_trial, abs_trial_n}')
