@@ -5,9 +5,10 @@ Code for analysis of neural data obtained in Packer lab, Oxford.
 ## Instructions:
 
 - Clone repository
-- To install the correct Python packages, please build a conda environment from the `pop_off_env.yml` file.
+- To install the correct Python packages, please build a conda environment from the `pope.yml` file.
 - Change `data_paths.json` to your local paths
 - Please set the data path configuration file to 'assume unchanged' in get settings, such its changes are not suggested as commit. Use: `git update-index --assume-unchanged data_paths.json` 
+- Install pop-off by going to /popping-off/popoff/ and running `python setup.py develop`
 - To build sessions.pkl files run 'python Session.py' from command line and enter flu_flavour through cli. A new .pkl file will be built for each flu_flavour
 - Each .pkl contains a dictionary of SessionLite objects.
 

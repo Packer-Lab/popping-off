@@ -8,3 +8,13 @@
 **.pkl
 
 photo-stim/data_paths.json
+
+data_paths.json
+
+*.egg
+
+popoff/popoff.egg-info/dependency_links.txt
+
+popoff/popoff.egg-info/PKG-INFO
+
+popoff/popoff.egg-info/
