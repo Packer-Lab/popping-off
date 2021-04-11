@@ -98,7 +98,8 @@ def get_trial_frames_single(clock, start, pre_frames, post_frames, fs=30, paq_ra
     return trial_frames
 
 
-def build_flu_array_single(run, use_spks=False, use_comps=False, prereward=False, pre_frames=30, post_frames=80, fs=30):
+def build_flu_array_single(run, use_spks=False, use_comps=False, use_pupil=False, 
+                           prereward=False, pre_frames=30, post_frames=80, fs=30):
     ''' Build an trial by trial fluoresence array of shape [n_cells x n_frames x n_trials].
 
     Parameters:
@@ -122,6 +123,8 @@ def build_flu_array_single(run, use_spks=False, use_comps=False, prereward=False
         flu = run.spks
     elif use_comps:
         flu = run.comps
+    elif use_pupil:
+        flu = run.pupil
     else:
         flu = run.flu
 
@@ -234,6 +237,9 @@ class Session:
         with open(run_path, 'rb') as f:  # load data
             r = pickle.load(f)
             self.run = r
+
+        self.suite2p_id = np.array([stat['original_index'] for stat in self.run.stat])
+        
         ## Start preprocessing:
         self.flu = self.run.flu
         self.tstart_galvo = utils.threshold_detect(self.run.x_galvo_uncaging, 0)
@@ -282,12 +288,30 @@ class Session:
                 self.plane_number[neuron_id] = 0
 
 
+        # This will either be a scalar -> the x coord of a vertical line separating S1 and S2,
+        # or a vector describing a non straight line, in the format [x1,y1,x2,y2]
         with open('/home/jrowland/Documents/code/Vape/s2_position.json') as json_file:
             s1s2_border_json = json.load(json_file)
     
         self.s1s2_border = s1s2_border_json[self.mouse][str(self.run_number)]
         
-        self.s2_bool = self.av_xpix > self.s1s2_border
+
+        if isinstance(self.s1s2_border, int):
+            # Straight line
+            self.s2_bool = self.av_xpix > self.s1s2_border
+        else:
+            # Arbitrary line
+            Ax, Ay, Bx, By = self.s1s2_border
+            self.s2_bool = []
+            for X, Y in zip(self.av_xpix, self.av_ypix):
+                position = np.sign((Bx - Ax) * (Y - Ay) - (By - Ay) * (X - Ax))
+                if position == 1:
+                    self.s2_bool.append(False)
+                else:
+                    self.s2_bool.append(True)
+
+            self.s2_bool = np.array(self.s2_bool)
+                    
         self.s1_bool = np.logical_not(self.s2_bool)
 
     def run_oasis(self):
@@ -377,6 +401,7 @@ class Session:
         self.run.flu = self.run.flu[self.filtered_neurons, :]
         self.run.flu_raw = self.run.flu_raw[self.filtered_neurons, :]
         self.run.stat = self.run.stat[self.filtered_neurons]
+        self.suite2p_id = self.suite2p_id[self.filtered_neurons]
         # self.is_target = self.is_target[self.filtered_neurons, :, :]
 
         if vverbose >= 1:
@@ -437,7 +462,6 @@ class Session:
         with open(timescales_pkl_path, 'rb') as f:
             timescale_sessions = pickle.load(f)
 
-        self.nonnan_trials = None
         for ts in timescale_sessions.values():
             if ts.mouse == self.mouse and ts.run_number == self.run_number:
                 self.nonnan_trials = ts.nonnan_trials
@@ -445,7 +469,8 @@ class Session:
 
     def remove_nan_trials_inplace(self, vverbose=1):
         """Identify trials for which NaN values occur in the neural activity and remove those."""
-        self.load_timescales_pkl()
+        self.nonnan_trials = None
+        # self.load_timescales_pkl()
         if self.nonnan_trials is None:  # Session is not in the timescales pkl
             self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
 
@@ -500,6 +525,7 @@ class Session:
         # Was a cell targeted on any trial?
         ever_targeted = np.any(self.is_target, axis=(1,2))
         # Check that all targets are in s1
+        # print('WARNING S1 TARGET CHECKER DISABLED')
         for target, s1 in zip(ever_targeted, self.s1_bool):
             if target:
                 assert s1
@@ -623,7 +649,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
                 session = SessionLite(mouse, run_number, folder_path, 
                                       flu_flavour=flu_flavour, pre_gap_seconds=0,
                                       post_gap_seconds=0, pre_seconds=8, post_seconds=8, 
-                                      filter_threshold=5)
+                                      filter_threshold=np.inf)
 
                 save_dict[total_ds] = session
                 total_ds += 1
