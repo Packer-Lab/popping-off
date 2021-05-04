@@ -32,7 +32,7 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
                's2': {lick: 1.1 * np.array(color_dict_stand[lick]) for lick in [0, 1]}}
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
-color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77', 
+color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288'}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.'}
@@ -45,7 +45,7 @@ for tt in color_tt.keys():
     colors_plot['s2'][tt] = color_tt[tt]
 
 
-def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None, 
+def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
                   type_scatter='strip', ccolor='grey', aalpha=1, ax=None):
     """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
 
@@ -69,7 +69,7 @@ def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
         color`.
     aalpha : float 0<aalpha<1
         transparency
-    ax: None 
+    ax: None
         ax object
     Returns
     -------
@@ -91,10 +91,10 @@ def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
     elif type_scatter == 'swarm':
         trial_plot_fun = sns.swarmplot
     if hh is None:
-        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, 
+        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1,
                              label=None, color=ccolor, alpha=aalpha, ax=ax)
     else:
-        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1, 
+        tmp = trial_plot_fun(x=xx, y=yy, hue=hh, data=df, linewidth=1,
                              label=None, alpha=aalpha, ax=ax)
     if type_scatter == 'violin':
         plt.setp(tmp.collections, alpha=aalpha)
@@ -147,7 +147,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
                            plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'],
                            plot_diff_s1s2=False, freq=30):
     """"Same as plot_interrupted_trace_average_per_mouse(), but customised to plot_array being a dictionary
-    of just two s1 and s2 traces. Can plot individual traces & group average. needs checking #TODO 
+    of just two s1 and s2 traces. Can plot individual traces & group average. needs checking #TODO
 
     Parameters
     ----------
@@ -374,7 +374,7 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
 def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
                                      n_ps_arr=[5, 10, 20, 30, 40, 50, 150], ax=None,
                                      save_fig=False, save_name='figures/intro_fig/beh_perf.pdf'):
-    
+
     plot_mat_beh = pof.beh_metric(sessions=sessions, metric=metric,
                                   stim_array=n_ps_arr)  # compute accuracy per session
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
@@ -406,17 +406,17 @@ def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
     ## lead to greater accuracy. Group per two n_PS (5 & 10) < (20 & 30) < (40 &50) < 150
 
     ax_perf.plot([0.5, 2.5], [0.55, 0.55], color='k')
-    p_val_low = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 0:2], 1), 
+    p_val_low = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 0:2], 1),
                             np.mean(mouse_av_beh[:, 2:4], 1), alternative='less')[1]
     ax_perf.text(x=0.8, y=0.57, s=f'{np.round(p_val_low, 2)}', fontdict={'fontsize': 14})
 
     ax_perf.plot([2.5, 4.5], [0.64, 0.64], color='k')
-    p_val_mid = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 2:4], 1), 
+    p_val_mid = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 2:4], 1),
                             np.mean(mouse_av_beh[:, 4:6], 1), alternative='less')[1]
     ax_perf.text(x=2.8, y=0.66, s=f'{np.round(p_val_mid, 2)}', fontdict={'fontsize': 14})
 
     ax_perf.plot([4.5, 6], [0.8, 0.8], color='k')
-    p_val_high = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 4:6], 1), 
+    p_val_high = scipy.stats.wilcoxon(np.mean(mouse_av_beh[:, 4:6], 1),
                             mouse_av_beh[:, 6], alternative='less')[1]
     ax_perf.text(x=4.55, y=0.82, s=f'{np.round(p_val_high, 2)}', fontdict={'fontsize': 14})
 
@@ -429,7 +429,7 @@ def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
     if save_fig:
         plt.savefig(save_name, bbox_inches='tight')
     return ax_perf
-    
+
 def smooth_trace(trace, one_sided_window_size=3):
 
     window_size = int(2 * one_sided_window_size + 1)
@@ -453,7 +453,7 @@ def transform_suite2p_cell_number(session, n_suite2p):
     suite2p_arr = session.suite2p_id
     n = np.where(suite2p_arr == n_suite2p)[0]
     assert len(n) == 1, f'Suite2p ID {n_suite2p} not in {session}'
-    return int(n[0])        
+    return int(n[0])
 
 def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, demean=True, y_lim=None, osws=3):
 
@@ -462,11 +462,11 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, de
 
     tt_list = ['hit', 'fp', 'miss', 'cr', 'spont']
 
-    start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start 
+    start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
     stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
     pre_stim_frame = np.argmin(np.abs(session.filter_ps_time + stim_window))  # up to stim ( to avoid using stim artefact)
-   
-    # (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
+
+    # (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
     #     time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method='euclidean',   # also sorting is False so doesn't matter
     #                                                                             sort_tt=sort_tt, sort_neurons=False)
 
@@ -490,20 +490,20 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, de
             curr_ax.plot(time_arr, smooth_trace(cell_data[i_trial_n, :], one_sided_window_size=osws),
                           c='grey', alpha=0.8, linewidth=1)
         curr_ax.plot(time_arr, np.mean(cell_data, 0),
-                          c=color_tt[tt], alpha=0.9, linewidth=3)  
+                          c=color_tt[tt], alpha=0.9, linewidth=3)
         curr_ax.set_xlabel('Time (s)')
         curr_ax.set_ylabel("DF/F")
-        curr_ax.set_title(f'{tt} trials, N={len(trial_inds)}')      
+        curr_ax.set_title(f'{tt} trials, N={len(trial_inds)}')
         curr_ax.spines['top'].set_visible(False)
         curr_ax.spines['right'].set_visible(False)
         if y_lim is not None:
-            curr_ax.set_ylim(y_lim)   
+            curr_ax.set_ylim(y_lim)
 
     ax[1][2].axis('off')
     ax[1][2].text(s=f'Traces smoothed with {2 * osws + 1}-frames window', x=0, y=0.5)
     ax[1][2].text(s=f'Cell ID: {n}, session {str(session)}, Suite-2P ID {session.suite2p_id[n]}', x=-0.2, y=0.8, fontdict={'weight': 'bold'})
     ax[1][2].text(s=f'This cell was targeted {int(np.sum(np.mean(session.is_target[n, :, :], 1)))} times', x=0, y=0.2)
-              
+
 
 def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation'):
     if sorting_method == 'correlation':
@@ -522,12 +522,12 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation')
         neuron_targ = np.mean(session.is_target, (1, 2))
         if reg == 's1':
             assert np.sum(session.s1_bool) == data.shape[0]
-            neuron_targ_reg = neuron_targ[session.s1_bool]  # select region 
-            sorting = np.argsort(neuron_targ_reg)[::-1] 
+            neuron_targ_reg = neuron_targ[session.s1_bool]  # select region
+            sorting = np.argsort(neuron_targ_reg)[::-1]
         elif reg == 's2':
             assert np.sum(session.s2_bool) == data.shape[0]
-            neuron_targ_reg = neuron_targ[session.s2_bool]  # select region 
-            sorting = np.argsort(neuron_targ_reg)[::-1] 
+            neuron_targ_reg = neuron_targ[session.s2_bool]  # select region
+            sorting = np.argsort(neuron_targ_reg)[::-1]
     elif sorting_method == 'normal':
         return np.arange(data.shape[0])
     elif sorting_method == 'amplitude':
@@ -535,9 +535,10 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='correlation')
         sorting = np.argsort(max_val_arr)[::-1]
     return sorting
 
-def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_method='correlation', sort_tt='hit', sort_neurons=True):
+def normalise_raster_data(session, start_time=-4, stim_window=0.3, filter_150_stim=True,
+                          sorting_method='correlation', sort_tt='hit', sort_neurons=True):
 
-    start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start 
+    start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
     stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
     pre_stim_frame = np.argmin(np.abs(session.filter_ps_time + stim_window))  # up to stim ( to avoid using stim artefact)
     n_time_ticks = int(np.floor((session.filter_ps_time[-1] - session.filter_ps_time[start_frame]) / 2))
@@ -545,7 +546,11 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
     time_tick_labels = [str(np.round(x)) for x in session.filter_ps_time[start_frame:][time_ticks]]
 
     ## Sort neurons by pearosn corr of post-stim response of sort_tt
-    data_use_mat = session.behaviour_trials[:, session.photostim < 2, :][:, :, start_frame:]  # discarded 150 cells PS & discared pre -4 seconds
+    if filter_150_stim:
+        data_use_mat = session.behaviour_trials[:, session.photostim < 2, :]
+    else:
+        data_use_mat = session.behaviour_trials
+    data_use_mat = data_use_mat[:, :, start_frame:]  # discarded 150 cells PS & discared pre -4 seconds
     data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, :(pre_stim_frame - start_frame)], 2)[:, :, None]  # normalize by pre-stim activity per neuron
     # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, :(pre_stim_frame - start_frame)], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
     data_spont_mat = session.pre_rew_trials[:, :, start_frame:]
@@ -556,21 +561,27 @@ def normalise_raster_data(session, start_time=-4, stim_window=0.3, sorting_metho
     outcome_arr = session.outcome
     outcome_arr[session.autorewarded] = 'arm'
     outcome_arr[session.unrewarded_hits] = 'urh'
-    outcome_arr = outcome_arr[session.photostim < 2]
+    if filter_150_stim:
+        outcome_arr = outcome_arr[session.photostim < 2]
 
-    if sort_tt == 'spont':
-        ol_neurons_s1 = sort_data_matrix(data_spont_mat_norm[session.s1_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity 
-        ol_neurons_s2 = sort_data_matrix(data_spont_mat_norm[session.s2_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
-    else:
-        ol_neurons_s1 = sort_data_matrix(data_use_mat_norm_s1[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity 
-        ol_neurons_s2 = sort_data_matrix(data_use_mat_norm_s2[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
-    
     if sort_neurons:
+        if sort_tt == 'spont':
+            ol_neurons_s1 = sort_data_matrix(data_spont_mat_norm[session.s1_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity
+            ol_neurons_s2 = sort_data_matrix(data_spont_mat_norm[session.s2_bool, :, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
+        else:
+            ol_neurons_s1 = sort_data_matrix(data_use_mat_norm_s1[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s1') # cluster based on averaged (sort_tt) trials, post stim activity
+            ol_neurons_s2 = sort_data_matrix(data_use_mat_norm_s2[:, outcome_arr == sort_tt, :][:, :, (stim_frame - start_frame):].mean(1), sorting_method=sorting_method, session=session, reg='s2')
+
         data_use_mat_norm_s1 = data_use_mat_norm_s1[ol_neurons_s1, :, :]
         data_use_mat_norm_s2 = data_use_mat_norm_s2[ol_neurons_s2, :, :]
+    else:
+        ol_neurons_s1 = None
+        ol_neurons_s2 = None
 
-    return (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, time_ticks, time_tick_labels, start_frame)
-    
+    return (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2,
+            data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+            time_ticks, time_tick_labels, start_frame)
+
 def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_lim=0.2,
                             imshow_interpolation='nearest', plot_cbar=False, print_ylabel=False,
                             sort_tt='NA', n_trials=None, time_ticks=[], time_tick_labels=[],
@@ -580,12 +591,12 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
     if ax is None:
         ax = plt.subplot(111)
     ## Plot raster plots
-    im = ax.imshow(data_mat, aspect='auto', vmin=-c_lim, vmax=c_lim, 
+    im = ax.imshow(data_mat, aspect='auto', vmin=-c_lim, vmax=c_lim,
                     cmap='BrBG_r', interpolation=imshow_interpolation)
 
     if plot_cbar:
         plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
-    
+
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt} post-stim trial correlation', fontdict={'weight': 'bold'})
     ax.set_title(f'Trial averaged {tt} {reg} (N={n_trials})')
@@ -603,7 +614,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
     ## Target indicator
     if plot_targets:
         if reg == 'S1':
-            reg_bool = session.s1_bool 
+            reg_bool = session.s1_bool
         elif reg == 'S2':
             reg_bool = session.s2_bool
         assert len(np.unique(session.is_target.mean((0, 1)))) == 1  # same for all time points
@@ -612,7 +623,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
         else:
             neuron_targ = np.mean(session.is_target, 2)
             neuron_targ = neuron_targ[:, spec_target_trial]
-        neuron_targ_reg = neuron_targ[reg_bool]  # select region 
+        neuron_targ_reg = neuron_targ[reg_bool]  # select region
         if reg == 'S1':
             neuron_targ_reg = neuron_targ_reg[ol_neurons_s1]  # sort
         elif reg == 'S2':
@@ -632,23 +643,23 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
 
 def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
                                               plot_averages=False, stim_window=0.3,
-                                              start_time=-4, 
+                                              start_time=-4,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
                                               show_plot=True,
-                                              save_fig=False, save_name=None, 
+                                              save_fig=False, save_name=None,
                                               save_folder='/home/tplas/repos/popping-off/figures/raster_plots/'):
 
     fig, ax = plt.subplots(2, (6 if plot_averages else 5), figsize=(30, 15), gridspec_kw={'wspace': 0.3, 'width_ratios':([1, 1, 1 ,1, 1, 1.2] if plot_averages else [1, 1, 1, 1, 1.2])})
-    
-    (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
+
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
-    sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}  
+    sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}
     reg_names = ['S1' ,'S2']
 
     ## plot cell-averaged traces
-    if plot_averages:  
+    if plot_averages:
         for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
             mean_trace = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], (0, 1))  # S1
             plot_interrupted_trace_simple(ax[0][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
@@ -658,18 +669,18 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
             plot_interrupted_trace_simple(ax[1][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
                                             llabel=xx, llinewidth=3, ccolor=color_tt[xx])
 
-        for i_ax, reg_bool in enumerate([session.s1_bool, session.s2_bool]):  
-            mean_trace = np.mean(data_spont_mat_norm[reg_bool, :, :], (0, 1))  # spontaneous 
+        for i_ax, reg_bool in enumerate([session.s1_bool, session.s2_bool]):
+            mean_trace = np.mean(data_spont_mat_norm[reg_bool, :, :], (0, 1))  # spontaneous
             plot_interrupted_trace_simple(ax[i_ax][0], session.filter_ps_time[start_frame:], smooth_trace(mean_trace),
                                             llabel='spont', llinewidth=3, ccolor=color_tt['spont'])  # plot spont
 
-            ax[i_ax][0].legend(frameon=False); ax[i_ax][0].set_title(f'Average over all {reg_names[i_ax]} neurons & trials'); 
+            ax[i_ax][0].legend(frameon=False); ax[i_ax][0].set_title(f'Average over all {reg_names[i_ax]} neurons & trials');
             ax[i_ax][0].set_xlabel('Time (s)'); ax[i_ax][0].set_ylabel('DF/F')
             ax[i_ax][0].set_ylim([-0.2, 0.25])
 
     ## Plot raster plots
     ax_st = (1 if plot_averages else 0)
-    for i_x, xx in enumerate(['hit', 'fp', 'miss', 'cr']): 
+    for i_x, xx in enumerate(['hit', 'fp', 'miss', 'cr']):
         data_mat = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], 1)  # S1
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][ax_st + i_x], reg='S1', tt=xx, c_lim=c_lim,
                             imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=(xx == 'hit'),
@@ -683,7 +694,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
                     sort_tt=sort_tt, n_trials=np.sum(outcome_arr == xx), time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
-        
+
     data_mat = np.mean(data_spont_mat_norm[session.s1_bool, :, :], 1)  # Spont S1
     plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=ax[0][ax_st + 4], reg='S1', tt='spont', c_lim=c_lim,
                     imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
@@ -697,8 +708,8 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
                     sort_tt=sort_tt, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                     ol_neurons_s2=ol_neurons_s2)
-    
-    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation', 
+
+    ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
                       xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
@@ -713,23 +724,23 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt='hit',
 
 
 def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, sort_tt='hit',
-                                              stim_window=0.3, start_time=-4, 
+                                              stim_window=0.3, start_time=-4,
                                               n_cols=6, reg='S1',
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='correlation',
                                               s1_lim=None, s2_lim=None,
                                               show_plot=True,
-                                              save_fig=False, save_name=None, 
+                                              save_fig=False, save_name=None,
                                               save_folder='/home/tplas/repos/popping-off/figures/raster_plots/individual_trials/'):
 
-    (data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr, 
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
-    
+
     if tt_plot == 'spont':
         abs_trial_arr = []
         n_trials = data_spont_mat_norm.shape[1]
     else: # use session.outcome b/c outcome_arr does not include photostim == 2 and therefore not full length
-        abs_trial_arr = np.where(outcome_arr == tt_plot)[0] 
+        abs_trial_arr = np.where(outcome_arr == tt_plot)[0]
         abs_trial_arr = np.where(session.photostim < 2)[0][abs_trial_arr]
         assert len(np.unique(session.outcome[abs_trial_arr])) == 1 and session.outcome[abs_trial_arr][0] == tt_plot
         n_trials = np.sum(outcome_arr == tt_plot)
@@ -759,7 +770,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
             data_mat = data_mat[ol_neurons_s2, :]
             tmp_n_trials = data_spont_mat_norm.shape[1]
         else:
-            tmp_n_trials = np.sum(outcome_arr == tt_plot)        
+            tmp_n_trials = np.sum(outcome_arr == tt_plot)
             data_mat = np.mean(data_use_mat_norm_s2[:, outcome_arr == tt_plot, :], 1)  # S2
 
         plot_single_raster_plot(data_mat=data_mat, session=session, ax=ax[0][0], reg='S2', tt=tt_plot, c_lim=c_lim,
@@ -815,15 +826,15 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
                             s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, spec_target_trial=abs_trial_n, ol_neurons_s1=ol_neurons_s1,
                             ol_neurons_s2=ol_neurons_s2)
         curr_ax.set_title(f'Trial #{i_trial, abs_trial_n}')
-    
+
 
     if i_col != n_cols - 1:
         for ii_col in range(i_col + 1, n_cols):
             ax[-1][ii_col].set_xticks([])
             ax[-1][ii_col].set_yticks([])
             ax[-1][ii_col].axis('off')
-        
-    
+
+
     ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method}\nAll {tt_plot} trials are shown with {imshow_interpolation} interpolation', xy=(0.8, 0.5), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
@@ -834,21 +845,21 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
 
     if show_plot is False:
         plt.close()
-    
+
 def plot_mean_traces_per_session(sessions):
     n_cols = 4
     n_rows = int(np.ceil(len(sessions) / n_cols))
     fig, ax = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows * 3),
                            gridspec_kw={'wspace': 0.4, 'hspace': 0.4})
     for kk, ss in sessions.items():
-        curr_ax = ax[int(np.floor(kk / n_cols))][kk % n_cols]    
+        curr_ax = ax[int(np.floor(kk / n_cols))][kk % n_cols]
         for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
-            mean_trace = np.mean(ss.behaviour_trials[:, np.logical_and(ss.outcome == xx, 
+            mean_trace = np.mean(ss.behaviour_trials[:, np.logical_and(ss.outcome == xx,
                                             ss.photostim < 2), :][:, :, ss.filter_ps_array], (0, 1))
             plot_interrupted_trace_simple(curr_ax, ss.filter_ps_time, mean_trace,
                                             llabel=xx, llinewidth=2, ccolor=color_dict_stand[i_x])
         if kk == 0:
-            curr_ax.legend(); 
+            curr_ax.legend();
         curr_ax.set_title(f'Average {ss.name}');# plt.xlabel('Time (s)'); plt.ylabel('DF/F')
 
 def plot_trial_type_mean_differences_pointplots(sessions, df_differences=None,
@@ -864,8 +875,8 @@ def plot_trial_type_mean_differences_pointplots(sessions, df_differences=None,
                                     np.logical_or(df_differences['trial_type'] == tt_comb[0],
                                                 df_differences['trial_type'] == tt_comb[1]))]
 
-            for _, ss in sessions.items(): 
-                g = sns.pointplot(data=df_plot[df_plot['session'] == ss.signature],  
+            for _, ss in sessions.items():
+                g = sns.pointplot(data=df_plot[df_plot['session'] == ss.signature],
                             x='trial_type', y='diff_dff',
                             color=colors_reg[reg], ax=curr_ax)
                 plt.setp(g.collections, alpha=.8) #for the markers
@@ -875,7 +886,7 @@ def plot_trial_type_mean_differences_pointplots(sessions, df_differences=None,
                                 alternative='two-sided')[1]
             curr_ax.set_ylim([df_differences['diff_dff'].min() - 0.005, df_differences['diff_dff'].max() + 0.005])
             if i_comb == 0:
-                curr_ax.set_ylabel(r"$\Delta F/F$"); 
+                curr_ax.set_ylabel(r"$\Delta F/F$");
             else:
                 curr_ax.set_ylabel(''); curr_ax.set_yticklabels('')
             curr_ax.set_title(f'{label_tt[tt_comb[0]]} - {label_tt[tt_comb[1]]}    {reg.upper()}\n P = {np.round(p_val, 4)}', weight='bold')
@@ -897,14 +908,14 @@ def plot_trial_type_mean_differences_pointplots(sessions, df_differences=None,
 
 def plot_mean_trace_across_sessions(df_dyn_differences, regions=['s1', 's2'],
                                     trial_types=['hit'], plot_laser=True, ax=None,
-                                    text_baseline=False, plot_zero_line=True, save_fig=False, 
+                                    text_baseline=False, plot_zero_line=True, save_fig=False,
                                     save_name='figures/s1_s2_dynamic_dff_difference_prestim_poststim_concl4.pdf'):
     if ax is None:
         ax = plt.subplot(111)
     if plot_zero_line:
-        ax.plot([df_dyn_differences['timepoint'].min(), df_dyn_differences['timepoint'].max()], [0, 0], 
+        ax.plot([df_dyn_differences['timepoint'].min(), df_dyn_differences['timepoint'].max()], [0, 0],
                     color='k', linestyle=':', alpha=0.5, linewidth=2)
-            
+
     for i_reg, reg in enumerate(regions):
         for i_tt, tt in enumerate(trial_types):
             df_plot = df_dyn_differences[np.logical_and(df_dyn_differences['region'] == reg.upper(),
@@ -920,7 +931,7 @@ def plot_mean_trace_across_sessions(df_dyn_differences, regions=['s1', 's2'],
     ax.set_ylim([-0.03, 0.05])
     ax.set_title(f'Average {reg.upper()} response', weight='bold');
 
-    ax.set_xlabel('Time (s)'); 
+    ax.set_xlabel('Time (s)');
 
     ax.set_ylabel(r"$\Delta F/F$")
     if text_baseline: # some extra info in left panel
@@ -929,9 +940,9 @@ def plot_mean_trace_across_sessions(df_dyn_differences, regions=['s1', 's2'],
         ax.plot([-2, 0], [0.012, 0.012], color='k')
         ax.text(s='baseline', x=-2, y=0.0145, fontdict={'fontsize': 10})
     ax.legend(loc='upper right', frameon=False)
-                
+
     if plot_laser:  # plot laser
-        plt.axvspan(xmin=0.2, xmax=0.8, ymin=0.05, ymax=0.95, 
+        plt.axvspan(xmin=0.2, xmax=0.8, ymin=0.05, ymax=0.95,
                     alpha=0.2, label=None, edgecolor='k', facecolor='red')
 
     ax.spines['top'].set_visible(False)
@@ -943,7 +954,7 @@ def plot_mean_trace_overview_across_sessions(df_dyn_differences, plot_laser=True
                                              plot_zero_line=True, save_fig=False,
                                              tuple_list_tt=[('hit', 'miss'), ('fp', 'cr'), ('urh', 'arm')]):
     ## Custom
-    fig, ax_ov = plt.subplots(2, len(tuple_list_tt), figsize=(5 * len(tuple_list_tt), 7), 
+    fig, ax_ov = plt.subplots(2, len(tuple_list_tt), figsize=(5 * len(tuple_list_tt), 7),
                               gridspec_kw={'wspace': 0.4, 'hspace': 0.4})
     if len(tuple_list_tt) == 1:
         ax_ov = [[ax] for ax in ax_ov]  # for consistent indexing
@@ -972,38 +983,38 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
                                             include_autoreward=False, neurons_selection='s1',
                                             C_value=50, train_projected=False, proj_dir='same')
     fig, ax = plt.subplots(2,2, figsize=(7, 6), gridspec_kw={'wspace': 0.3, 'hspace': 0.4})
-    
+
     ## NB: To not plot with hue, set hh=None
     # for mouse in df_prediction_train.keys():
     for mouse in [ss_dict[0].mouse]:
         if 'pred_stim_train' in df_prediction_train[mouse].columns:
             plot_df_stats(df=df_prediction_train[mouse], xx='true_stim_train', yy='pred_stim_train', # _proj
                               hh='true_dec_train', ax=ax[0][0])  # set hh=None or hh='dec_train'
-            ax[0][0].set_xlabel('Number of cells PS'); ax[0][0].set_ylabel('Predicted probability of PS'); 
+            ax[0][0].set_xlabel('Number of cells PS'); ax[0][0].set_ylabel('Predicted probability of PS');
             ax[0][0].set_title('TRAIN - PS', weight='bold')
             ax[0][0].legend([], frameon=False)
 
-            plot_df_stats(df=df_prediction_test[mouse], xx='true_stim_test', yy='pred_stim_test', 
+            plot_df_stats(df=df_prediction_test[mouse], xx='true_stim_test', yy='pred_stim_test',
                               hh='true_dec_test', ax=ax[0][1])  # set hh=None or hh='dec_test'
-            ax[0][1].set_xlabel('Number of cells PS'); ax[0][1].set_ylabel('Predicted probability of PS'); 
+            ax[0][1].set_xlabel('Number of cells PS'); ax[0][1].set_ylabel('Predicted probability of PS');
             ax[0][1].set_title('TEST - PS', weight='bold')
             ax[0][1].legend([], frameon=False)
     #         print(f'Accuracy PS: {pof.class_av_mean_accuracy(binary_truth=(df_prediction_test[mouse]["true_stim_test"] > 0).astype("int"), estimate=df_prediction_test[mouse]["pred_stim_test_proj"])[0]}')
-            
-        if 'pred_dec_train' in df_prediction_train[mouse].columns:  
-            plot_df_stats(df=df_prediction_train[mouse], xx='true_dec_train', yy='pred_dec_train', 
+
+        if 'pred_dec_train' in df_prediction_train[mouse].columns:
+            plot_df_stats(df=df_prediction_train[mouse], xx='true_dec_train', yy='pred_dec_train',
                               hh=None, xticklabels=['no lick', 'lick'], ax=ax[1][0])
-            ax[1][0].set_xlabel('Decision'); ax[1][0].set_ylabel('Predicted probability of lick'); 
+            ax[1][0].set_xlabel('Decision'); ax[1][0].set_ylabel('Predicted probability of lick');
             ax[1][0].set_title('TRAIN - LICK', weight='bold')
             ax[1][0].legend('No lick', 'lick', frameon=False)
 
-            plot_df_stats(df=df_prediction_test[mouse], xx='true_dec_test', yy='pred_dec_test', 
+            plot_df_stats(df=df_prediction_test[mouse], xx='true_dec_test', yy='pred_dec_test',
                               hh='true_stim_test', xticklabels=['no lick', 'lick'], type_scatter='strip', ax=ax[1][1])
-            ax[1][1].set_xlabel('Decision'); ax[1][1].set_ylabel('Predicted probability of lick'); 
+            ax[1][1].set_xlabel('Decision'); ax[1][1].set_ylabel('Predicted probability of lick');
             ax[1][1].set_title('TEST - LICK', weight='bold');
             ax[1][1].legend([], frameon=False)
     #         print(f'Accuracy lick: {pof.class_av_mean_accuracy(binary_truth=df_prediction_test[mouse]["true_dec_test"], estimate=df_prediction_test[mouse]["pred_dec_test_proj"])[0]}')
-    # plt.suptitle(f'(Logistic Regression) decoding performance for frame {time_frame}: \n{[str(sessions[x]) for x in range(len(sessions))]}\n' + 
+    # plt.suptitle(f'(Logistic Regression) decoding performance for frame {time_frame}: \n{[str(sessions[x]) for x in range(len(sessions))]}\n' +
     # #              f'Left column shows Photostimulation (PS) decoding performance, right column shows lick decoding\n' +
     #              f'Top row shows train data; bottom row shows test data, {n_splits} splits\n');
 
@@ -1014,12 +1025,12 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                 plot_indiv=False, plot_std_area=True):
     if ax is None:
         ax = plt.subplot(111)
-    plot_interrupted_trace_simple(ax=ax, time_array=time_array, 
-                                    plot_array=np.zeros_like(time_array) + 0.5, 
+    plot_interrupted_trace_simple(ax=ax, time_array=time_array,
+                                    plot_array=np.zeros_like(time_array) + 0.5,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
-        plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick], 
-                            ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_laser=False, #i_lick, 
+        plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
+                            ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_laser=False, #i_lick,
                             plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
                             running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
@@ -1029,12 +1040,12 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
 def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=None, p_val_thresh=0.05):
     if ax is None:
         ax = plt.subplot(111)
-    plot_interrupted_trace_simple(ax=ax, time_array=time_array, 
-                                    plot_array=np.zeros_like(time_array), 
+    plot_interrupted_trace_simple(ax=ax, time_array=time_array,
+                                    plot_array=np.zeros_like(time_array),
                                 ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
-        plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick], 
-                            ccolor=colors_plot['s1'][i_lick], plot_indiv=False, plot_laser=False, #i_lick, 
+        plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
+                            ccolor=colors_plot['s1'][i_lick], plot_indiv=False, plot_laser=False, #i_lick,
                             plot_errorbar=False, plot_std_area=False, region_list=['s1', 's2'], plot_diff_s1s2=True)
         p_vals_wsr = pof.wilcoxon_test(dict_part)
         inds_sign = np.where(p_vals_wsr < p_val_thresh)[0]
@@ -1048,13 +1059,13 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
                                       smooth_traces=True, one_sided_window_size=1,
                                       plot_std_area=True, plot_indiv=False):
     fig = plt.figure(constrained_layout=False, figsize=(24, 8))
-    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3, 
+    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
                             bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
-        _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
-                                    reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces, 
+        _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split,
+                                    reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces,
                                     one_sided_window_size=one_sided_window_size, plot_indiv=plot_indiv,
                                     plot_std_area=plot_std_area)
 
@@ -1064,7 +1075,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
             ax_acc_ps[reg].set_ylabel('Network prediction P(PS)')
         else:
             print('WARNING: yaxis_type not recognised')
-        
+
         # ax_acc_ps[reg].set_ylim([0.1, 0.9])
         ax_acc_ps[reg].set_xlim([-4, 8.5])
         ax_acc_ps[reg].spines['top'].set_visible(False)
@@ -1076,28 +1087,28 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
     fig = plt.figure(constrained_layout=False, figsize=(16, 7))
-    gs_top = fig.add_gridspec(ncols=3, nrows=1, width_ratios=[1, 1, 1], wspace=0.4, 
+    gs_top = fig.add_gridspec(ncols=3, nrows=1, width_ratios=[1, 1, 1], wspace=0.4,
                             bottom=0.6, top=1)
-    gs_bottom = fig.add_gridspec(ncols=4, nrows=1, width_ratios=[1, 1, 1, 1], wspace=0.4, 
-                            bottom=0, top=0.4)  
-    
+    gs_bottom = fig.add_gridspec(ncols=4, nrows=1, width_ratios=[1, 1, 1, 1], wspace=0.4,
+                            bottom=0, top=0.4)
+
     p_val_thresh = 0.05  # P val for wilcoxon sr test.
     tp_violin = list(violin_df_test.keys())
-    
+
     ## S1 & S2 figures:
     ax_acc_ps = {}
     for i_reg, reg in enumerate(['s1', 's2']):
         ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
-        _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
+        _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split,
                                     reg=reg, ax=ax_acc_ps[reg])
         ax_acc_ps[reg].set_ylim([0.39, 0.8])
         for tp in tp_violin:
             ax_acc_ps[reg].scatter([tp], [.45], marker='^', s=50, color='k')
             ax_acc_ps[reg].text(s=f'{tp}s', x=tp - 0.45, y=0.4)
-        
+
     ## S1/S2 difference fig:
     ax_diff = fig.add_subplot(gs_top[2])
-    _ = plot_dynamic_decoding_region_difference_panel(time_array=time_array, ps_acc_split=ps_acc_split, 
+    _ = plot_dynamic_decoding_region_difference_panel(time_array=time_array, ps_acc_split=ps_acc_split,
                                                       ax=ax_diff, p_val_thresh=p_val_thresh)
 
     for ax in [ax_acc_ps['s1'], ax_acc_ps['s2'], ax_diff]:
@@ -1116,13 +1127,13 @@ def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test,
             plt.setp(viol.collections, alpha=0.8)
             tmp = sns.pointplot(data=plot_df, x='true_stim_test', y='pred_stim_test',
                         palette=[0.6 * np.array(color_dict_stand[lick]), 1.1 * np.array(color_dict_stand[lick])],
-                        hue='region', label=None, linestyles=[linest_reg['s1'], linest_reg['s2']], estimator=np.mean, 
+                        hue='region', label=None, linestyles=[linest_reg['s1'], linest_reg['s2']], estimator=np.mean,
                         ax=ax_viol[lick + 2 * i_tp])
             accuracy_tp_s1 = pof.class_av_mean_accuracy(binary_truth=(plot_df[plot_df['region'] == 'S1']['true_stim_test'] > 0).astype('int'),
                             estimate=plot_df[plot_df['region'] == 'S1']['pred_stim_test'])[0]
             accuracy_tp_s2 = pof.class_av_mean_accuracy(binary_truth=(plot_df[plot_df['region'] == 'S2']['true_stim_test'] > 0).astype('int'),
                             estimate=plot_df[plot_df['region'] == 'S2']['pred_stim_test'])[0]
-            
+
             ax_viol[lick + 2 * i_tp].set_title(f'Time: {tp}s, {lick_title[lick]}, S1 & S2\nAccuracy = {np.round(accuracy_tp_s1, 2)} & {np.round(accuracy_tp_s2, 2)}', weight='bold')
             viol.legend_.remove();
             ax_viol[lick + 2 * i_tp].set_xlabel('# cells PS'); ax_viol[lick + 2 * i_tp].set_ylabel('Decoded P(PS)')
@@ -1135,7 +1146,7 @@ def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test,
     ax_acc_ps['s1'].text(s='E', x=7, y=0.14, fontdict={'weight': 'normal', 'fontsize': 26})
     ax_acc_ps['s1'].text(s='F', x=20, y=0.14, fontdict={'weight': 'normal', 'fontsize': 26})
     ax_acc_ps['s1'].text(s='G', x=33.6, y=0.14, fontdict={'weight': 'normal', 'fontsize': 26})
-    
+
     for ax in {**ax_viol, **{0: ax_diff}, **ax_acc_ps}.values():
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -1148,24 +1159,24 @@ def plot_dyn_lick_decoding_compiled_summary_figure(violin_df_test, time_array, l
                                                    region_list=['s1' ,'s2']):
     ## Lick decoding figure
     fig = plt.figure(constrained_layout=False, figsize=(14, 3))
-    gs_left = fig.add_gridspec(ncols=1, nrows=1, wspace=0.4, 
+    gs_left = fig.add_gridspec(ncols=1, nrows=1, wspace=0.4,
                             left=0, right=0.3)
-    gs_middle = fig.add_gridspec(ncols=1, nrows=len(violin_df_test), wspace=0.4, 
-                            left=0.4, right=0.6, hspace=0.7) 
-    gs_right = fig.add_gridspec(ncols=1, nrows=1, wspace=0.4, 
+    gs_middle = fig.add_gridspec(ncols=1, nrows=len(violin_df_test), wspace=0.4,
+                            left=0.4, right=0.6, hspace=0.7)
+    gs_right = fig.add_gridspec(ncols=1, nrows=1, wspace=0.4,
                             left=0.7, right=1)
 
     tp_violin = list(violin_df_test.keys())
 
     ## Total average plot
     ax_acc = fig.add_subplot(gs_left[0])
-    plot_interrupted_trace_simple(ax=ax_acc, time_array=time_array, plot_array=np.zeros_like(time_array) + 0.5, 
+    plot_interrupted_trace_simple(ax=ax_acc, time_array=time_array, plot_array=np.zeros_like(time_array) + 0.5,
                                 ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for reg in region_list:
         plot_interrupted_trace_average_per_mouse(ax=ax_acc,  time_array=time_array,plot_array=lick_acc, #individual_mouse_list=['J065_s1', 'J065_s2'],
                             llabel=reg.upper(), ccolor=colors_reg[reg], plot_laser=False,
                             plot_std_area=True, plot_indiv=False, region_list=[reg])
-        
+
     for tp in tp_violin:
         ax_acc.scatter([tp], [.48], marker='^', s=50, color='k')
         ax_acc.text(s=f'{tp}s', x=tp - 0.4, y=0.44)
@@ -1187,26 +1198,26 @@ def plot_dyn_lick_decoding_compiled_summary_figure(violin_df_test, time_array, l
                     hue='region', label=None, linestyles=[linest_reg['s1'], linest_reg['s2']], ax=ax_viol)
         accuracy_tp_s1 = pof.class_av_mean_accuracy(binary_truth=plot_df[plot_df['region'] == 'S1']['true_dec_test'],
                             estimate=plot_df[plot_df['region'] == 'S1']['pred_dec_test'])[0]
-        accuracy_tp_s2 = pof.class_av_mean_accuracy(binary_truth=plot_df[plot_df['region'] == 'S2']['true_dec_test'], 
+        accuracy_tp_s2 = pof.class_av_mean_accuracy(binary_truth=plot_df[plot_df['region'] == 'S2']['true_dec_test'],
                             estimate=plot_df[plot_df['region'] == 'S2']['pred_dec_test'])[0]
-        ax_viol.set_title(f'Time: {tp}s, S1 & S2\nAccuracy = {np.round(accuracy_tp_s1, 2)} & {np.round(accuracy_tp_s2, 2)}', 
+        ax_viol.set_title(f'Time: {tp}s, S1 & S2\nAccuracy = {np.round(accuracy_tp_s1, 2)} & {np.round(accuracy_tp_s2, 2)}',
                 weight='bold', y=1.04)
         viol.legend_.remove();
         if len(tp_violin) == 2:
             if i_tp == 1:
                 ax_viol.set_xlabel('Decision'); ax_viol.set_ylabel('               Decoded')
-            else: 
+            else:
                 ax_viol.set_xlabel(''); ax_viol.set_ylabel('P(Lick)             ')
         elif len(tp_violin) == 1:
-            ax_viol.set_xlabel('Decision');  ax_viol.set_ylabel('P(Lick)') 
+            ax_viol.set_xlabel('Decision');  ax_viol.set_ylabel('P(Lick)')
         ax_viol.set_xticklabels(['No lick', 'Lick'])
-        
+
     ## Angle plot
     ax_angle = fig.add_subplot(gs_right[0])
     for reg in region_list:
         ax_angle, mean_angle_traces = plot_interrupted_trace_average_per_mouse(ax=ax_angle, time_array=time_array, plot_array=angle_dec, llabel=None,
                                             plot_errorbar=False, plot_indiv=False, plot_std_area=True, region_list=[reg],
-                                            plot_laser=False, 
+                                            plot_laser=False,
                                                 ccolor=0.5 * (colors_plot[reg][0] + colors_plot[reg][1]))
     ax_angle.set_xlabel('Time (s)'); ax_angle.set_ylabel('Angle (deg)') #ax_angle.legend(loc='upper left');
     ax_angle.set_title('Dissimilarity PS and Lick decoders', weight='bold', y=1.13)
@@ -1229,9 +1240,9 @@ def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
     range_ps = 2
     fig, ax = plt.subplots(len(mouse_list), range_ps, figsize=(4 * range_ps, 3 * len(mouse_list)),
                            gridspec_kw={'hspace': 0.4, 'wspace': 0.4})
-    
+
     title_ps = {0: 'No PS', 1: 'Test PS', 2: '150 PS', 3: 'Run legend:'}
-    
+
     av_axes = {}
     i_ax = 0
     color_index = {m: 0 for m in mouse_list}
@@ -1244,7 +1255,7 @@ def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
                 av_axes[i_ax] = ax[i_m][i_ps]
                 if i_ps <= 2:
                     plot_interrupted_trace_simple(ax=av_axes[i_ax], time_array=ss.filter_ps_time,
-                                                plot_array=np.mean(ss.behaviour_trials[:, ss.photostim == i_ps, :][:, :, ss.filter_ps_array], (0, 1)), 
+                                                plot_array=np.mean(ss.behaviour_trials[:, ss.photostim == i_ps, :][:, :, ss.filter_ps_array], (0, 1)),
                                                 llabel=f'{mouse}, R{ss.run_number}', ccolor=color_dict_stand[color_index[mouse]], zero_mean=True)
                 if i_ps <= 1:
                     av_axes[i_ax].set_ylim([-0.05, 0.05])
@@ -1255,7 +1266,7 @@ def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
                 if i_ps == 0:
                     av_axes[i_ax].set_ylabel('Mean ' + r'$\Delta F / F$')
                 if i_ps == range_ps - 1 and i_s == temp_session_list[-1]:
-                    leg = av_axes[i_ax].legend(bbox_to_anchor=(1.55, 1)) 
+                    leg = av_axes[i_ax].legend(bbox_to_anchor=(1.55, 1))
                     legend_tuple.append(leg)
                 i_ax += 1
             color_index[mouse] += 1

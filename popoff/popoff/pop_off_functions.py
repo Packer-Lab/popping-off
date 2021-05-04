@@ -24,7 +24,7 @@ plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
     plt.rcParams['pdf.fonttype'] = 42
-    plt.savefig(os.path.join(base_path, f'{name}.pdf'), 
+    plt.savefig(os.path.join(base_path, f'{name}.pdf'),
                 bbox_inches='tight', transparent=True)
 
 def beh_metric(sessions, metric='accuracy',
@@ -152,9 +152,9 @@ def create_dict_pred(nl, train_proj, lt):
     return dict_predictions_train, dict_predictions_test
 
 def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test = ['dec', 'stim'],
-                            hitmiss_only=False, hitspont_only=False, include_150 = False, 
+                            hitmiss_only=False, hitspont_only=False, include_150 = False,
                             return_decoder_weights=False, spont_used_for_training=True,
-                            n_split = 4, include_autoreward=False, include_unrewardedhit=False, 
+                            n_split = 4, include_autoreward=False, include_unrewardedhit=False,
                             neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
     """Major function that trains the decoders. It trains the decoders specified in
@@ -219,7 +219,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             print('Using hit/spont trials only.')
         if 'dec' in list_test:
             list_test.remove('dec')  # no point in estimating dec, because only PS
-    
+
     name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
         name_list.append('pred_' + nn)  # prediction
@@ -269,7 +269,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     trial_inds = np.where(session.photostim < 2)[0]
                 else:
                     trial_inds = np.arange(len(session.photostim))
-                
+
                 if hitmiss_only:
                     hitmiss_trials = np.where(np.logical_or(session.outcome == 'hit', session.outcome == 'miss'))[0]
                     if verbose == 2:
@@ -302,33 +302,45 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 else:
                     print('WARNING: too early not excluded!')
 
-                ## set evaluation only indices 
-                eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0], 
+                ## set evaluation only indices
+                eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0],
                                                 np.where(session.unrewarded_hits == True)[0]))
                 eval_only_labels = ['arm'] * np.sum(session.autorewarded) + ['urh'] * np.sum(session.unrewarded_hits)
                 assert len(eval_only_inds) == np.sum(session.autorewarded) + np.sum(session.unrewarded_hits)
                 if hitmiss_only:
-                    ## to implement 
+                    ## to implement
                     assert False
                 elif hitspont_only:
                     for tt in ['miss', 'fp', 'cr']:
-                        eval_only_inds = np.concatenate((eval_only_inds, 
+                        eval_only_inds = np.concatenate((eval_only_inds,
                                                          np.where(session.outcome == tt)[0]))
                         eval_only_labels = eval_only_labels + [tt] * len(np.where(session.outcome == tt)[0])
                     trial_outcomes = session.outcome[trial_inds]
                     assert len(np.unique(trial_outcomes)) == 1 and trial_outcomes[0] == 'hit'
                 else:
                     trial_outcomes = session.outcome[trial_inds]
-                    
+
                 ## Prepare data with selections
+
+                ## Retrieve normalized data:
+                (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+                    time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
+
+
+
                 ## Filter neurons
-                data_use = session.behaviour_trials[neurons_include, :, :]
-                data_eval = session.behaviour_trials[neurons_include, :, :]
-                data_spont  = session.pre_rew_trials[neurons_include, :, :]
+                # data_use = session.behaviour_trials[neurons_include, :, :]
+                # data_eval = session.behaviour_trials[neurons_include, :, :]
+                # data_spont  = session.pre_rew_trials[neurons_include, :, :]
+                data_use = data_use_mat_norm[neurons_include, :, :]
+                data_eval = data_use_mat_norm[neurons_include, :, :]
+                data_spont = data_spont_mat_norm[neurons_include, :, :]
+
                 ## Select time frame(s)
                 data_use = data_use[:, :, trial_frames_use]
                 data_eval = data_eval[:, :, trial_frames_use]
                 data_spont = data_spont[:, :, trial_frames_use]  # use all trials
+
                 ## Select trials
                 data_use = data_use[:, trial_inds, :]
                 assert len(eval_only_inds) > 0, f'ERROR: {session} has no eval-only trials, which has not been really taken care of here'
@@ -337,6 +349,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 n_spont_trials = data_spont.shape[1]
                 if n_spont_trials == 0:
                     print('NO SPONT TRIALS in ', session)
+
                 if spont_used_for_training:
                     data_use = np.hstack((data_use, data_spont))
                     trial_outcomes = np.concatenate((trial_outcomes, ['spont'] * n_spont_trials))
@@ -396,7 +409,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 n_trials = data_use.shape[1]
                 if verbose == 2:
                     print(f'Total number of trials is {n_trials}. Number of splits is {n_split}')
-                
+
                 pred_proba_eval = {x: {} for x in range(n_split)} # dict per cv loop, average later.
                 pred_proba_spont = {x: {} for x in range(n_split)}
                 for train_inds, test_inds in sss.split(X=np.zeros(n_trials), y=trial_outcomes):  # loop through different train/test folds, concat results
@@ -446,8 +459,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     pred_proba_train = {x: dec[x].predict_proba(X=train_data.transpose())[:, 1] for x in list_test}
                     pred_proba_test = {x: dec[x].predict_proba(X=test_data.transpose())[:, 1] for x in list_test}
                     pred_proba_eval[i_loop] = {x: dec[x].predict_proba(X=data_eval.transpose())[:, 1] for x in list_test}
-                    pred_proba_spont[i_loop] = {x: dec[x].predict_proba(X=data_spont.transpose())[:, 1] for x in list_test} 
-                    
+                    pred_proba_spont[i_loop] = {x: dec[x].predict_proba(X=data_spont.transpose())[:, 1] for x in list_test}
+
                     if train_projected:
                         pred_proba_train_proj = {x: dec_proj[x].predict_proba(X=train_data_proj)[:, 1] for x in list_test}
                         pred_proba_test_proj = {x: dec_proj[x].predict_proba(X=test_data_proj)[:, 1] for x in list_test}
@@ -481,9 +494,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 ## eval onlY:
                 assert (np.array(list(pred_proba_eval.keys())) == np.arange(n_split)).all()
                 for x in list_test:
-                    mat_predictions = np.array([pred_proba_eval[nn][x] for nn in range(n_split)])                
+                    mat_predictions = np.array([pred_proba_eval[nn][x] for nn in range(n_split)])
                     assert mat_predictions.shape[0] == n_split
-                    dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], np.mean(mat_predictions, 0)))  
+                    dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], np.mean(mat_predictions, 0)))
                 dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], session.trial_subsets[eval_only_inds].astype('int')))
                 tmp_rewarded_all_trials = np.logical_or(session.outcome == 'hit', session.outcome == 'too_')
                 tmp_rewarded_all_trials[session.autorewarded] = True
@@ -499,7 +512,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 if n_spont_trials > 0 and (spont_used_for_training is False):
                     assert (np.array(list(pred_proba_spont.keys())) == np.arange(n_split)).all()
                     for x in list_test:
-                        mat_predictions = np.array([pred_proba_spont[nn][x] for nn in range(n_split)])                
+                        mat_predictions = np.array([pred_proba_spont[nn][x] for nn in range(n_split)])
                         assert mat_predictions.shape[0] == n_split, mat_predictions.shape[1] == n_spont_trials
                         dict_predictions_test[f'pred_{x}_test'] = np.concatenate((dict_predictions_test[f'pred_{x}_test'], np.mean(mat_predictions, 0)))
                     dict_predictions_test['true_stim_test'] = np.concatenate((dict_predictions_test['true_stim_test'], np.zeros(n_spont_trials)))
@@ -889,10 +902,10 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
     ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
     if split_fourway is False:
         ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per trial type
-        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list} 
+        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}
     elif split_fourway is True:
         ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per lick condition
-        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list} 
+        ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
@@ -912,7 +925,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
             for mouse in df_prediction_train.keys():
                 assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['unrewarded_hit_test'].sum() == 0
                 assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['autorewarded_miss_test'].sum() == 0
-            
+
                 inds_training = np.where(df_prediction_test[mouse]['used_for_training'] == 1)[0]
                 lick = df_prediction_test[mouse]['true_dec_test'].copy()
                 ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
@@ -1233,7 +1246,7 @@ def create_df_differences(sessions):
     for _, sess in sessions.items():
         for reg in ['s1', 's2']:
             for tt in ['hit', 'fp', 'miss', 'cr']:
-                mean_diff = difference_pre_post(ss=sess, 
+                mean_diff = difference_pre_post(ss=sess,
                         tt=tt, reg=reg, duration_window=1)
                 if len(mean_diff) == 0:
                     pass
@@ -1244,14 +1257,14 @@ def create_df_differences(sessions):
                     dict_diff_wind['session'][ind_data] = sess.signature
                     ind_data += 1
 
-    df_differences = pd.DataFrame(dict_diff_wind)        
+    df_differences = pd.DataFrame(dict_diff_wind)
     return df_differences
 
 def create_df_dyn_differences(sessions, tp_dict):
     # list_tp = tp_dict['mutual'][np.where(np.logical_and(tp_dict['mutual'] >= -2, tp_dict['mutual'] <= 5))]
     list_tp = tp_dict['mutual'][np.where(tp_dict['mutual'] >= -2)[0]]
     list_tt = ['hit', 'fp', 'miss', 'cr', 'ur_hit', 'ar_miss']
-    # dict_diff = {name: np.zeros(2 * len(list_tt) * len(sessions) * 
+    # dict_diff = {name: np.zeros(2 * len(list_tt) * len(sessions) *
     #                             len(list_tp), dtype='object') for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}
     ind_data = 0
     dict_diff = {name: np.array([]) for name in ['diff_dff', 'region', 'trial_type', 'session', 'timepoint', 'new_trial_id']}  # initiate empy dicts
@@ -1259,16 +1272,16 @@ def create_df_dyn_differences(sessions, tp_dict):
         for tp in list_tp:
             for reg in ['s1', 's2']:
                 for tt in list_tt:
-    #                 dict_diff['diff_dff'][ind_data] = pof.difference_pre_post_dynamic(ss=sess, 
-    #                                           general_tt=tt, reg=reg, duration_window_pre=2, 
+    #                 dict_diff['diff_dff'][ind_data] = pof.difference_pre_post_dynamic(ss=sess,
+    #                                           general_tt=tt, reg=reg, duration_window_pre=2,
     #                                           tp_post=tp, odd_tt_only=True)
     #                 dict_diff['region'][ind_data] = reg.upper()
     #                 dict_diff['trial_type'][ind_data] = tt
     #                 dict_diff['session'][ind_data] = sess.signature
     #                 dict_diff['timepoint'][ind_data] = tp.copy()
     #                 ind_data += 1
-                    mean_trials = difference_pre_post_dynamic(ss=sess, 
-                                            tt=tt, reg=reg, duration_window_pre=2, 
+                    mean_trials = difference_pre_post_dynamic(ss=sess,
+                                            tt=tt, reg=reg, duration_window_pre=2,
                                             tp_post=tp, return_trials_separate=True)
                     if len(mean_trials) == 0:
     #                     print(tp, reg, sess, tt ,'   no trials')
@@ -1302,8 +1315,8 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
 
     ## turn into df that can be used for violin plots efficiently,
     ## normalised so that each animals is equally important in averaging
-    violin_df_test = make_violin_df_custom(input_dict_df=dict_df_test, 
-                                            flat_normalise_ntrials=True, verbose=1) 
+    violin_df_test = make_violin_df_custom(input_dict_df=dict_df_test,
+                                            flat_normalise_ntrials=True, verbose=1)
     return violin_df_test
 
 
@@ -1346,7 +1359,7 @@ def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
         print(ss)
         ## First without reg:
         max_dec_values = np.zeros((len(c_value_array) + 1, 2))
-        (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, 
+        (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half,
                  angle_dec, dec_weights) = compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
                                                               projected_data=False, reg_type='none',
                                                               region_list=reg_list,
@@ -1355,13 +1368,13 @@ def perform_logreg_cv(sessions, c_value_array, reg_list=['s1', 's2']):
         mr_name = list(lick_acc.keys())[0]
         max_lick_dec = np.max(lick_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in lick_acc.items()])
         max_ps_dec = np.max(ps_acc[mr_name])  #np.max([np.max(reg_acc[:, 0]) for _, reg_acc in ps_acc.items()])
-        max_dec_values[0, :] = max_lick_dec.copy(), max_ps_dec.copy()  
+        max_dec_values[0, :] = max_lick_dec.copy(), max_ps_dec.copy()
         ## Then with varying reg strengths:
         for i_c, c_value in enumerate(c_value_array):
             ## Compute results
-            (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, 
+            (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half,
                  angle_dec, dec_weights) = compute_accuracy_time_array(sessions={0: ss}, time_array=tp_dict['cv_reg'],
-                                                              projected_data=False, 
+                                                              projected_data=False,
                                                               reg_type='l2', regularizer=c_value,
                                                               region_list=reg_list,
                                                               average_fun=class_av_mean_accuracy)
