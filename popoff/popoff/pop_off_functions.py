@@ -20,6 +20,7 @@ import math, cmath
 from tqdm import tqdm
 import scipy.stats, scipy.spatial
 from Session import Session  # class that holds all data per session
+import pop_off_plotting as pop
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
@@ -324,10 +325,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 ## Retrieve normalized data:
                 (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                    time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt=sort_tt, sort_neurons=True)
-
-
-
+                    time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-10, filter_150_stim=False)
+                assert data_use_mat_norm.shape == session.behaviour_trials.shape
                 ## Filter neurons
                 # data_use = session.behaviour_trials[neurons_include, :, :]
                 # data_eval = session.behaviour_trials[neurons_include, :, :]
