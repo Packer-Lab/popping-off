@@ -475,6 +475,42 @@ class Session:
         if self.nonnan_trials is None:  # Session is not in the timescales pkl
             self.nonnan_trials = np.unique(np.where(~np.isnan(self.behaviour_trials))[1])
 
+        if self.mouse == 'J064' and self.run_number == 14:
+            # One misaligned trial
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(np.isin(self.nonnan_trials, 
+                                           [177]))[0])
+
+        if self.mouse == 'RL117' and self.run_number == 29:
+            # Some misaligned trials
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(np.isin(self.nonnan_trials, 
+                                           [88, 219, 230, 297]))[0])
+
+        if self.mouse == 'RL117' and self.run_number == 30:
+            # The blind opened and a couple misaligned
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(np.isin(self.nonnan_trials, 
+                                           [44, 124, 192, 210]))[0])
+
+        elif self.mouse == 'RL116' and self.run_number == 32:
+            # Something weird happened on this trial causing every cell to dip
+            # very negative. Possible blind opening or something
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(self.nonnan_trials==286)[0])
+
+        elif self.mouse == 'RL116' and self.run_number == 33:
+            # Alignment weird
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(self.nonnan_trials==14)[0])
+
+        elif self.mouse == 'RL123' and self.run_number == 22:
+            # Alignment weird
+            self.nonnan_trials = np.delete(self.nonnan_trials, 
+                                           np.where(np.isin(self.nonnan_trials, 
+                                           [51, 105, 119]))[0])
+
+
         self.behaviour_trials = self.behaviour_trials[:, self.nonnan_trials, :]
         self.photostim = self.photostim[self.nonnan_trials]
         self.decision = self.decision[self.nonnan_trials]
@@ -649,8 +685,8 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
             try:
                 session = SessionLite(mouse, run_number, folder_path, 
                                       flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, pre_seconds=8, post_seconds=8, 
-                                      filter_threshold=np.inf)
+                                      post_gap_seconds=0, pre_seconds=4, post_seconds=6, 
+                                      filter_threshold=10)
 
                 save_dict[total_ds] = session
                 total_ds += 1
@@ -687,9 +723,19 @@ if __name__ == '__main__':
 
     all_mice = [x for x in os.listdir(pkl_path) if x[-4:] != '.pkl']
 
-    run_dict = {m: list(np.unique([int(only_numerics(x))
-               for x in os.listdir(pkl_path + f'/{m}')]))
-               for m in all_mice}
+    # run_dict = {m: list(np.unique([int(only_numerics(x))
+               # for x in os.listdir(pkl_path + f'/{m}')]))
+               # for m in all_mice}
+
+    run_dict =  {
+    
+    'J064': [10,11,14],
+    'RL070': [28,29],
+    'RL117': [29,30],
+    'RL123': [22],
+    'RL116': [32,33],
+    
+    }
 
     if 'J065' in run_dict.keys() and 14 in run_dict['J065']:
         run_dict['J065'].remove(14)

@@ -81,6 +81,7 @@ class AverageTraces():
         if self.flu_flavour == 'denoised_flu':
             sessions_file = 'sessions_lite_denoised_flu.pkl'
         elif self.flu_flavour == 'dff':
+            # sessions_file = 'sessions_lite_flu_filter5.pkl'
             sessions_file = 'sessions_lite_flu.pkl'
         elif self.flu_flavour == 'spks':
             sessions_file = 'sessions_lite_spks.pkl'

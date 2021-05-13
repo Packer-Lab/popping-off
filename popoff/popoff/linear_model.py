@@ -479,7 +479,7 @@ class LinearModel():
 
         # Split the trace into pre=frames-before-stim and post=frames-after-stim
         # times_use inherited from AverageTraces
-        self.pre = np.logical_and(self.times_use < -0.04, self.times_use > -2)
+        self.pre = np.logical_and(self.times_use < -0.07, self.times_use > -2)
 
         long_post = True
         if long_post:
@@ -1697,6 +1697,7 @@ class PoolAcrossSessions(AverageTraces):
 
         idxs_remove = []
         for idx, session in self.sessions.items():    
+
             if session.n_cells < 200:
                 idxs_remove.append(idx)
 
@@ -1768,7 +1769,7 @@ class PoolAcrossSessions(AverageTraces):
         if subsample_sessions:
             self.sessions = temp
         else:
-            self.sessions = temp
+            # self.sessions = temp
             print('ALERT SESSIONS NOT SUBSAMPLED')
 
         # Get the tau_dict into the daddy session Need to adjust this so it

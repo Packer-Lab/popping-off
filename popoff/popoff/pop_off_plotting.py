@@ -620,6 +620,10 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
     im = ax.imshow(data_mat, aspect='auto', vmin=-c_lim, vmax=c_lim,
                     cmap='BrBG_r', interpolation=imshow_interpolation)
 
+    # t=0 in data coords
+    zero_tick = 120
+    ax.axvspan(zero_tick-2, zero_tick+30*0.5, alpha=1, color='#da8bc3')
+
     if plot_cbar:
         plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
 
@@ -628,10 +632,11 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
     ax.set_title(f'Trial averaged {tt} {reg} (N={n_trials})')
     ax.set_xlabel(f'Time (s)')
     ax.set_xticks(time_ticks)
+
     ax.set_xticklabels(time_tick_labels)
     ax.tick_params(axis='y', left='on', which='major')
     ax.yaxis.set_minor_locator(MultipleLocator(2))
-    ax.tick_params(axis='y', left='on', which='minor', width=0.5)
+    # ax.tick_params(axis='y', left='on', which='minor', width=0.5)
     if s1_lim is not None and reg == 'S1':
         ax.set_ylim(s1_lim)
     if s2_lim is not None and reg == 'S2':
@@ -737,7 +742,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=[
 
     ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
                       xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
-
+    
     ## save & return
     if save_fig:
         if save_name is None:
