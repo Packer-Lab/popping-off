@@ -536,7 +536,7 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
         sorting = np.argsort(max_val_arr)[::-1]
     return sorting
 
-def normalise_raster_data(session, start_time=-4, stim_window=0.3, filter_150_stim=True,
+def normalise_raster_data(session, start_time=-3, stim_window=0.3, filter_150_stim=False,
                           sorting_method='euclidean', sort_tt_list=['hit'], sort_neurons=True):
 
     start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
