@@ -1,7 +1,17 @@
-{  "paths": {
+{ "jrowland": 
+    {"paths": {
       "base_path": "~/Documents/code",
       "vape_path": "~/Documents/code/Vape",
       "pkl_path": "~/mnt/qnap/run_pkls",
       "oasis_path": "~/Documents/code/OASIS"
+              }
+    },
+  "tplas": 
+    {"paths": {
+      "base_path": "~/data/mice",
+      "vape_path": "~/repos/Vape",
+      "pkl_path": "~/data/mice",
+      "oasis_path": "~/repos/OASIS"
+              }
     }
 } 
