@@ -1318,8 +1318,12 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
                                             flat_normalise_ntrials=True, verbose=1)
     return violin_df_test
 
+def label_urh_arm(sessions):
+    for key, ss in sessions.items():
+        ss.outcome[ss.autorewarded] = 'arm'
+        ss.outcome[ss.unrewarded_hits] = 'urh'
 
-def create_df_table_details(sessions):
+def create_df_table_details(sessions, exclude_150stim=True):
     """Create Dataframe table with details of sessions."""
     n_sessions = len(sessions)
     column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
@@ -1333,9 +1337,12 @@ def create_df_table_details(sessions):
 #         dict_details['# Imaging planes'][key] = len(np.unique(ss.plane_number))
         dict_details[r"$N$" + 'S1'][key] = np.sum(ss.s1_bool)
         dict_details[r"$N$" + 'S2'][key] = np.sum(ss.s2_bool)
-        leave_out_150_inds = ss.photostim < 2
+        if exclude_150stim:
+            leave_out_150_inds = ss.photostim < 2
+        else:
+            leave_out_150_inds = np.ones(len(ss.photostim), dtype='bool')
         dict_details['Trials'][key] = len(ss.outcome[leave_out_150_inds])
-        print(ss.name, ss.n_trials, len(ss.outcome))
+        # print(ss.name, ss.n_trials, len(ss.outcome))
         dict_details['Hit'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'hit')
         dict_details['FP'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'fp')
         dict_details['Miss'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == 'miss',
@@ -1344,7 +1351,12 @@ def create_df_table_details(sessions):
         dict_details['Too early'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'too_')
         dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
         dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
-        assert np.sum([dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss']]) == dict_details['Trials'][key], 'total number of trials is not correct'
+        n_trials_summed_tt = [dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss', 'UR Hit']]
+        if np.sum(ss.unrewarded_hits) > 0:
+            assert np.unique(ss.outcome[ss.unrewarded_hits]) == ['urh'], f'urh not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.unrewarded_hits])}'
+        if np.sum(ss.autorewarded) > 0:
+            assert np.unique(ss.outcome[ss.autorewarded]) == ['arm'], f'arm not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.autorewarded])}'
+        assert np.sum(n_trials_summed_tt) == dict_details['Trials'][key], f'total number of trials in {key, ss} is not correct: {n_trials_summed_tt, dict_details["Trials"][key]}'
     df_details = pd.DataFrame(dict_details)
     df_details = df_details.sort_values(by=['Mouse', 'Run'])
     df_details = df_details.reset_index()

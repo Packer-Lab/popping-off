@@ -460,7 +460,7 @@ class LinearModel():
                 continue
 
             if self.session.outcome[trial] == 'hit' and lick < 250:
-                self.session.outcome[trial] = 'too_soon'
+                self.session.outcome[trial] = 'too_soon' #NB: datatype of outcome currently is U4, so only 4 chars are saved ('too_')
 
     def setup_flu(self):
         ''' Setup self.flu data array [n_cells x n_trials x [n_frames]
