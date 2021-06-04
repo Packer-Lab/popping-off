@@ -542,7 +542,7 @@ def normalise_raster_data(session, start_time=-3, stim_window=0.3, filter_150_st
     start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
     stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
     pre_stim_frame = np.argmin(np.abs(session.filter_ps_time + stim_window))  # up to stim ( to avoid using stim artefact)
-    n_time_ticks = int(np.floor((session.filter_ps_time[-1] - session.filter_ps_time[start_frame]) / 2))
+    n_time_ticks = int(np.floor((session.filter_ps_time[-1] - session.filter_ps_time[start_frame]) / 2) + 1)
     time_ticks = np.arange(n_time_ticks) * 2 * session.frequency
     time_tick_labels = [str(np.round(x)) for x in session.filter_ps_time[start_frame:][time_ticks]]
 
@@ -628,7 +628,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
         plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
 
     if print_ylabel:
-        ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list} post-stim trial correlation', fontdict={'weight': 'bold'})
+        ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation', fontdict={'weight': 'bold'})
     ax.set_title(f'Trial averaged {tt} {reg} (N={n_trials})')
     ax.set_xlabel(f'Time (s)')
     ax.set_xticks(time_ticks)
@@ -688,7 +688,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=[
         time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session, start_time=start_time, stim_window=stim_window, sorting_method=sorting_method, sort_tt_list=sort_tt_list, sort_neurons=True)
     sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}
     reg_names = ['S1' ,'S2']
-
+    # print(time_ticks)
     ## plot cell-averaged traces
     if plot_averages:
         for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):

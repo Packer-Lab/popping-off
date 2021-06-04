@@ -13,7 +13,7 @@ import seaborn as sns
 # import run_functions as rf
 # from subsets_analysis import Subsets
 import pickle
-import sklearn.decomposition
+import sklearn.decomposition, sklearn.discriminant_analysis
 from cycler import cycler
 import pandas as pd
 import math, cmath
@@ -432,6 +432,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     for x in list_test:
                         dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                         X=train_data.transpose(), y=train_labels[x])
+                        # dec[x] = sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis().fit(
+                        #                 X=train_data.transpose(), y=train_labels[x])
                         if return_decoder_weights:
                             dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 
@@ -453,6 +455,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             test_data_proj = enc_vector.copy() * test_data.transpose()
                             dec_proj[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                             X=train_data_proj, y=train_labels[x])
+                            # dec_proj[x] = sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis().fit(
+                            #                 X=train_data_proj, y=train_labels[x])
 
                     ## Predict test data
                     pred_proba_train = {x: dec[x].predict_proba(X=train_data.transpose())[:, 1] for x in list_test}
@@ -1318,17 +1322,23 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
                                             flat_normalise_ntrials=True, verbose=1)
     return violin_df_test
 
-def label_urh_arm(sessions):
+def label_urh_arm(sessions, verbose=1):
     for key, ss in sessions.items():
         ss.outcome[ss.autorewarded] = 'arm'
         ss.outcome[ss.unrewarded_hits] = 'urh'
+    if verbose > 0:
+        print('URH and ARM trials have been labelled')
 
 def create_df_table_details(sessions, exclude_150stim=True):
     """Create Dataframe table with details of sessions."""
     n_sessions = len(sessions)
+    if exclude_150stim:
+            str_trials = 'Trials (excl 150)'
+    else:
+        str_trials = 'Trials (incl 150)'
     column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
                     r"$N$" + 'S1', r"$N$" + 'S2',
-                    'Trials', 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early']
+                   str_trials, 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early', 'Spont']
     dict_details = {cc: np.zeros(n_sessions, dtype='object') for cc in column_names}
     for key, ss in sessions.items():
         dict_details['Mouse'][key] = ss.mouse
@@ -1341,7 +1351,7 @@ def create_df_table_details(sessions, exclude_150stim=True):
             leave_out_150_inds = ss.photostim < 2
         else:
             leave_out_150_inds = np.ones(len(ss.photostim), dtype='bool')
-        dict_details['Trials'][key] = len(ss.outcome[leave_out_150_inds])
+        dict_details[str_trials][key] = len(ss.outcome[leave_out_150_inds])
         # print(ss.name, ss.n_trials, len(ss.outcome))
         dict_details['Hit'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'hit')
         dict_details['FP'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'fp')
@@ -1351,12 +1361,13 @@ def create_df_table_details(sessions, exclude_150stim=True):
         dict_details['Too early'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'too_')
         dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
         dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
+        dict_details['Spont'][key] = ss.pre_rew_trials.shape[1]
         n_trials_summed_tt = [dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss', 'UR Hit']]
         if np.sum(ss.unrewarded_hits) > 0:
             assert np.unique(ss.outcome[ss.unrewarded_hits]) == ['urh'], f'urh not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.unrewarded_hits])}'
         if np.sum(ss.autorewarded) > 0:
             assert np.unique(ss.outcome[ss.autorewarded]) == ['arm'], f'arm not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.autorewarded])}'
-        assert np.sum(n_trials_summed_tt) == dict_details['Trials'][key], f'total number of trials in {key, ss} is not correct: {n_trials_summed_tt, dict_details["Trials"][key]}'
+        assert np.sum(n_trials_summed_tt) == dict_details[str_trials][key], f'total number of trials in {key, ss} is not correct: {n_trials_summed_tt, dict_details[str_trials][key]}'
     df_details = pd.DataFrame(dict_details)
     df_details = df_details.sort_values(by=['Mouse', 'Run'])
     df_details = df_details.reset_index()
