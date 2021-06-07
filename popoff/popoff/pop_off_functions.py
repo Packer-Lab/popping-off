@@ -1329,7 +1329,7 @@ def label_urh_arm(sessions, verbose=1):
     if verbose > 0:
         print('URH and ARM trials have been labelled')
 
-def create_df_table_details(sessions, exclude_150stim=True):
+def create_df_table_details(sessions, exclude_150stim=True, count_hit_miss_nstim=False):
     """Create Dataframe table with details of sessions."""
     n_sessions = len(sessions)
     if exclude_150stim:
@@ -1339,6 +1339,8 @@ def create_df_table_details(sessions, exclude_150stim=True):
     column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
                     r"$N$" + 'S1', r"$N$" + 'S2',
                    str_trials, 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early', 'Spont']
+    if count_hit_miss_nstim:
+        column_names = column_names + [f'{tt}_{n_stim}' for tt in ['hit', 'miss'] for n_stim in [5, 10, 20, 30, 40, 50, 150]]
     dict_details = {cc: np.zeros(n_sessions, dtype='object') for cc in column_names}
     for key, ss in sessions.items():
         dict_details['Mouse'][key] = ss.mouse
@@ -1362,6 +1364,11 @@ def create_df_table_details(sessions, exclude_150stim=True):
         dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
         dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
         dict_details['Spont'][key] = ss.pre_rew_trials.shape[1]
+        if count_hit_miss_nstim:
+            for tt in ['hit', 'miss']:
+                for n_stim in [5, 10, 20, 30, 40, 50, 150]:
+                    dict_details[f'{tt}_{n_stim}'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == tt,
+                                                                                ss.trial_subsets[leave_out_150_inds] == n_stim))
         n_trials_summed_tt = [dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss', 'UR Hit']]
         if np.sum(ss.unrewarded_hits) > 0:
             assert np.unique(ss.outcome[ss.unrewarded_hits]) == ['urh'], f'urh not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.unrewarded_hits])}'
