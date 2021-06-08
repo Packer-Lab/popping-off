@@ -325,7 +325,7 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                 ax.plot(time_1, plot_mean[:time_breakpoint],  linewidth=2, linestyle=linest[reg],
                             markersize=12, color=ccolor, label=None, alpha=0.2)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, alpha=0.8, label=mouse)
+                            markersize=12, alpha=0.8, label=mouse, color=ccolor)
     for reg in average_mean.keys():
         average_mean[reg] = average_mean[reg] / count_means[reg]
     # print(average_mean)
@@ -1153,7 +1153,9 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                             plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
                             running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
-    ax.legend(loc='upper left', frameon=False); ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
+    if plot_indiv is False:
+        ax.legend(loc='upper left', frameon=False); 
+    ax.set_title(f'Dynamic PS decoding in {reg.upper()}', weight='bold')
     return ax
 
 def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=None, p_val_thresh=0.05):
@@ -1176,8 +1178,9 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1,
-                                      plot_std_area=True, plot_indiv=False):
-    fig = plt.figure(constrained_layout=False, figsize=(24, 8))
+                                      plot_std_area=True, plot_indiv=False,
+                                      fn_suffix=''):
+    fig = plt.figure(constrained_layout=False, figsize=(12, 4))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
                             bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
     ax_acc_ps = {}
@@ -1195,13 +1198,14 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         else:
             print('WARNING: yaxis_type not recognised')
 
-        # ax_acc_ps[reg].set_ylim([0.1, 0.9])
-        ax_acc_ps[reg].set_xlim([-4, 8.5])
+        ax_acc_ps[reg].set_ylim([0.1, 0.9])
+        ax_acc_ps[reg].set_xlim([-4, 5.5])
         ax_acc_ps[reg].spines['top'].set_visible(False)
         ax_acc_ps[reg].spines['right'].set_visible(False)
 
     if save_fig:
-        plt.savefig('sevenway_dyn_dec.pdf')#, bbox_to_inches='tight')
+        fn = f'dyn-dec_{int(len(ps_acc_split["hit"]) / 2)}-mice_{fn_suffix}'
+        plt.savefig(f'/home/tplas/repos/popping-off/figures/dyn_decoding/{fn}.pdf', bbox_to_inches='tight')
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure

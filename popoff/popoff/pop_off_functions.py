@@ -204,24 +204,15 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             weights of all decoders
 
     """
-    # assert (hitmiss_only and hitspont_only) is False
     if train_projected:
         print("TRAINING Projected")
-    # if hitmiss_only:
-    #     if verbose >= 1:
-    #         print('Using hit/miss trials only.')
-    #     if 'stim' in list_test:
-    #         list_test.remove('stim')  # no point in estimating stim, because only PS
-    # if hitspont_only:
-    #     spont_used_for_training = True
-    #     if verbose >= 1:
-    #         print('Using hit/spont trials only.')
-    #     if 'dec' in list_test:
-    #         list_test.remove('dec')  # no point in estimating dec, because only PS
     if 'spont' in list_tt_training:
         spont_used_for_training = True 
     else:
         spont_used_for_training = False
+
+    if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
+        list_test = ['stim']  # remove dec because both are dec=1
 
     name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
@@ -314,7 +305,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 ## Retrieve normalized data:
                 (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                    time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, filter_150_stim=False)
+                    time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
                 assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape)
                 ## Filter neurons
                 data_use = data_use_mat_norm[neurons_include, :, :]
@@ -419,7 +410,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     ## Train logistic regression model on train data
                     dec = {}
                     for x in list_test:
-                        assert len(np.unique(train_labels[x])) == 2 , 'training will be perfect'
+                        assert len(np.unique(train_labels[x])) == 2 , f'{x} training will be perfect'
                         assert len(np.unique(test_labels[x])) == 2, 'not stricitly necessary, could be loosened'
                         dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                         X=train_data.transpose(), y=train_labels[x])
@@ -427,7 +418,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 
                     if len(list_test) == 2:
-                        angle_decoders[i_session, i_loop] = angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
+                        angle_decoders[i_session, i_loop] = None #angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
 
                     if train_projected:  # project and re decode
                         dec_proj = {}
