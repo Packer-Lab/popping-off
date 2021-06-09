@@ -289,6 +289,20 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     trial_inds = np.intersect1d(trial_inds, too_early_excl)
                 else:
                     print('WARNING: too early not excluded!')
+
+                equalize_n_trials_per_tt = True
+                if equalize_n_trials_per_tt:
+                    assert 'spont' not in list_tt_training, 'if spont is used for training, this results in a slight bias towards no-PS'
+                    # print('start', len(trial_inds), session.outcome[trial_inds])
+                    dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
+                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    new_trial_inds = np.array([], dtype='int')
+                    for tt, v in dict_trials_per_tt.items():
+                        # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
+                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
+                    trial_inds = trial_inds[new_trial_inds]
+                    # print('end', len(trial_inds), session.outcome[trial_inds])
+                
                 ## set evaluation only indices
                 eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0],
                                                  np.where(session.unrewarded_hits == True)[0]))
@@ -357,6 +371,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 ## Stack & fit scaler
                 if zscore_data:
+                    assert False, 'z score is used'
                     if spont_used_for_training:
                         data_stacked = np.hstack((data_use, data_eval))  # stack for scaling (spont already included)
                         assert (data_stacked[:, (len(trial_inds) + n_spont_trials):(len(trial_inds) + len(eval_only_inds) + n_spont_trials)] == data_eval).all()
@@ -374,11 +389,12 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
                 if verbose == 2:
-                    print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
-                    dict_outcomes = {x: np.sum(trial_outcomes == x) for x in np.unique(trial_outcomes)}
-                    print(f'Possible trial outcomes: {dict_outcomes}')
-                    dict_n_ps = {x: np.sum(session.trial_subsets[trial_inds] == x) for x in np.unique(session.trial_subsets[trial_inds])}
-                    print(f'Possible stimulations: {dict_n_ps}')
+                    if np.abs(trial_times_use[0] + 3) < 0.1:
+                        print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
+                        dict_outcomes = {x: np.sum(trial_outcomes == x) for x in np.unique(trial_outcomes)}
+                        print(f'Possible trial outcomes: {dict_outcomes}')
+                        dict_n_ps = {x: np.sum(session.trial_subsets[trial_inds] == x) for x in np.unique(session.trial_subsets[trial_inds])}
+                        print(f'Possible stimulations: {dict_n_ps}')
 
                 i_loop = 0
                 if return_decoder_weights:
@@ -412,6 +428,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     for x in list_test:
                         assert len(np.unique(train_labels[x])) == 2 , f'{x} training will be perfect'
                         assert len(np.unique(test_labels[x])) == 2, 'not stricitly necessary, could be loosened'
+                        # cw_dict = {ww: np.sum(train_labels[x] == ww) / len(train_labels[x]) for ww in [0, 1]}
                         dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                         X=train_data.transpose(), y=train_labels[x])
                         if return_decoder_weights:
@@ -421,6 +438,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         angle_decoders[i_session, i_loop] = None #angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
 
                     if train_projected:  # project and re decode
+                        assert False, 'proj not implemented'
                         dec_proj = {}
                         assert len(list_test) == 2  # hard coded that len==2 further on
                         for i_x, x in enumerate(list_test):
