@@ -13,7 +13,7 @@ import seaborn as sns
 # import run_functions as rf
 # from subsets_analysis import Subsets
 import pickle
-import sklearn.decomposition
+import sklearn.decomposition, sklearn.discriminant_analysis
 from cycler import cycler
 import pandas as pd
 import math, cmath
@@ -152,10 +152,10 @@ def create_dict_pred(nl, train_proj, lt):
         dict_predictions_train['angle_decoders'] = np.array([])
     return dict_predictions_train, dict_predictions_test
 
-def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test = ['dec', 'stim'],
-                            hitmiss_only=False, hitspont_only=False, include_150 = False,
-                            return_decoder_weights=False, spont_used_for_training=True,
-                            n_split = 4, include_autoreward=False, include_unrewardedhit=False,
+def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test=['dec', 'stim'],
+                            list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'], include_150=False,
+                            return_decoder_weights=False, zscore_data=False,
+                            n_split=4, include_autoreward=False, include_unrewardedhit=False,
                             neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
     """Major function that trains the decoders. It trains the decoders specified in
@@ -173,9 +173,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     verbose : int, default=2
         verbosiness
     list_test : list, default=['dec' ,'stim']
-        list of decoder names
-    hitmiss_only : bool, default=False
-        if true, only evaluate hit miss trials.
+        list of decoder name
     include_150 : bool, default=False
         if true, include n_PS=150 trials
     return_decoder_weights : bool, default=False
@@ -206,20 +204,15 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             weights of all decoders
 
     """
-    assert (hitmiss_only and hitspont_only) is False
     if train_projected:
         print("TRAINING Projected")
-    if hitmiss_only:
-        if verbose >= 1:
-            print('Using hit/miss trials only.')
-        if 'stim' in list_test:
-            list_test.remove('stim')  # no point in estimating stim, because only PS
-    if hitspont_only:
-        spont_used_for_training = True
-        if verbose >= 1:
-            print('Using hit/spont trials only.')
-        if 'dec' in list_test:
-            list_test.remove('dec')  # no point in estimating dec, because only PS
+    if 'spont' in list_tt_training:
+        spont_used_for_training = True 
+    else:
+        spont_used_for_training = False
+
+    if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
+        list_test = ['stim']  # remove dec because both are dec=1
 
     name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
@@ -266,21 +259,15 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 ## Set trial inds
                 ## trial_inds: used for training & testing
                 ## eval_only_inds: only used for testing (Auto Rew Miss; Un Rew Hit)
+                trial_inds = np.array([], dtype='int')
+                for tt in list_tt_training:
+                    curr_tt_trials = np.where(session.outcome == tt)[0]
+                    trial_inds = np.concatenate((trial_inds, curr_tt_trials))
+
                 if include_150 is False:
-                    trial_inds = np.where(session.photostim < 2)[0]
+                    trial_inds = np.intersect1d(trial_inds, np.where(session.photostim < 2)[0])
                 else:
-                    trial_inds = np.arange(len(session.photostim))
-
-                if hitmiss_only:
-                    hitmiss_trials = np.where(np.logical_or(session.outcome == 'hit', session.outcome == 'miss'))[0]
-                    if verbose == 2:
-                        print(f'Size hm {hitmiss_trials.size}, trial inds {trial_inds.size}')
-                    trial_inds = np.intersect1d(trial_inds, hitmiss_trials)
-                    assert False, 'Hit miss only selected - but not implemented for eval_only_inds'
-                elif hitspont_only:
-                    hit_trials = np.where(session.outcome == 'hit')[0]
-                    trial_inds = np.intersect1d(trial_inds, hit_trials)
-
+                    print('150 n_stim is Used!!')
                 if include_autoreward is False:
                     ar_exclude = np.where(session.autorewarded == False)[0]
                     if verbose == 2:
@@ -303,34 +290,38 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 else:
                     print('WARNING: too early not excluded!')
 
+                equalize_n_trials_per_tt = True
+                if equalize_n_trials_per_tt:
+                    assert 'spont' not in list_tt_training, 'if spont is used for training, this results in a slight bias towards no-PS'
+                    # print('start', len(trial_inds), session.outcome[trial_inds])
+                    dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
+                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    new_trial_inds = np.array([], dtype='int')
+                    for tt, v in dict_trials_per_tt.items():
+                        # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
+                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
+                    trial_inds = trial_inds[new_trial_inds]
+                    # print('end', len(trial_inds), session.outcome[trial_inds])
+                
                 ## set evaluation only indices
                 eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0],
-                                                np.where(session.unrewarded_hits == True)[0]))
+                                                 np.where(session.unrewarded_hits == True)[0]))
                 eval_only_labels = ['arm'] * np.sum(session.autorewarded) + ['urh'] * np.sum(session.unrewarded_hits)
                 assert len(eval_only_inds) == np.sum(session.autorewarded) + np.sum(session.unrewarded_hits)
-                if hitmiss_only:
-                    ## to implement
-                    assert False
-                elif hitspont_only:
-                    for tt in ['miss', 'fp', 'cr']:
-                        eval_only_inds = np.concatenate((eval_only_inds,
-                                                         np.where(session.outcome == tt)[0]))
+
+                for tt in ['hit', 'miss', 'fp', 'cr']:
+                    if tt not in list_tt_training:
+                        eval_only_inds = np.concatenate((eval_only_inds, np.where(session.outcome == tt)[0]))
                         eval_only_labels = eval_only_labels + [tt] * len(np.where(session.outcome == tt)[0])
-                    trial_outcomes = session.outcome[trial_inds]
-                    assert len(np.unique(trial_outcomes)) == 1 and trial_outcomes[0] == 'hit'
-                else:
-                    trial_outcomes = session.outcome[trial_inds]
+                trial_outcomes = session.outcome[trial_inds]
 
                 ## Prepare data with selections
 
                 ## Retrieve normalized data:
                 (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                    time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-10, filter_150_stim=False)
-                assert data_use_mat_norm.shape == session.behaviour_trials.shape
+                    time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
+                assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape)
                 ## Filter neurons
-                # data_use = session.behaviour_trials[neurons_include, :, :]
-                # data_eval = session.behaviour_trials[neurons_include, :, :]
-                # data_spont  = session.pre_rew_trials[neurons_include, :, :]
                 data_use = data_use_mat_norm[neurons_include, :, :]
                 data_eval = data_use_mat_norm[neurons_include, :, :]
                 data_spont = data_spont_mat_norm[neurons_include, :, :]
@@ -356,9 +347,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     dec_trials = np.concatenate((session.decision[trial_inds], np.ones(n_spont_trials)))
 
                     detailed_ps_labels = np.concatenate((session.trial_subsets[trial_inds].astype('int'), np.zeros(n_spont_trials)))
-                    rewarded_trials = np.concatenate((np.logical_or(session.outcome[trial_inds] == 'hit', session.outcome[trial_inds] == 'too_'), np.ones(n_spont_trials)))
-                    if hitspont_only:
-                        assert len(rewarded_trials) == np.sum(rewarded_trials)
+                    rewarded_trials = np.concatenate((np.array([x in ['hit', 'too_', 'arm'] for x in session.outcome[trial_inds]]), np.ones(n_spont_trials)))
+                    # if hitspont_only:
+                    #     assert len(rewarded_trials) == np.sum(rewarded_trials)
                     autorewarded = np.concatenate((session.autorewarded[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
                     rewarded_trials[autorewarded] = True
                     unrewarded_hits = np.concatenate((session.unrewarded_hits[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
@@ -367,7 +358,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     stim_trials = session.photostim[trial_inds]
                     dec_trials = session.decision[trial_inds]
                     detailed_ps_labels = session.trial_subsets[trial_inds].astype('int')
-                    rewarded_trials = np.logical_or(session.outcome[trial_inds] == 'hit', session.outcome[trial_inds] == 'too_')
+                    rewarded_trials = np.array([x in ['hit', 'too_', 'arm'] for x in session.outcome[trial_inds]])
                     autorewarded = session.autorewarded[trial_inds]
                     rewarded_trials[autorewarded] = True
                     unrewarded_hits = session.unrewarded_hits[trial_inds]
@@ -377,28 +368,33 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_use = fun_return_2d(data_use)
                 data_eval = fun_return_2d(data_eval)
                 data_spont = fun_return_2d(data_spont)
+
                 ## Stack & fit scaler
-                if spont_used_for_training:
-                    data_stacked = np.hstack((data_use, data_eval))  # stack for scaling
-                    assert (data_stacked[:, (len(trial_inds) + n_spont_trials):(len(trial_inds) + len(eval_only_inds) + n_spont_trials)] == data_eval).all()
-                else:
-                    data_stacked = np.hstack((data_use, data_eval, data_spont))  # stack for scaling
-                    assert (data_stacked[:, len(trial_inds):(len(trial_inds) + len(eval_only_inds))] == data_eval).all()
-                stand_scale = sklearn.preprocessing.StandardScaler().fit(data_stacked.T) # use all data to fit scaler, then scale indiviudally
-                ## Scale
-                data_use = stand_scale.transform(data_use.T)
-                data_eval = stand_scale.transform(data_eval.T)
-                data_spont = stand_scale.transform(data_spont.T)
-                data_use = data_use.T
-                data_eval = data_eval.T
-                data_spont = data_spont.T
+                if zscore_data:
+                    assert False, 'z score is used'
+                    if spont_used_for_training:
+                        data_stacked = np.hstack((data_use, data_eval))  # stack for scaling (spont already included)
+                        assert (data_stacked[:, (len(trial_inds) + n_spont_trials):(len(trial_inds) + len(eval_only_inds) + n_spont_trials)] == data_eval).all()
+                    else:
+                        data_stacked = np.hstack((data_use, data_eval, data_spont))  # stack for scaling
+                        assert (data_stacked[:, len(trial_inds):(len(trial_inds) + len(eval_only_inds))] == data_eval).all()
+                    stand_scale = sklearn.preprocessing.StandardScaler().fit(data_stacked.T) # use all data to fit scaler, then scale indiviudally
+                    ## Scale
+                    data_use = stand_scale.transform(data_use.T)
+                    data_eval = stand_scale.transform(data_eval.T)
+                    data_spont = stand_scale.transform(data_spont.T)
+                    data_use = data_use.T
+                    data_eval = data_eval.T
+                    data_spont = data_spont.T
+
                 sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
                 if verbose == 2:
-                    print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
-                    dict_outcomes = {x: np.sum(trial_outcomes == x) for x in np.unique(trial_outcomes)}
-                    print(f'Possible trial outcomes: {dict_outcomes}')
-                    dict_n_ps = {x: np.sum(session.trial_subsets[trial_inds] == x) for x in np.unique(session.trial_subsets[trial_inds])}
-                    print(f'Possible stimulations: {dict_n_ps}')
+                    if np.abs(trial_times_use[0] + 3) < 0.1:
+                        print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
+                        dict_outcomes = {x: np.sum(trial_outcomes == x) for x in np.unique(trial_outcomes)}
+                        print(f'Possible trial outcomes: {dict_outcomes}')
+                        dict_n_ps = {x: np.sum(session.trial_subsets[trial_inds] == x) for x in np.unique(session.trial_subsets[trial_inds])}
+                        print(f'Possible stimulations: {dict_n_ps}')
 
                 i_loop = 0
                 if return_decoder_weights:
@@ -430,15 +426,19 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     ## Train logistic regression model on train data
                     dec = {}
                     for x in list_test:
+                        assert len(np.unique(train_labels[x])) == 2 , f'{x} training will be perfect'
+                        assert len(np.unique(test_labels[x])) == 2, 'not stricitly necessary, could be loosened'
+                        # cw_dict = {ww: np.sum(train_labels[x] == ww) / len(train_labels[x]) for ww in [0, 1]}
                         dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                         X=train_data.transpose(), y=train_labels[x])
                         if return_decoder_weights:
                             dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 
                     if len(list_test) == 2:
-                        angle_decoders[i_session, i_loop] = angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
+                        angle_decoders[i_session, i_loop] = None #angle_vecs(dec[list_test[0]].coef_, dec[list_test[1]].coef_)
 
                     if train_projected:  # project and re decode
+                        assert False, 'proj not implemented'
                         dec_proj = {}
                         assert len(list_test) == 2  # hard coded that len==2 further on
                         for i_x, x in enumerate(list_test):
@@ -453,7 +453,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             test_data_proj = enc_vector.copy() * test_data.transpose()
                             dec_proj[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                             X=train_data_proj, y=train_labels[x])
-
+                            
                     ## Predict test data
                     pred_proba_train = {x: dec[x].predict_proba(X=train_data.transpose())[:, 1] for x in list_test}
                     pred_proba_test = {x: dec[x].predict_proba(X=test_data.transpose())[:, 1] for x in list_test}
@@ -801,7 +801,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
         for reg in region_list:
             df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
             df_prediction_train, df_prediction_test[reg][tp], dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
-                                                          verbose=0, hitmiss_only=False, include_150=False,
+                                                          verbose=0, include_150=False,
                                                           include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                           train_projected=projected_data, return_decoder_weights=True,
                                                           neurons_selection=reg)
@@ -845,6 +845,7 @@ def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
                                                   region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False,
+                                                  list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'],
                                                   tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont']):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
@@ -913,10 +914,10 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
         for reg in region_list:
             df_prediction_train, df_prediction_test, dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
-                                                          verbose=0, hitmiss_only=False, include_150=False,
-                                                          include_autoreward=False, C_value=regularizer, reg_type=reg_type,
-                                                          train_projected=projected_data, return_decoder_weights=True,
-                                                          neurons_selection=reg)
+                                                                                        verbose=0, include_150=False, list_tt_training=list_tt_training,
+                                                                                        include_autoreward=False, C_value=regularizer, reg_type=reg_type,
+                                                                                        train_projected=projected_data, return_decoder_weights=True,
+                                                                                        neurons_selection=reg)
             for xx in dec_w.keys():
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
@@ -1308,7 +1309,6 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
         for tp in tp_list:  # retrain (deterministic) decoders for these time points, and save detailed info
             _, dict_df_test[reg][tp], __, ___ = train_test_all_sessions(sessions=sessions, verbose=0,# n_split=n_split,
                                         trial_times_use=np.array([tp]), return_decoder_weights=False,
-                                        hitmiss_only=False,# list_test=['dec', 'stim'],
                                         include_autoreward=False, neurons_selection=reg,
                                         C_value=50, reg_type='l2', train_projected=False)
 
@@ -1318,13 +1318,25 @@ def get_decoder_data_for_violin_plots(sessions, tp_list=[1.0, 4.0]):
                                             flat_normalise_ntrials=True, verbose=1)
     return violin_df_test
 
+def label_urh_arm(sessions, verbose=1):
+    for key, ss in sessions.items():
+        ss.outcome[ss.autorewarded] = 'arm'
+        ss.outcome[ss.unrewarded_hits] = 'urh'
+    if verbose > 0:
+        print('URH and ARM trials have been labelled')
 
-def create_df_table_details(sessions):
+def create_df_table_details(sessions, exclude_150stim=True, count_hit_miss_nstim=False):
     """Create Dataframe table with details of sessions."""
     n_sessions = len(sessions)
+    if exclude_150stim:
+            str_trials = 'Trials (excl 150)'
+    else:
+        str_trials = 'Trials (incl 150)'
     column_names = ['Mouse', 'Run', 'f (Hz)', #'# Imaging planes',
                     r"$N$" + 'S1', r"$N$" + 'S2',
-                    'Trials', 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early']
+                   str_trials, 'Hit', 'FP', 'Miss', 'CR', 'UR Hit', 'AR Miss', 'Too early', 'Spont']
+    if count_hit_miss_nstim:
+        column_names = column_names + [f'{tt}_{n_stim}' for tt in ['hit', 'miss'] for n_stim in [5, 10, 20, 30, 40, 50, 150]]
     dict_details = {cc: np.zeros(n_sessions, dtype='object') for cc in column_names}
     for key, ss in sessions.items():
         dict_details['Mouse'][key] = ss.mouse
@@ -1333,9 +1345,12 @@ def create_df_table_details(sessions):
 #         dict_details['# Imaging planes'][key] = len(np.unique(ss.plane_number))
         dict_details[r"$N$" + 'S1'][key] = np.sum(ss.s1_bool)
         dict_details[r"$N$" + 'S2'][key] = np.sum(ss.s2_bool)
-        leave_out_150_inds = ss.photostim < 2
-        dict_details['Trials'][key] = len(ss.outcome[leave_out_150_inds])
-        print(ss.name, ss.n_trials, len(ss.outcome))
+        if exclude_150stim:
+            leave_out_150_inds = ss.photostim < 2
+        else:
+            leave_out_150_inds = np.ones(len(ss.photostim), dtype='bool')
+        dict_details[str_trials][key] = len(ss.outcome[leave_out_150_inds])
+        # print(ss.name, ss.n_trials, len(ss.outcome))
         dict_details['Hit'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'hit')
         dict_details['FP'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'fp')
         dict_details['Miss'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == 'miss',
@@ -1344,7 +1359,18 @@ def create_df_table_details(sessions):
         dict_details['Too early'][key] = np.sum(ss.outcome[leave_out_150_inds] == 'too_')
         dict_details['UR Hit'][key] = np.sum(ss.unrewarded_hits[leave_out_150_inds])
         dict_details['AR Miss'][key] = np.sum(ss.autorewarded[leave_out_150_inds])
-        assert np.sum([dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss']]) == dict_details['Trials'][key], 'total number of trials is not correct'
+        dict_details['Spont'][key] = ss.pre_rew_trials.shape[1]
+        if count_hit_miss_nstim:
+            for tt in ['hit', 'miss']:
+                for n_stim in [5, 10, 20, 30, 40, 50, 150]:
+                    dict_details[f'{tt}_{n_stim}'][key] = np.sum(np.logical_and(ss.outcome[leave_out_150_inds] == tt,
+                                                                                ss.trial_subsets[leave_out_150_inds] == n_stim))
+        n_trials_summed_tt = [dict_details[xx][key] for xx in ['Hit', 'FP', 'Miss', 'CR', 'Too early', 'AR Miss', 'UR Hit']]
+        if np.sum(ss.unrewarded_hits) > 0:
+            assert np.unique(ss.outcome[ss.unrewarded_hits]) == ['urh'], f'urh not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.unrewarded_hits])}'
+        if np.sum(ss.autorewarded) > 0:
+            assert np.unique(ss.outcome[ss.autorewarded]) == ['arm'], f'arm not correctly labelled for {key, ss}: {np.unique(ss.outcome[ss.autorewarded])}'
+        assert np.sum(n_trials_summed_tt) == dict_details[str_trials][key], f'total number of trials in {key, ss} is not correct: {n_trials_summed_tt, dict_details[str_trials][key]}'
     df_details = pd.DataFrame(dict_details)
     df_details = df_details.sort_values(by=['Mouse', 'Run'])
     df_details = df_details.reset_index()

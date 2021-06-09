@@ -438,7 +438,8 @@ class Session:
             print(f'photo stim occurences: {self.photostim_occ}')
         self.autorewarded = np.array(rf.autoreward(self.run))  # array of bools whether an autoreward (after 3 consecutive misses) has occurred
         self.find_unrewarded_hits()  # adds unrewarded hits, requires self.decision to be defined
-
+        # TODO: fill in arm and urh in outcome 
+        
         assert self.photostim.shape == self.decision.shape
         self.n_unique_stims = len(np.unique(self.photostim))
         self.n_neurons = self.behaviour_trials.shape[0]
