@@ -479,7 +479,9 @@ class LinearModel():
 
         # Split the trace into pre=frames-before-stim and post=frames-after-stim
         # times_use inherited from AverageTraces
-        self.pre = np.logical_and(self.times_use < -0.07, self.times_use > -2)
+
+        # 2 seconds pre-stimulus with a buffer to the artifact just in case
+        self.pre = np.logical_and(self.times_use < -0.07, self.times_use >= -2.1)
 
         long_post = True
         if long_post:
@@ -651,15 +653,15 @@ class LinearModel():
         covariates_dict['flat'] = np.ones(*covariates_dict['mean_pre'].shape)
 
         # The log of the timescales is taken further down
-        covariates_dict['ts_s1_pre'] = (np.abs(self.session.tau_dict['S1_pre'][trial_bool]))
-        covariates_dict['ts_s2_pre'] = (np.abs(self.session.tau_dict['S2_pre'][trial_bool]))
-        covariates_dict['ts_both_pre'] = (np.abs(self.session.tau_dict['all_pre'][trial_bool]))
+        # covariates_dict['ts_s1_pre'] = (np.abs(self.session.tau_dict['S1_pre'][trial_bool]))
+        # covariates_dict['ts_s2_pre'] = (np.abs(self.session.tau_dict['S2_pre'][trial_bool]))
+        # covariates_dict['ts_both_pre'] = (np.abs(self.session.tau_dict['all_pre'][trial_bool]))
 
         covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
 
         covariates_dict['flattened_variance'] = flattened_variance(flu, self.pre)
         covariates_dict['variance_pop_mean'] = variance_pop_mean(flu, self.pre)
-        covariates_dict['variance_cell_rates'] = variance_cell_rates(flu, self.pre)
+        covariates_dict['variance_cell_rates'] = np.log(variance_cell_rates(flu, self.pre))
         covariates_dict['mean_cell_variance'] = mean_cell_variance(flu, self.pre)
 
 
@@ -674,10 +676,10 @@ class LinearModel():
         covariates_dict['jonas_metric'] = jonas_metric(flu, self.pre)
 
 
-        for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
-            val = covariates_dict[key]
-            val[np.logical_or(val < 30, val > 3000)] = np.nan
-            covariates_dict[key] = np.log(val)
+        # for key in ['ts_s1_pre', 'ts_s2_pre', 'ts_both_pre']:
+            # val = covariates_dict[key]
+            # val[np.logical_or(val < 30, val > 3000)] = np.nan
+            # covariates_dict[key] = np.log(val)
 
         # if prereward:
             # if region != 'all':
@@ -1377,18 +1379,24 @@ class LinearModel():
         solver = 'saga'
 
         regions = ['s1', 's2', 'all']
-        regions = ['all']
+        regions = ['s1']
+        regions = ['s1', 's2', 'shuffled']
 
         mean_accs = []
         std_accs = []
         coefs = []
 
         for idx, region in enumerate(regions):
+            
+
 
             X, y = self.prepare_data(frames=frames, model='full',
                                      outcomes=outcomes,
-                                     region=region,
+                                     remove_easy=False,
+                                     region=(region if region != 'shuffled' else 's1'),
                                      n_comps_include=0)
+            if region == 'shuffled':
+                np.random.shuffle(y)
 
             mean_acc, std_acc, models = self.logistic_regression(X, y, penalty,
                                                             C, solver)
@@ -1446,6 +1454,12 @@ class LinearModel():
 
         covs_keep = ['mean_pre', 'variance_cell_rates', 'largest_PC_var',
                      'reward_history', 'trial_number', 'n_cells_stimmed']
+
+        covs_keep = [ 'variance_cell_rates',
+                     'reward_history', 'trial_number', 'n_cells_stimmed']
+
+        # covs_keep = [ 'variance_cell_rates', 'mean_pre', 'corr_pre',
+                      # 'n_cells_stimmed']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
 
@@ -1542,7 +1556,7 @@ class LinearModel():
                                  outcomes=['hit', 'miss'],
                                  region=region,
                                  n_comps_include=n_comps_include,
-                                 remove_easy=True,
+                                 remove_easy=False,
                                  return_matrix=False)
 
         # for i in range(n_comps_include):
@@ -1559,6 +1573,8 @@ class LinearModel():
         covs_keep = ['mean_pre', 'variance_cell_rates', 'largest_PC_var',
                      'reward_history', 'trial_number', 'n_cells_stimmed',
                      'largest_singular_value']
+
+        covs_keep = ['mean_pre', 'corr_pre', 'variance_cell_rates', 'largest_PC_var']
 
         X = {k: v for k, v in X.items() if k in covs_keep}
 
@@ -1934,11 +1950,13 @@ class PoolAcrossSessions(AverageTraces):
 
         grand_mean = np.mean(all_means, axis=0)
         grand_std = self.combine_stds(all_stds)
+        # 1/0
 
         plt.errorbar(range(len(grand_mean)), grand_mean, yerr=grand_std, fmt='o',
                      color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
 
         regions = ['Mean cell activity\nprior to stimulation']
+        regions = ['S1', 'S2', 'shuffled null']
 
         plt.ylim(0, 1)
         plt.axhline(0.5, linestyle=':')
@@ -2038,16 +2056,22 @@ class PoolAcrossSessions(AverageTraces):
                     all_means[key] = np.append(all_means[key], mean_acc[key])
                     all_stds[key] = np.append(all_stds[key], std_acc[key])
 
+        del all_means['all_covariates']
+        del all_stds['all_covariates']
+
         n_points = 0
         for (label, means), (label2, stds) in zip(all_means.items(), all_stds.items()):
             assert label == label2
-            plt.errorbar(n_points, np.mean(means), self.combine_stds(stds)/5, fmt='o',
+
+            plt.errorbar(n_points, np.mean(means), self.combine_stds(stds), fmt='o',
                          color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
             n_points += 1
 
         labels = all_means.keys()
         xt = plt.xticks(np.arange(len(labels)), labels,
                       rotation=90, fontsize=14)
+
+        print(stats.wilcoxon(all_means['variance_cell_rates'], all_means['shuffled_null']))
 
         plt.ylabel('Balanced Accuracy Score')
         plt.xlabel('Single Covariate in model')
