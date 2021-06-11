@@ -211,8 +211,25 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     else:
         spont_used_for_training = False
 
-    if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
-        list_test = ['stim']  # remove dec because both are dec=1
+    ## If trial types used for training are all of the same response type for either stim or dec, do not train that decoder
+    dict_response_matrix = {'hit': [1, 1], 'miss': [1, 0], 'fp': [0, 1], 'cr': [0, 0], 'spont': [0, 1]}
+    stim_response_list, dec_response_list = [], []
+    for tt in list_tt_training:
+        stim_response_list.append(dict_response_matrix[tt][0])
+        dec_response_list.append(dict_response_matrix[tt][1])
+    if len(np.unique(stim_response_list)) < 2 and 'stim' in list_test:
+        list_test.remove('stim')
+    if len(np.unique(dec_response_list)) < 2 and 'dec' in list_test:
+        list_test.remove('dec')
+
+    # if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
+    #     list_test = ['stim']  # remove dec because both are dec=1
+    # elif 'hit' in list_tt_training and 'fp' in list_tt_training and len(list_test) == 2:
+    #     list_test = ['stim']  # remove dec because both are dec=1
+    # elif 'hit' in list_tt_training and 'miss' in list_tt_training and len(list_test) == 2:
+    #     list_test = ['dec']  # remove stim because both are stim=1
+    # elif 'hit' in list_tt_training and 'fp' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 3:
+    #     list_test = ['stim']  # remove stim because both are stim=1
 
     name_list = ['autorewarded_miss', 'unrewarded_hit', 'outcome']  # names of details to save - whether autorewrd trial or not
     for nn in list_test:
@@ -292,16 +309,23 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 equalize_n_trials_per_tt = True
                 if equalize_n_trials_per_tt:
-                    assert 'spont' not in list_tt_training, 'if spont is used for training, this results in a slight bias towards no-PS'
                     # print('start', len(trial_inds), session.outcome[trial_inds])
                     dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
-                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    if 'spont' not in list_tt_training:
+                        min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
+                        min_n_trials = 10
+                    else:
+                        # assert 'spont' not in list_tt_training, 'if spont is used for training, this results in a slight bias towards no-PS'
+                        min_n_trials = 10
                     new_trial_inds = np.array([], dtype='int')
                     for tt, v in dict_trials_per_tt.items():
                         # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
                         new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
                     trial_inds = trial_inds[new_trial_inds]
                     # print('end', len(trial_inds), session.outcome[trial_inds])
+                
+                # np.random.shuffle(trial_inds)
                 
                 ## set evaluation only indices
                 eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0],
@@ -387,7 +411,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     data_eval = data_eval.T
                     data_spont = data_spont.T
 
-                sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials
+                sss = sklearn.model_selection.StratifiedKFold(n_splits=n_split)  # split into n_split data folds of trials (strat shuffle split is not appropriate generally because it changes the test set)
                 if verbose == 2:
                     if np.abs(trial_times_use[0] + 3) < 0.1:
                         print(f'Number of licks: {np.sum(session.decision[trial_inds])}')
