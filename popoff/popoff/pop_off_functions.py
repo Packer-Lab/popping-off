@@ -317,7 +317,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         min_n_trials = 10
                     else:
                         # assert 'spont' not in list_tt_training, 'if spont is used for training, this results in a slight bias towards no-PS'
-                        min_n_trials = 10
+                        min_n_trials = np.minimum(np.min([len(v) for v in dict_trials_per_tt.values()]), 10)
+                        if min_n_trials != 10:
+                            print(f'{min_n_trials} trials')
                     new_trial_inds = np.array([], dtype='int')
                     for tt, v in dict_trials_per_tt.items():
                         # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
@@ -920,16 +922,18 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
     signature_list = [session.signature for _, session in sessions.items()]
 
     lick_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} #mean, std
-#     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
-    lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
     lick_half = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}  # naive with P=0.5 for 2 options (lick={0, 1})
     ps_acc = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
     if split_fourway is False:
         ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}  # split per trial type
         ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in dec_list}
+#     lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in stim_list}  # split per ps conditoin
+        assert False, 'implement lick_acc and lick_pred'
     elif split_fourway is True:
         ps_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per lick condition
         ps_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}
+        lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
+        lick_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
@@ -963,10 +967,13 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
     #                 lick_acc[mouse + '_' + reg][i_tp, :] = 0
     #                 for i_lick in np.unique(lick):
     #                     lick_acc[mouse + '_' + reg][i_tp, :] += np.array(average_fun(binary_truth=lick[lick == i_lick], estimate=pred_lick[lick == i_lick])) / len(np.unique(lick))
-
-                    for x, arr in lick_acc_split.items():
+                    assert split_fourway is True
+                    for x, arr in lick_acc_split.items():    
                         arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
-                                                                    estimate=pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
+                                                                      estimate=pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
+                    for x, arr in lick_pred_split.items():
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), 
+                                                           np.std(pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
 
                 if 'pred_stim_test' in df_prediction_test[mouse].columns:
                     if projected_data is False:
@@ -982,20 +989,21 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                         if split_fourway is False:  # split two ways by lick decision
                             arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.intersect1d(np.where(lick == x)[0], inds_training)],
                                                                           estimate=pred_ps[np.intersect1d(np.where(lick == x)[0], inds_training)])
-                        elif split_fourway is True:  # split two ways by lick decision
+                        elif split_fourway is True:  
                             arr[mouse + '_' + reg][i_tp, :] = average_fun(binary_truth=ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]],
                                                                           estimate=pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])
 
                     for x, arr in ps_pred_split.items():
                         if split_fourway is False:  # split two ways by lick decision
                             arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[lick == x]), np.std(pred_ps[lick == x])]
-                        elif split_fourway is True:  # split two ways by lick decision
-                            arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), np.std(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
+                        elif split_fourway is True:  
+                            arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), 
+                                                                np.std(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
 
                 if 'angle_decoders' in df_prediction_train[mouse].columns:
                     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
 
-    return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
+    return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
 
 ## Create list with standard colors:
 color_dict_stand = {}
