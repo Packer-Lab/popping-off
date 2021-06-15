@@ -1179,7 +1179,7 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1,
-                                      plot_std_area=True, plot_indiv=False,
+                                      plot_std_area=True, plot_indiv=False, title_lick_dec=False,
                                       fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit'):
     fig = plt.figure(constrained_layout=False, figsize=(12, 4))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
@@ -1204,7 +1204,6 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         ax_acc_ps[reg].spines['top'].set_visible(False)
         ax_acc_ps[reg].spines['right'].set_visible(False)
         
-        ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of stimulus P(PS)')
         ax_acc_ps[reg].set_xlim([-4, 6]) 
         ax_acc_ps[reg].set_xticks(np.arange(10) - 3)
         ax_acc_ps[reg].arrow(-3.1, 0.52, 0, 0.4, head_width=0.3, head_length=0.05, linewidth=3,
@@ -1215,7 +1214,11 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
                         fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[top_yax_tt.lower()]})
         ax_acc_ps[reg].text(s=bottom_yax_tt, x=-3.7, y=0.33, rotation=90, 
                         fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
-
+        if title_lick_dec:
+            ax_acc_ps[reg].set_title(f'Dynamic lick decoding in {reg.upper()}', fontdict={'weight': 'bold'})
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of licking P(lick)')
+        else:
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of stimulus P(PS)')
         
     ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
     ax_acc_ps['s2'].get_legend().remove()
