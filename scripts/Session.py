@@ -564,9 +564,15 @@ class Session:
         ever_targeted = np.any(self.is_target, axis=(1,2))
         # Check that all targets are in s1
         # print('WARNING S1 TARGET CHECKER DISABLED')
+        # n = 0
         for target, s1 in zip(ever_targeted, self.s1_bool):
             if target:
                 assert s1
+                # if not s1:
+                    # print("S1 CHECK FAILED")
+                    # print(self.run.stat[n]['original_index'])
+            # n += 1
+
         
 class SessionLite(Session):
     ''' Does the same job as Session, using inheritence out of laziness to not combine 
