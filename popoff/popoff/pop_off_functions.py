@@ -1,10 +1,13 @@
 ## general imports (also for subsequent analysis notebooks)
 import sys
 import os
-path_to_vape = os.path.expanduser('~/repos/Vape')
-sys.path.append(path_to_vape)
-sys.path.append(os.path.join(path_to_vape, 'jupyter'))
-sys.path.append(os.path.join(path_to_vape, 'utils'))
+import loadpaths
+user_paths_dict = loadpaths.loadpaths()
+path_to_vape = user_paths_dict['vape_path']
+sys.path.append(str(path_to_vape))
+sys.path.append(str(os.path.join(path_to_vape, 'jupyter')))
+sys.path.append(str(os.path.join(path_to_vape, 'utils')))
+sys.path.append(user_paths_dict['base_path'])
 import numpy as np
 import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
@@ -19,6 +22,7 @@ import pandas as pd
 import math, cmath
 from tqdm import tqdm
 import scipy.stats, scipy.spatial
+from statsmodels.stats import multitest
 from Session import Session  # class that holds all data per session
 import pop_off_plotting as pop
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
@@ -312,8 +316,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     # print('start', len(trial_inds), session.outcome[trial_inds])
                     dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                     if 'spont' not in list_tt_training:
-                        # min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
-                        min_n_trials = 10
+                        min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                        # min_n_trials = 10
                     elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                         min_n_trials = 10
                     else:
@@ -1473,3 +1477,134 @@ def opt_leaf(w_mat, dim=0, link_metric='correlation'):
     elif link_metric == 'correlation':
         opt_leaves = scipy.cluster.hierarchy.leaves_list(link_mat)
     return opt_leaves, (link_mat, dist)
+
+
+def get_percent_cells_responding(session, region='s1', direction='positive', prereward=False):
+
+    # Haven't built this for 5 Hz data
+    assert session.mouse not in ['J048', 'RL048']
+
+    # 0.015 gives you 5% of cells responding (positive + negative)
+    # on cr (for session 0)
+    # Get me for 5% across all 
+    fdr_rate = 0.015
+
+    ## Get data:
+    if not prereward:
+        flu = session.behaviour_trials
+    else:
+        flu = session.pre_rew_trials
+    times_use = session.filter_ps_time
+    if region == 's1':
+        flu = flu[session.s1_bool, :, :]
+    elif region == 's2':
+        flu = flu[session.s2_bool, :, :]
+    
+    percent_cells_responding = []
+    magnitude = []
+
+    for trial_idx in range(flu.shape[1]):
+        trial = flu[:, trial_idx, :]
+
+        ## 500 ms before the stim with a nice juicy buffer to the artifact just in case
+        pre_idx = np.where(times_use < -0.15)[0][-15:]  
+
+        ## You can dial this back closer to the artifact if you cut out 150
+        post_idx = np.logical_and(times_use > 1, times_use <= 1.5)
+        
+        pre_array = trial[:, pre_idx]
+        post_array = trial[:, post_idx]
+        
+        p_vals = [scipy.stats.wilcoxon(pre, post)[1] for pre, post in zip(pre_array, post_array)]
+        p_vals = np.array(p_vals)
+        
+        sig_cells, correct_pval, _, _ = multitest.multipletests(p_vals, alpha=fdr_rate, method='fdr_bh',
+                                                            is_sorted=False, returnsorted=False)
+        
+        ## This doesn't split by positive and negative percent_cells_responding.append(sum(sig_cells))
+        positive = np.mean(post_array, 1) > np.mean(pre_array, 1)
+        negative = np.logical_not(positive)        
+        
+        if direction == 'positive':
+            percent_cells_responding.append(np.sum(np.logical_and(sig_cells, positive)))
+            magnitude.append(np.sum(np.mean(post_array[positive, :], 1) - np.mean(pre_array[positive, :] , 1)))
+        else:
+            percent_cells_responding.append(np.sum(np.logical_and(sig_cells, negative)))
+            magnitude.append(np.sum(np.mean(post_array[negative, :], 1) - np.mean(pre_array[negative, :] , 1)))
+        
+    if region == 's1':
+        n = np.sum(session.s1_bool)
+    elif region == 's2':
+        n = np.sum(session.s2_bool)
+        
+    percent_cells_responding = np.array(percent_cells_responding) / n * 100
+    
+    assert len(percent_cells_responding) == flu.shape[1]
+    assert len(magnitude) == flu.shape[1]
+    return percent_cells_responding
+
+def transfer_dict(msm, region, direction='positive'):
+    '''For each session, compute how many responding cells [in direction] there are 
+    for both hit and miss trials. '''
+    n_cells_list_of_lists = [[5], [10], [20], [30], [40], [50], [150]]
+    # n_cells_list_of_lists = [[5,10], [20,30], [40,50], [150]]
+    hitty, missy = {}, {}
+    n_sessions = len(msm.linear_models)
+    for session_idx in range(n_sessions):
+        session = msm.linear_models[session_idx].session
+        n_responders = get_percent_cells_responding(session, region=region, direction=direction)
+
+        for n_cells in n_cells_list_of_lists:
+            idx = np.isin(session.trial_subsets, n_cells)
+            idx_miss = np.logical_and(idx, session.outcome == 'miss')
+            idx_hit = np.logical_and(idx, session.outcome == 'hit')
+
+            centre_cells = np.mean(n_cells)
+            if centre_cells not in hitty:
+                hitty[centre_cells] = np.zeros(n_sessions)
+                missy[centre_cells] = np.zeros(n_sessions)
+            hitty[centre_cells][session_idx] = np.mean(n_responders[idx_hit])
+            missy[centre_cells][session_idx] = np.mean(n_responders[idx_miss])
+    return hitty, missy
+
+def baseline_subtraction(flu, lm):
+    ''' Takes a cell averaged flu matrix [n_trials x time]
+        and subtracts pre-stim activity of an individual trial 
+        from every timepoint in that trial.
+        '''
+    baseline = np.mean(flu[:, lm.frames_map['pre']], 1)
+    flu = np.subtract(flu.T, baseline).T
+    return flu
+
+def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
+
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session=lm.session, sort_neurons=False, filter_150_stim=False)
+    
+    # Select region and trial outcomes
+    if outcome != 'pre_reward':
+        flu = lm.flu
+        outcome_bool = lm.session.outcome == outcome
+        
+        if outcome in ['hit', 'miss']:
+            n_stimmed_bool = np.isin(lm.session.trial_subsets, n_cells)
+            outcome_bool = np.logical_and(outcome_bool, n_stimmed_bool)
+        
+        flu = flu[:, outcome_bool, :]
+    else:
+        flu = lm.pre_flu
+    
+    flu = flu[lm.region_map[region], :, :]
+
+    assert False, 'baseline subtraction has to be fixed'
+    # Mean across cells
+    flu = np.mean(flu, 0)
+    
+    if subtract_baseline:
+        flu = baseline_subtraction(flu, lm)
+        
+    # Select desired frames
+    if frames != 'all':
+        flu = flu[:, lm.frames_map[frames]]
+    
+    return flu

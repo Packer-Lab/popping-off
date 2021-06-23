@@ -14,11 +14,14 @@ import seaborn as sns
 # import sklearn.decomposition
 from cycler import cycler
 import pandas as pd
-import math, cmath
+import math, cmath, copy
 from tqdm import tqdm
 import scipy.stats
 from Session import Session  # class that holds all data per session
 import pop_off_functions as pof
+from linear_model import PoolAcrossSessions, LinearModel, MultiSessionModel
+from utils.utils_funcs import d_prime
+
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 ## Create list with standard colors:
@@ -33,10 +36,10 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
-            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 
+            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288',
              'hit&miss': 'k', 'fp&cr': 'k'}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
-            'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.'}
+            'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.', 'prereward': 'Spont.'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -45,6 +48,27 @@ for tt in color_tt.keys():
     colors_plot['s1'][tt] = color_tt[tt]
     colors_plot['s2'][tt] = color_tt[tt]
 
+def despine(ax):
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+def naked(ax):
+    for ax_name in ['top', 'bottom', 'right', 'left']:
+        ax.spines[ax_name].set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+
+def add_ps_artefact(ax, time_axis):
+    ## plot box over artefact
+    color_box = sns.color_palette()[6]
+    alpha_box = 0.3
+    # print(time_axis, np.where(np.isnan(time_axis)))
+    start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0]) - 1]
+    # end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0])]
+    end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0]) + 1] - 1 / 30
+    ax.axvspan(start_box, end_box, alpha=alpha_box, color=color_box)
 
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
                   type_scatter='strip', ccolor='grey', aalpha=1, ax=None):
@@ -539,7 +563,7 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
 
 def normalise_raster_data(session, start_time=-3, stim_window=0.3, filter_150_stim=False,
                           sorting_method='euclidean', sort_tt_list=['hit'], sort_neurons=True):
-
+    '''overrides session.outcome with ARM and URH types!!'''
     start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
     stim_frame = np.argmin(np.abs(session.filter_ps_time - stim_window))  # define post-stim response
     pre_stim_frame = np.argmin(np.abs(session.filter_ps_time + stim_window))  # up to stim ( to avoid using stim artefact)
@@ -1417,3 +1441,174 @@ def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
     legend_tuple = tuple(legend_tuple)
     if save_fig:
         plt.savefig('figures/average_all_sessions.pdf', bbox_extra_artists=legend_tuple, bbox_inches='tight')
+
+def single_cell_plot(session, cell_id, tt=['hit'], smooth_window=5, remove_easy=False, 
+                     ax=None, plot_ylabel=True, plot_title=False):
+    if ax is None:
+        ax = plt.subplot(111)
+    assert type(tt) == list and len(tt) == 1
+    ## Get cell data
+    if tt[0] == 'prereward':
+        arr = session.pre_rew_trials[cell_id, :, :]
+    else:
+        arr = session.behaviour_trials[cell_id, :, :]
+        trial_idx = np.isin(session.outcome, tt)
+        
+        if remove_easy:
+            trial_idx = np.logical_and(trial_idx, session.photostim != 2)
+            
+        arr = arr[trial_idx, :]
+    ## Normalise data:
+    # assert False, 'use proper normalisation function'
+    baseline = np.mean(arr[:, :session.pre_frames], 1)
+    arr = np.subtract(arr.T, baseline).T
+    x_axis = copy.deepcopy(session.filter_ps_time)
+
+    ## Remove photostim artefact:
+    remove_photostim = np.logical_or(x_axis < -0.07,
+                                     x_axis > 0.8)
+    if 'prereward' not in tt:
+        x_axis[~remove_photostim] = np.nan
+
+    ## Plot:
+    for trial in arr: ## individual trials
+        trial = smooth_trace(trial, smooth_window)
+        ax.plot(x_axis, trial, alpha=1)
+    meaned = smooth_trace(np.mean(arr, 0), smooth_window)
+    if 'prereward' not in tt:
+        add_ps_artefact(ax=ax, time_axis=x_axis)
+    ax.plot(x_axis, meaned, color='black', linewidth=4)  # trial-average
+    ax.set_xlim(-2, 7)
+    ax.set_ylim(-1, 2.5)
+    if plot_title:
+        ax.set_title(f'{tt[0]} Trials', fontdict={'color': color_tt[tt[0]]})
+    if plot_ylabel:
+        ax.set_ylabel(r'$\Delta$F/F')
+    # ax.set_xlabel('Time (s)')
+    naked(ax)
+   
+    return arr
+
+
+def plot_transfer_function(data, color, label=None, ax=None, verbose=1, plot_logscale=False):
+    if ax is None:
+        ax = plt.subplot(111)
+    fit_x = []
+    fit_y = []
+    
+    for key, val in data.items():
+        x = np.repeat(key, len(val))
+        y = np.array(val)
+        
+        # Need to take a nan out where there's no misses of some cell number
+        nn = np.where(~np.isnan(y))
+        x = x[nn]
+        y = y[nn]
+
+        fit_x.extend(x)
+        fit_y.extend(y)
+
+        ax.plot(x, y, '.', color=color, markersize=8)
+        sem = np.std(y) / np.sqrt(len(y)) * 1.96
+        ax.errorbar(key, np.mean(y), yerr=sem, color=color,
+                     markersize=20, label=label, capsize=8, fmt='.')
+    
+        label = None
+
+    fit_x = np.array(fit_x)    
+    fit_y = np.array(fit_y)    
+    
+    slope, intercept, r, p, se = scipy.stats.linregress(fit_x, fit_y)
+    ax.plot(fit_x, fit_x * slope + intercept, color=color)
+    if verbose:
+        print(label)
+        print(f'r={r}')
+        print(f'p={p}')
+        print('\n')
+    
+    # ax.legend()
+    despine(ax)
+    if plot_logscale:
+        ax.set_xscale('log')
+
+def plot_spont(msm, region='s1', direction='positive', ax=None):
+    if ax is None:
+        ax = plt.subplot(111)
+    
+    n_responders = []
+    for session_idx in range(len(msm.linear_models)):
+        session = msm.linear_models[session_idx].session
+        n_responders.append(np.mean(pof.get_percent_cells_responding(session, region, direction,
+                                         prereward=True)))
+    meaned = np.mean(n_responders)
+    sem = np.std(n_responders) / np.sqrt(len(n_responders))
+    ax.fill_between([7.5, 150], [meaned - sem, meaned - sem], [meaned + sem, meaned + sem], 
+                     color=sns.color_palette()[2])
+    
+
+def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-trials', ax=None):
+    
+    if ax is None:
+        ax = plt.subplot(111)        
+        
+    flu = []
+    for lm in msm.linear_models:
+        sf = pof.session_flu(lm, region=region, outcome=outcome, frames=frames, 
+                         n_cells=n_cells)
+        if stack == 'all-trials':
+            flu.append(sf)  # stack every trial from every session in a big array
+        else:
+            flu.append(np.mean(sf, 0))  # stack the session mean into a big array
+    flu = np.vstack(flu)  # Go from list of 2D arrays (trials x time points) to stacked 2D (along trial axis)
+    mean_flu = np.mean(flu, 0)  # average across trials
+    z = 1.96
+    ci = z * (np.std(flu, 0) / flu.shape[0])
+    # ci = np.std(flu, 0)
+    if outcome != 'pre_reward':
+        # Remove the artifact
+        artifact_frames = np.where((lm.times_use>-0.07) & (lm.times_use<0.9))
+        mean_flu[artifact_frames] = np.nan
+        label = outcome.capitalize()
+    else:
+        label = 'Spontaneous\nReward'
+    
+    ax.plot(mean_flu, color=color_tt[outcome], label=label)
+    ax.fill_between(np.arange(len(mean_flu)), mean_flu+ci, mean_flu-ci, color=color_tt[outcome], alpha=0.2)
+    times_axis = np.logical_and(np.floor(lm.times_use) == np.ceil(lm.times_use), 
+                                np.mod(lm.times_use, 2) == 0)
+    times_axis = np.logical_and(times_axis, lm.times_use>=-2)
+    ax.set_xticks(np.where(times_axis)[0])
+    ax.set_xticklabels(lm.times_use[times_axis])
+    ax.set_xlabel('Time (seconds)')
+    ax.axhline(0, ls=':', color='grey')
+    ax.set_xlim(np.where(lm.times_use==-2)[0],np.where(lm.times_use==6)[0])
+
+    if region != 's2': 
+        ax.set_ylabel(r'$\Delta$F/F')
+
+def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False,
+                          tts_plot=['hit', 'miss'], frames='all', stack='all-trials'):
+    if ax_s1 is None or ax_s2 is None:
+        fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(10,3))
+
+    ylims = (-0.05, 0.07)
+    # plt.suptitle(f'Number of cells stimmed = {n_cells}', fontsize=25)
+    
+    ## S1 plot
+    ax_list = [ax_s1, ax_s2]
+    for i_plot, reg in enumerate(['s1', 's2']):
+        for tt in tts_plot:
+            plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
+                            stack=stack, ax=ax_list[i_plot])
+        ax_list[i_plot].set_title(f'Average activity {reg.upper()}')
+        ax_list[i_plot].set_ylim(ylims)
+        naked(ax_list[i_plot])
+  
+    leg = ax_s2.legend(frameon=False, loc='upper right')
+    lines = leg.get_lines()
+    _ = [line.set_linewidth(6) for line in lines]
+
+    if save_fig:
+        name_plot  = '-'.join(tts_plot)
+    #     save_figure('Figure2_grandAverageTraces', figure_path)
+    
