@@ -33,7 +33,8 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
-            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288'}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
+            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 
+             'hit&miss': 'k', 'fp&cr': 'k'}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.'}
 linest_reg = {'s1': '-', 's2': '-'}
@@ -1178,8 +1179,8 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1,
-                                      plot_std_area=True, plot_indiv=False,
-                                      fn_suffix=''):
+                                      plot_std_area=True, plot_indiv=False, title_lick_dec=False,
+                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit'):
     fig = plt.figure(constrained_layout=False, figsize=(12, 4))
     gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
                             bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
@@ -1198,14 +1199,34 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         else:
             print('WARNING: yaxis_type not recognised')
 
-        ax_acc_ps[reg].set_ylim([0.1, 0.9])
-        ax_acc_ps[reg].set_xlim([-4, 5.5])
+        ax_acc_ps[reg].set_ylim([0, 1])
+        ax_acc_ps[reg].tick_params(reset=True, top=False, right=False)
         ax_acc_ps[reg].spines['top'].set_visible(False)
         ax_acc_ps[reg].spines['right'].set_visible(False)
-
+        
+        ax_acc_ps[reg].set_xlim([-4, 6]) 
+        ax_acc_ps[reg].set_xticks(np.arange(10) - 3)
+        ax_acc_ps[reg].arrow(-3.1, 0.52, 0, 0.4, head_width=0.3, head_length=0.05, linewidth=3,
+                        color=color_tt[top_yax_tt.lower()], length_includes_head=True, clip_on=False)
+        ax_acc_ps[reg].arrow(-3.1, 0.48, 0, -0.4, head_width=0.3, head_length=0.05, linewidth=3,
+                        color=color_tt[bottom_yax_tt.lower()], length_includes_head=True, clip_on=False)
+        ax_acc_ps[reg].text(s=top_yax_tt, x=-3.7, y=0.73, rotation=90, 
+                        fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[top_yax_tt.lower()]})
+        ax_acc_ps[reg].text(s=bottom_yax_tt, x=-3.7, y=0.33, rotation=90, 
+                        fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
+        if title_lick_dec:
+            ax_acc_ps[reg].set_title(f'Dynamic lick decoding in {reg.upper()}', fontdict={'weight': 'bold'})
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of licking P(lick)')
+        else:
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of stimulus P(PS)')
+        
+    ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
+    ax_acc_ps['s2'].get_legend().remove()
     if save_fig:
         fn = f'dyn-dec_{int(len(ps_acc_split["hit"]) / 2)}-mice_{fn_suffix}'
         plt.savefig(f'/home/tplas/repos/popping-off/figures/dyn_decoding/{fn}.pdf', bbox_to_inches='tight')
+
+    return ax_acc_ps
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
