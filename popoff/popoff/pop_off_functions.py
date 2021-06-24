@@ -317,7 +317,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                     if 'spont' not in list_tt_training:
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
-                        # min_n_trials = 10
+                        # min_n_trials = 10  # use to control for n_trials of spont
+                        # print('only using 10 trials!!)
                     elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                         min_n_trials = 10
                     else:
@@ -1567,23 +1568,30 @@ def transfer_dict(msm, region, direction='positive'):
             missy[centre_cells][session_idx] = np.mean(n_responders[idx_miss])
     return hitty, missy
 
-def baseline_subtraction(flu, lm):
-    ''' Takes a cell averaged flu matrix [n_trials x time]
-        and subtracts pre-stim activity of an individual trial 
-        from every timepoint in that trial.
-        '''
-    baseline = np.mean(flu[:, lm.frames_map['pre']], 1)
-    flu = np.subtract(flu.T, baseline).T
-    return flu
+# def baseline_subtraction(flu, lm):
+#     ''' Takes a cell averaged flu matrix [n_trials x time]
+#         and subtracts pre-stim activity of an individual trial 
+#         from every timepoint in that trial.
+#         '''
+#     baseline = np.mean(flu[:, lm.frames_map['pre']], 1)
+#     flu = np.subtract(flu.T, baseline).T
+#     return flu
 
 def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-        time_ticks, time_tick_labels, start_frame) = normalise_raster_data(session=lm.session, sort_neurons=False, filter_150_stim=False)
+        time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session=lm.session, 
+                            sort_neurons=False, filter_150_stim=False, start_time=-4)
     
+    assert (outcome_arr == lm.session.outcome).all()
+    # print(np.where(lm.frames_map['pre'])[0])
+    # print(lm.session.filter_ps_time[np.where(lm.frames_map['pre'])[0]])
+    # print(np.where(lm.frames_map['post'])[0])
+    # print(lm.session.filter_ps_time[np.where(lm.frames_map['post'])[0]])
     # Select region and trial outcomes
     if outcome != 'pre_reward':
-        flu = lm.flu
+        flu = data_use_mat_norm  # lm.flu
+        assert data_use_mat_norm.shape == lm.flu.shape, print(f'{data_use_mat_norm.shape}, {lm.flu.shape}')
         outcome_bool = lm.session.outcome == outcome
         
         if outcome in ['hit', 'miss']:
@@ -1592,16 +1600,15 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
         
         flu = flu[:, outcome_bool, :]
     else:
-        flu = lm.pre_flu
+        flu = data_spont_mat_norm  # lm.pre_flu
     
     flu = flu[lm.region_map[region], :, :]
 
-    assert False, 'baseline subtraction has to be fixed'
     # Mean across cells
     flu = np.mean(flu, 0)
     
-    if subtract_baseline:
-        flu = baseline_subtraction(flu, lm)
+    # if subtract_baseline:
+    #     flu = baseline_subtraction(flu, lm)
         
     # Select desired frames
     if frames != 'all':
