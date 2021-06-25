@@ -1659,7 +1659,8 @@ def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
     return super_df
 
 def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates', 
-                          include_150=True, n_bins_covar=10, zscore_covar=False):
+                          include_150=True, n_bins_covar=10, zscore_covar=False,
+                          metric='fraction_hit'):
     n_stim_arr = [5, 10, 20, 30, 40, 50]
     if include_150:
         n_stim_arr = n_stim_arr + [150]
@@ -1685,7 +1686,10 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
                 fraction_hit_miss = np.sum(sub_df['y']) / len(sub_df['y'])
             else:
                 fraction_hit_miss = np.nan
-            mat_fraction[i_nstim, i_cov_perc] = fraction_hit_miss
+            if metric == 'fraction_hit':
+                mat_fraction[i_nstim, i_cov_perc] = fraction_hit_miss
+            elif metric == 'occupancy':
+                mat_fraction[i_nstim, i_cov_perc] = len(sub_df['y'])
             prev_perc = cov_perc
     assert total_n == len(super_covar_df), f'not all rows have been used: {total_n}/{len(super_covar_df)}'
     return mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr

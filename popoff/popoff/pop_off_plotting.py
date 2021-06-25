@@ -1801,16 +1801,24 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
-                                covar_name='variance_cell_rates', zscored_covar=True):
+                                covar_name='variance_cell_rates', zscored_covar=True,
+                                metric='fraction_hit'):
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
         n_stim_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
-                                             n_bins_covar=n_bins_covar)
+                                             n_bins_covar=n_bins_covar, metric=metric)
 
     if ax is None:
         ax = plt.subplot(111)
     
-    sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1, cbar_kws={'label': 'Probability Hit'},
-                cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
+    if metric == 'fraction_hit':
+        sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
+                    cbar_kws={'label': 'Probability Hit'},
+                    cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
+    elif metric == 'occupancy':
+        sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
+                    cbar_kws={'label': 'number of trials per bin'},
+                    cmap='magma')
+    
     ax.invert_yaxis()
     ax.set_yticklabels(n_stim_arr, rotation=0)
     ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr]);
