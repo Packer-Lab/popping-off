@@ -539,15 +539,12 @@ class LinearModel():
         y : vector for use as dependent variable [n_samples]
 
         '''
-
         if prereward:
             flu = self.pre_flu
             y = np.zeros(flu.shape[1])
             trial_bool = y.astype('bool')
-
         else:
             outcome = self.session.outcome
-
             trial_bool = np.isin(outcome, outcomes)
 
             if remove_easy:
@@ -560,7 +557,7 @@ class LinearModel():
             # Fit encoder on data that is independent of the trial
             # order in the session
             self.encoder.fit(outcome)
-            print(self.encoder)
+            # print(self.encoder)
             y = self.encoder.transform(outcome)
 
         # Select cells from required region
@@ -598,11 +595,6 @@ class LinearModel():
         return self.transform_data(X)
 
     def covariates_full(self, flu, frames):
-
-        # Use this to check that PC performance
-        # was not ~= full model as PCs are subbed but cells are
-        # not. Confirmed that performance for full subbed is roughly
-        # the same
         if frames == 'subbed':
             pre = flu[:, :, self.frames_map['pre']]
             post = flu[:, :, self.frames_map['post']]
@@ -1373,7 +1365,7 @@ class LinearModel():
                 (np.mean(accs_pre), np.std(accs_pre)))
 
     def compare_regions(self, frames='all', outcomes=['hit', 'miss'], plot=False,
-                        regions=['s1', 's2', 'shuffled']):
+                        regions=['s1', 's2', 'shuffled-s1']):
         # regions = ['s1', 's2', 'all', 'shuffled']
         penalty = 'l2'
         C = 1
@@ -1387,9 +1379,9 @@ class LinearModel():
             X, y = self.prepare_data(frames=frames, model='full',
                                      outcomes=outcomes,
                                      remove_easy=False,
-                                     region=(region if region != 'shuffled' else 's1'),
+                                     region=(region if 'shuffled' not in region else region[-2:]),
                                      n_comps_include=0)
-            if region == 'shuffled':
+            if 'shuffled' in region:
                 np.random.shuffle(y)
 
             mean_acc, std_acc, models = self.logistic_regression(X, y, penalty,
@@ -1925,10 +1917,10 @@ class PoolAcrossSessions(AverageTraces):
           plt.ylim(0.4, 1)
           plt.axhline(0.5, linestyle=':')
 
-    def compare_regions(self, frames='all', make_plot=False):
+    def compare_regions_all_sessions(self, frames='all', make_plot=False):
 
         n_sessions = len(self.linear_models)
-        region_classifiers = ['s1', 's2', 'shuffled']
+        region_classifiers = ['s1', 's2', 'shuffled-s1']
         all_means = np.zeros((n_sessions, len(region_classifiers)))
         all_stds = np.zeros((n_sessions, len(region_classifiers)))
         all_coefs = {}

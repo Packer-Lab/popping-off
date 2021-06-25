@@ -352,7 +352,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 ## Retrieve normalized data:
                 (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
                     time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
-                assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape)
+                assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape, len(trial_inds))
                 ## Filter neurons
                 data_use = data_use_mat_norm[neurons_include, :, :]
                 data_eval = data_use_mat_norm[neurons_include, :, :]
@@ -1615,3 +1615,77 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
         flu = flu[:, lm.frames_map[frames]]
     
     return flu
+
+def select_cells_and_frames(lm, region='s1', frames='pre'):
+    flu = lm.flu
+    flu = flu[lm.region_map[region], :, :]
+    flu = flu[:, :, lm.frames_map[frames]]
+    return flu
+
+def get_covariates(lm, region, match_tnums=False):
+    
+    covariate_dict, y = lm.prepare_data(frames='all', model='partial', n_comps_include=0,
+                                        outcomes=['hit', 'miss'],
+                                        region=region, return_matrix=False,
+                                        remove_easy=False)
+    
+    covariate_dict['y'] = y
+    
+    if match_tnums:
+        hit_idx = np.where(y==1)[0]
+        miss_idx = np.where(y==0)[0]
+        n_misses = len(miss_idx)
+        assert False, 'ensure n_misses > n_hits, replace False in choice? '
+        hit_idx = np.random.choice(hit_idx, size=n_misses)
+        keep_idx = np.hstack((hit_idx, miss_idx))
+        covariate_dict = {k:v[keep_idx] for k,v in covariate_dict.items()}
+        y = y[keep_idx]
+    
+        assert sum(y==0) == sum(y==1)
+    
+    return covariate_dict
+
+def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
+    n_sessions = len(cov_dicts)
+    if len(zscore_list) > 0:
+        for zscore_covar_name in zscore_list:
+            if zscore_covar_name in cov_dicts[0].keys():
+                for i_ss in range(n_sessions):
+                    tmp_vcr = cov_dicts[i_ss][zscore_covar_name]
+                    cov_dicts[i_ss][zscore_covar_name] = scipy.stats.zscore(tmp_vcr)
+
+    list_dfs = [pd.DataFrame(v) for v in cov_dicts.values()]
+    super_df = pd.concat(list_dfs, ignore_index=True)
+    return super_df
+
+def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates', 
+                          include_150=True, n_bins_covar=10, zscore_covar=False):
+    n_stim_arr = [5, 10, 20, 30, 40, 50]
+    if include_150:
+        n_stim_arr = n_stim_arr + [150]
+    assert (np.unique(super_covar_df['n_cells_stimmed']) == n_stim_arr).all()
+    assert include_150 is True, 'not implemented'
+    n_stim_arr = np.array(n_stim_arr)
+
+    all_cov_arr = np.sort(super_covar_df[cov_name])
+    percentile_arr = np.linspace(100 / n_bins_covar, 100, n_bins_covar)
+    cov_perc_arr = np.array([np.percentile(all_cov_arr, x) for x in percentile_arr])
+    median_cov_perc_arr = np.array([np.percentile(all_cov_arr, x - 5) for x in percentile_arr])
+    mat_fraction = np.zeros((len(n_stim_arr), len(cov_perc_arr)))
+    
+    total_n = 0
+    for i_nstim, n_stim in enumerate(n_stim_arr):
+        prev_perc = np.min(all_cov_arr) - 10
+        for i_cov_perc, cov_perc in enumerate(cov_perc_arr):
+            sub_df = super_covar_df.loc[(super_covar_df['n_cells_stimmed'] == n_stim) &
+                                        (super_covar_df[cov_name] > prev_perc) &
+                                        (super_covar_df[cov_name] <= cov_perc)]          
+            total_n += len(sub_df)
+            if len(sub_df['y']) > 0:
+                fraction_hit_miss = np.sum(sub_df['y']) / len(sub_df['y'])
+            else:
+                fraction_hit_miss = np.nan
+            mat_fraction[i_nstim, i_cov_perc] = fraction_hit_miss
+            prev_perc = cov_perc
+    assert total_n == len(super_covar_df), f'not all rows have been used: {total_n}/{len(super_covar_df)}'
+    return mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr

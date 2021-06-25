@@ -84,8 +84,14 @@ def equal_xy_lims(ax, start_zero=False):
         ax.set_ylim([min_inner_lim, max_outer_lim])
     
 def two_digit_sci_not(x):
-    sci_not_spars = np.format_float_scientific(x, precision=0)
-    sci_not_spars = sci_not_spars[0] + sci_not_spars[2:]  # skip dot
+    sci_not_spars = np.format_float_scientific(x, precision=1)
+    # print(sci_not_spars)
+    if sci_not_spars[2] == 'e':  # exactly precision=0 so one shorter
+        sci_not_spars = sci_not_spars[0] + sci_not_spars[2:]  # skip dot
+    elif sci_not_spars[3] == 'e':  # ceil
+        sci_not_spars = str(int(sci_not_spars[0]) + 1) + sci_not_spars[3:]  # skip dot
+    else:
+        assert False
     return sci_not_spars
 
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
@@ -1680,3 +1686,138 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         name_plot  = '-'.join(tts_plot)
     #     save_figure('Figure2_grandAverageTraces', figure_path)
     
+def firing_rate_dist(lm, region, match_tnums=False, sort=False):
+    
+    flu = pof.select_cells_and_frames(lm, region=region, frames='pre')
+
+    flu = np.mean(flu, 2)  # Mean across time
+
+    miss = flu[:, lm.session.outcome == 'miss']
+    n_misses = miss.shape[1]
+
+    hit = flu[:, lm.session.outcome == 'hit']
+    n_hits = hit.shape[1]
+    
+    if match_tnums:
+        keep_idx = np.random.choice(np.arange(n_hits), size=n_misses, replace=False)
+        hit = hit[:, keep_idx]
+        assert hit.shape == miss.shape
+        
+    # Mean across trials
+    hit = np.mean(hit, 1)
+    miss = np.mean(miss, 1)
+    
+    if sort:
+        hit = np.sort(hit)
+        miss = np.sort(miss)
+
+    fig, ax = plt.subplots(2, 1, figsize=(15,4))
+    
+    ax[1].bar(np.arange(len(miss)), miss, width=2, color=color_tt['miss'], label='miss')
+    ylims = ax[1].get_ylim()
+    ax[1].set_xlabel('Cell ID')
+
+    ax[0].bar(np.arange(len(hit)), hit, width=2, color=color_tt['hit'], label='hit')
+    ax[0].set_ylim(ylims)
+
+
+    ax[1].text(x=-50, y=0.2, s='DF/F meaned across\nframes pre-stim and\nacross trials', 
+             rotation=90)
+
+def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
+                    cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
+    if ax_dict is None:
+        fig, ax = plt.subplots(1, len(cov_names), figsize=(3 * len(cov_names), 2),
+                                gridspec_kw={'wspace': 0.5, 'hspace': 0.3})
+        ax_dict = {}
+        for i_ax, cov_name in enumerate(cov_names):
+            ax_dict[cov_name] = ax[i_ax]
+
+    n_sessions = len(cov_dicts)
+
+    for cov_name in cov_names:
+        tmp_ax = ax_dict[cov_name]
+        all_hit = np.zeros(n_sessions)
+        all_miss = np.zeros(n_sessions)
+        for i_lm, cov_dict in cov_dicts.items():
+            data = scipy.stats.zscore(cov_dict[cov_name])
+            metric_hits = data[cov_dict['y'] == 1]
+            metrics_misses = data[cov_dict['y'] == 0]
+            all_hit[i_lm] = np.mean(metric_hits)
+            all_miss[i_lm] = np.mean(metrics_misses)
+
+        _, p_val = scipy.stats.wilcoxon(all_hit, all_miss) 
+        bool_sign = p_val < (5e-2 / len(cov_names)) # bonferoni correction
+        tmp_ax.scatter(all_hit, all_miss, 
+                    s=80, facecolors=('grey' if bool_sign else 'none'), 
+                    edgecolors=('k' if bool_sign else 'grey'),
+                    linewidth=3)
+        tmp_ax.set_xlim(lims)
+        tmp_ax.set_ylim(lims)
+        tmp_ax.plot(lims, lims, linestyle=(0, (5, 10)), color='grey')
+        tmp_ax.set_xlabel('Hit Trials (z-score)')
+        tmp_ax.set_ylabel('Miss Trials (z-score)')
+
+        
+        tmp_ax.set_title(f'{cov_name}\nP < {two_digit_sci_not(p_val)}')
+
+def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
+                        one_sided_ws=20, ax=None):
+    if ax is None:
+        ax = plt.subplot(111)
+    n_sessions = len(cov_dicts)
+    for i_ss in range(n_sessions):
+
+        tmp_vcr = cov_dicts[i_ss][cov_name]
+        if zscore_covar:
+            tmp_vcr = scipy.stats.zscore(tmp_vcr)
+        tmp_y = cov_dicts[i_ss]['y']  #0 = miss, 1= hit
+        assert len(tmp_vcr) == len(tmp_y)
+
+        sorted_inds_vcr = np.argsort(tmp_vcr)  # sort by covar value 
+        sorted_vcr = tmp_vcr[sorted_inds_vcr]
+        sorted_y = tmp_y[sorted_inds_vcr]
+
+        n_dp = len(sorted_y)
+        av_vcr_arr = np.zeros(n_dp - 2 * one_sided_ws)  # take centered running mean with size stated
+        av_y_arr = np.zeros(n_dp - 2 * one_sided_ws)
+        i_dp = 0
+        for i_cdp in range(one_sided_ws, n_dp - one_sided_ws):  # running mean 
+            wind_inds = np.arange(i_cdp - one_sided_ws, i_cdp + one_sided_ws)  # window 
+            av_vcr = np.mean(sorted_vcr[wind_inds])
+            av_y = np.mean(sorted_y[wind_inds])
+            av_vcr_arr[i_dp] = av_vcr
+            av_y_arr[i_dp] = av_y
+            i_dp += 1
+
+        ax.plot(av_vcr_arr, av_y_arr, label=f'session {i_ss}', linewidth=3)
+    if zscore_covar:
+        ax.set_xlabel(f'z-scored {cov_name}')
+    else:
+        ax.set_xlabel(f'{cov_name}')
+    ax.set_ylabel('Probability Hit')
+    ax.set_ylim([0, 1])
+    ax.set_title('P(Hit) as function of VCR for each session')
+    despine(ax)
+
+def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
+                                covar_name='variance_cell_rates', zscored_covar=True):
+    (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
+        n_stim_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
+                                             n_bins_covar=n_bins_covar)
+
+    if ax is None:
+        ax = plt.subplot(111)
+    
+    sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1, cbar_kws={'label': 'Probability Hit'},
+                cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
+    ax.invert_yaxis()
+    ax.set_yticklabels(n_stim_arr, rotation=0)
+    ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr]);
+    if zscored_covar:
+        ax.set_xlabel(f'Binned z-scored {covar_name}')
+    else:
+        ax.set_xlabel(f'Binned {covar_name}')
+    ax.set_ylabel('Number of cells stimulated')
+    ax.set_title('P(Hit) as a function of VCR (x axis) and N_stim (y axis)')
+
