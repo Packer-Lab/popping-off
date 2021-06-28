@@ -1818,12 +1818,12 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
                     cbar_kws={'label': 'Probability Hit'},
                     cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
-        ax.set_title('P(Hit) as a function of VCR (x axis) and N_stim (y axis)')
+        ax.set_title('P(Hit) as a function of VCR and N_stim')
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
                     cmap='magma')
-        ax.set_title('Number of trials as a function of VCR (x axis) and N_stim (y axis)')
+        ax.set_title('Occupancy as a function of VCR and N_stim')
     
     ax.invert_yaxis()
     ax.set_yticklabels(n_stim_arr, rotation=0)
