@@ -1801,7 +1801,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         ax.set_xlabel(f'{cov_name}')
     ax.set_ylabel('Probability Hit')
     ax.set_ylim([0, 1])
-    ax.set_title(f'P(Hit) as function of VCR for each session\n({int(2 * one_sided_ws)}-trial running mean used.)')
+    ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)')
     despine(ax)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
@@ -1816,13 +1816,13 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
     
     if metric == 'fraction_hit':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
-                    cbar_kws={'label': 'Probability Hit'},
+                    cbar_kws={'label': 'Probability Hit'}, rasterized=False,
                     cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
         ax.set_title('P(Hit) as a function of VCR and N_stim')
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
-                    cmap='magma')
+                    cmap='magma', rasterized=False)
         ax.set_title('Occupancy as a function of VCR and N_stim')
     
     ax.invert_yaxis()
@@ -1840,10 +1840,28 @@ def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
     ax.hist(super_covar_df[covar_name], bins=20)
     if covar_name == 'variance_cell_rates':
         ax.set_xlabel('VCR')
-        ax.set_title(f'z scored logged VCR across {len(super_covar_df)} trials')
+        ax.set_title(f'z scored logged VCR across \n{len(super_covar_df)} trials')
     else:
         ax.set_xlabel(covar_name)
-        ax.set_title(f'{covar_name} across {len(super_covar_df)} trials')
+        ax.set_title(f'{covar_name} across\n{len(super_covar_df)} trials')
     ax.set_ylabel('Frequency')
     
     despine(ax)
+
+def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=None):
+    if ax is None:
+        ax = plt.subplot(111)
+    assert (super_covar_df_dict['s1']['n_cells_stimmed'] == super_covar_df_dict['s2']['n_cells_stimmed']).all()
+
+    ax.plot(super_covar_df_dict['s1'][cov_name], super_covar_df_dict['s2'][cov_name],
+            '.')
+    pearson_r, pearson_p = scipy.stats.pearsonr(super_covar_df_dict['s1'][cov_name], 
+                                                super_covar_df_dict['s2'][cov_name])
+    ax.annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, P < {two_digit_sci_not(pearson_p)}',
+                          xy=(0.05, 1), xycoords='axes fraction')
+    
+
+    despine(ax)
+    ax.set_xlabel(f'S1 {cov_name}')
+    ax.set_ylabel(f'S2 {cov_name}')
+    ax.set_title(f'S1 vs S2 {cov_name}\n')
