@@ -1752,8 +1752,12 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                     s=80, facecolors=('grey' if bool_sign else 'none'), 
                     edgecolors=('k' if bool_sign else 'grey'),
                     linewidth=3)
-        tmp_ax.set_xlim(lims)
-        tmp_ax.set_ylim(lims)
+        if lims is not None:
+            tmp_ax.set_xlim(lims)
+            tmp_ax.set_ylim(lims)
+        else:
+            equal_xy_lims(tmp_ax)
+            lims = tmp_ax.get_xlim()
         tmp_ax.plot(lims, lims, linestyle=(0, (5, 10)), color='grey')
         tmp_ax.set_xlabel('Hit Trials (z-score)')
         tmp_ax.set_ylabel('Miss Trials (z-score)')
@@ -1790,14 +1794,14 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
             av_y_arr[i_dp] = av_y
             i_dp += 1
 
-        ax.plot(av_vcr_arr, av_y_arr, label=f'session {i_ss}', linewidth=3)
+        ax.plot(av_vcr_arr, av_y_arr, label=f'session {i_ss}', linewidth=3, alpha=0.7)
     if zscore_covar:
         ax.set_xlabel(f'z-scored {cov_name}')
     else:
         ax.set_xlabel(f'{cov_name}')
     ax.set_ylabel('Probability Hit')
     ax.set_ylim([0, 1])
-    ax.set_title('P(Hit) as function of VCR for each session')
+    ax.set_title(f'P(Hit) as function of VCR for each session\n({int(2 * one_sided_ws)}-trial running mean used.)')
     despine(ax)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
@@ -1814,10 +1818,12 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
                     cbar_kws={'label': 'Probability Hit'},
                     cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
+        ax.set_title('P(Hit) as a function of VCR (x axis) and N_stim (y axis)')
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
-                    cbar_kws={'label': 'number of trials per bin'},
+                    cbar_kws={'label': 'Number of trials per bin'},
                     cmap='magma')
+        ax.set_title('Number of trials as a function of VCR (x axis) and N_stim (y axis)')
     
     ax.invert_yaxis()
     ax.set_yticklabels(n_stim_arr, rotation=0)
@@ -1827,5 +1833,17 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
     else:
         ax.set_xlabel(f'Binned {covar_name}')
     ax.set_ylabel('Number of cells stimulated')
-    ax.set_title('P(Hit) as a function of VCR (x axis) and N_stim (y axis)')
 
+def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
+    if ax is None:
+        ax = plt.subplot(111)
+    ax.hist(super_covar_df[covar_name], bins=20)
+    if covar_name == 'variance_cell_rates':
+        ax.set_xlabel('VCR')
+        ax.set_title(f'z scored logged VCR across {len(super_covar_df)} trials')
+    else:
+        ax.set_xlabel(covar_name)
+        ax.set_title(f'{covar_name} across {len(super_covar_df)} trials')
+    ax.set_ylabel('Frequency')
+    
+    despine(ax)

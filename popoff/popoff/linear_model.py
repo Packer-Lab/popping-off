@@ -481,7 +481,7 @@ class LinearModel():
         # times_use inherited from AverageTraces
 
         # 2 seconds pre-stimulus with a buffer to the artifact just in case
-        self.pre = np.logical_and(self.times_use < -0.07, self.times_use >= -2.1)
+        self.pre = np.logical_and(self.times_use < -0.02, self.times_use >= -0.7)
 
         long_post = True
         if long_post:
