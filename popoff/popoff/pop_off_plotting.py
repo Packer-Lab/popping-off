@@ -1326,6 +1326,9 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
     elif decoder_key == 'hit/cr':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
         top_yax_tt = 'Hit'
+    elif decoder_key == 'hit/cr 10 trials':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
     elif decoder_key == 'miss/cr':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}
         top_yax_tt = 'Miss'

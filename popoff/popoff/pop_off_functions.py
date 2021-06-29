@@ -330,9 +330,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 # print('start', len(trial_inds))#, session.outcome[trial_inds])
                 dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                 if 'spont' not in list_tt_training:
-                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
-                    # min_n_trials = 10  # use to control for n_trials of spont
-                    # print('only using 10 trials!!)
+                    # min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    min_n_trials = 10  # use to control for n_trials of spont
+                    print('only using 10 trials per trial type!!')
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
