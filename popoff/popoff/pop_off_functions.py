@@ -225,7 +225,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         list_test.remove('stim')
     if len(np.unique(dec_response_list)) < 2 and 'dec' in list_test:
         list_test.remove('dec')
-
+    
     # if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
     #     list_test = ['stim']  # remove dec because both are dec=1
     # elif 'hit' in list_tt_training and 'fp' in list_tt_training and len(list_test) == 2:
@@ -313,7 +313,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
                 equalize_n_trials_per_tt = True
                 if equalize_n_trials_per_tt:
-                    # print('start', len(trial_inds), session.outcome[trial_inds])
+                    # print('start', len(trial_inds))#, session.outcome[trial_inds])
                     dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                     if 'spont' not in list_tt_training:
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
@@ -331,9 +331,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
                         new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
                     trial_inds = trial_inds[new_trial_inds]
-                    # print('end', len(trial_inds), session.outcome[trial_inds])
-                
-                # np.random.shuffle(trial_inds)
+                    # print('end', len(trial_inds))#, session.outcome[trial_inds])
                 
                 ## set evaluation only indices
                 eval_only_inds = np.concatenate((np.where(session.autorewarded == True)[0],
@@ -369,17 +367,18 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 data_eval = data_eval[:, eval_only_inds, :]
                 assert data_spont.ndim == 3
                 n_spont_trials = data_spont.shape[1]
+                assert n_spont_trials == 10 or n_spont_trials == 9
                 if n_spont_trials == 0:
                     print('NO SPONT TRIALS in ', session)
 
                 if spont_used_for_training:
                     data_use = np.hstack((data_use, data_spont))
                     trial_outcomes = np.concatenate((trial_outcomes, ['spont'] * n_spont_trials))
-                    stim_trials = np.concatenate((session.photostim[trial_inds], np.zeros(n_spont_trials)))
-                    dec_trials = np.concatenate((session.decision[trial_inds], np.ones(n_spont_trials)))
+                    stim_trials = np.concatenate((session.photostim[trial_inds], np.zeros(n_spont_trials, dtype='int')))
+                    dec_trials = np.concatenate((session.decision[trial_inds], np.ones(n_spont_trials, dtype='int')))
 
-                    detailed_ps_labels = np.concatenate((session.trial_subsets[trial_inds].astype('int'), np.zeros(n_spont_trials)))
-                    rewarded_trials = np.concatenate((np.array([x in ['hit', 'too_', 'arm'] for x in session.outcome[trial_inds]]), np.ones(n_spont_trials)))
+                    detailed_ps_labels = np.concatenate((session.trial_subsets[trial_inds].astype('int'), np.zeros(n_spont_trials, dtype='int')))
+                    rewarded_trials = np.concatenate((np.array([x in ['hit', 'too_', 'arm'] for x in session.outcome[trial_inds]]), np.ones(n_spont_trials, dtype='int')))
                     # if hitspont_only:
                     #     assert len(rewarded_trials) == np.sum(rewarded_trials)
                     autorewarded = np.concatenate((session.autorewarded[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
@@ -463,6 +462,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         # cw_dict = {ww: np.sum(train_labels[x] == ww) / len(train_labels[x]) for ww in [0, 1]}
                         dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                         X=train_data.transpose(), y=train_labels[x])
+                        print(np.unique(train_labels[x]))
                         if return_decoder_weights:
                             dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 
