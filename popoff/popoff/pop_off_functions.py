@@ -161,7 +161,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             return_decoder_weights=False, zscore_data=False,
                             n_split=4, include_autoreward=False, include_unrewardedhit=False,
                             neurons_selection='all', include_too_early=False,
-                            C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different'):
+                            C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different',
+                            concatenate_sessions_per_mouse=True):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
     are folded n_split times (stratified over session.outcome), new decoders
@@ -241,17 +242,31 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     for nn in ['dec', 'stim', 'reward']:
         name_list.append('true_' + nn)  # ground truth
 
-    mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     df_prediction_train, df_prediction_test = dict(), dict()
-    if verbose >= 2:
-        print(mouse_list)
     if return_decoder_weights:
         dec_weights = {xx: {} for xx in list_test}
+    
+    if concatenate_sessions_per_mouse:
+        mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+    else:
+        mouse_list = [ss.signature for ss in sessions.values()]    
+    
+    angle_decoders = np.zeros((len(sessions), n_split))
     for mouse in mouse_list:
-        angle_decoders = np.zeros((len(sessions), n_split))
         dict_predictions_train, dict_predictions_test = create_dict_pred(nl=name_list, train_proj=train_projected, lt=list_test)
         dict_predictions_test['used_for_training'] = np.array([])
-        for i_session, session in sessions.items():  # loop through sessions/runs and concatenate results (in dicts)
+        if concatenate_sessions_per_mouse:  # get sessions that correspond to this mouse identity 
+            curr_sessions = {i_session: session for i_session, session in sessions.items() if session.mouse == mouse}
+        else:  # get the one session that corresponds to this session signature (called mouse_list for historical reasons)
+            curr_sessions = {i_session: session for i_session, session in sessions.items() if session.signature == mouse}
+        for i_session, session in curr_sessions.items():  # loop through sessions/runs and concatenate results (in dicts)
+            
+            # if session.mouse == mouse:
+            if concatenate_sessions_per_mouse:
+                assert session.mouse == mouse
+            else:
+                assert session.signature == mouse 
+                assert len(curr_sessions) == 1
             if verbose >= 1:
                 print(f'Mouse {mouse}, Starting loop {i_session + 1}/{len(sessions)}')
             if trial_times_use is None:
@@ -461,7 +476,6 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     # cw_dict = {ww: np.sum(train_labels[x] == ww) / len(train_labels[x]) for ww in [0, 1]}
                     dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                     X=train_data.transpose(), y=train_labels[x])
-                    print(np.unique(train_labels[x]))
                     if return_decoder_weights:
                         dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 
@@ -762,122 +776,126 @@ def class_av_mean_accuracy(binary_truth, estimate):
         return mean_acc_false, std_acc_false
 
 ## Main function to compute accuracy of decoders per time point
-def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
-                                region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
-    """Compute accuracy of decoders for all time steps in time_array, for all sessions
-    Idea is that results here are concatenated overall, not saved per mouse only but
-    this needs checking #TODO
+# def compute_accuracy_time_array(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
+#                                 region_list=['s1', 's2'], regularizer=0.02, projected_data=False):
+#     """
+#     Deprecated now that compute_accuracy_time_array_average_per_mouse() also computes per sessions
+#     
+#     Compute accuracy of decoders for all time steps in time_array, for all sessions
+#     Idea is that results here are concatenated overall, not saved per mouse only but
+#     this needs checking #TODO
 
-    Parameters
-    ----------
-    sessions : dict of Session
-            data
-    time_array : np.array
-         array of time points to evaluate
-    average_fun : function
-        function that computes accuracy metric
-    reg_type : str, 'l2' or 'none'
-        type of regularisation
-    region_list : str, default=['s1', 's2']
-        list of regions to compute
-    regularizer : float
-        if reg_type == 'l2', this is the reg strength (C in scikit-learn)
-    projected_data : bool, default=False
-        if true, also compute test prediction on projected data (see train_test_all_sessions())
+#     Parameters
+#     ----------
+#     sessions : dict of Session
+#             data
+#     time_array : np.array
+#          array of time points to evaluate
+#     average_fun : function
+#         function that computes accuracy metric
+#     reg_type : str, 'l2' or 'none'
+#         type of regularisation
+#     region_list : str, default=['s1', 's2']
+#         list of regions to compute
+#     regularizer : float
+#         if reg_type == 'l2', this is the reg strength (C in scikit-learn)
+#     projected_data : bool, default=False
+#         if true, also compute test prediction on projected data (see train_test_all_sessions())
 
-    Returns
-    -------
-    tuple
-        (lick_acc,
-            lick accuracy of lick decoder per mouse/session
-        lick_acc_split,
-            lick accuracy split by trial type
-        ps_acc,
-            ps accuracy
-        ps_acc_split,
-            ps accuracy split by lick trial type
-        lick_half,
-            accuracy of naive fake data
-        angle_dec,
-            angle between decoders
-        decoder_weights)
-            weights of decoders
+#     Returns
+#     -------
+#     tuple
+#         (lick_acc,
+#             lick accuracy of lick decoder per mouse/session
+#         lick_acc_split,
+#             lick accuracy split by trial type
+#         ps_acc,
+#             ps accuracy
+#         ps_acc_split,
+#             ps accuracy split by lick trial type
+#         lick_half,
+#             accuracy of naive fake data
+#         angle_dec,
+#             angle between decoders
+#         decoder_weights)
+#             weights of decoders
 
-    """
-    mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
-    stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
-    tt_list = ['hit', 'fp', 'miss', 'cr']
-    dec_list = [0, 1]  # hard_coded!!
-    mouse_s_list = []
-    for mouse in mouse_list:
-        for reg in region_list:
-            mouse_s_list.append(mouse + '_' + reg)
-    n_timepoints = len(time_array)
-    signature_list = [session.signature for _, session in sessions.items()]
+#     """
+#     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+#     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
+#     tt_list = ['hit', 'fp', 'miss', 'cr']
+#     dec_list = [0, 1]  # hard_coded!!
+#     mouse_s_list = []
+#     for mouse in mouse_list:
+#         for reg in region_list:
+#             mouse_s_list.append(mouse + '_' + reg)
+#     n_timepoints = len(time_array)
+#     signature_list = [session.signature for _, session in sessions.items()]
 
-    lick_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list} #mean, std
-#     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in stim_list}  # split per ps conditoin
-    lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in tt_list}  # split per tt
-    lick_half = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}  # naive with P=0.5 for 2 options (lick={0, 1})
-    ps_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
-    ps_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in dec_list}  # split per lick conditoin
-    angle_dec = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
-    decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
-                       's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
-                       's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
-                       's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
+#     lick_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list} #mean, std
+# #     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in stim_list}  # split per ps conditoin
+#     lick_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in tt_list}  # split per tt
+#     lick_half = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}  # naive with P=0.5 for 2 options (lick={0, 1})
+#     ps_acc = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
+#     ps_acc_split = {x: {reg: np.zeros((n_timepoints, 2)) for reg in region_list} for x in dec_list}  # split per lick conditoin
+#     angle_dec = {reg: np.zeros((n_timepoints, 2)) for reg in region_list}
+#     decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+#                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
+#                        's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+#                        's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
 
-    for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
+#     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
 
-        for reg in region_list:
-            df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
-            df_prediction_train, df_prediction_test[reg][tp], dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
-                                                          verbose=0, include_150=False,
-                                                          include_autoreward=False, C_value=regularizer, reg_type=reg_type,
-                                                          train_projected=projected_data, return_decoder_weights=True,
-                                                          neurons_selection=reg)
-            for xx in ['stim', 'dec']:
-                for signat in signature_list:
-                    decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
+#         for reg in region_list:
+#             df_prediction_test = {reg: {}}  # necessary for compability with violin plot df custom function
+#             df_prediction_train, df_prediction_test[reg][tp], dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+#                                                           verbose=0, include_150=False,
+#                                                           include_autoreward=False, C_value=regularizer, reg_type=reg_type,
+#                                                           train_projected=projected_data, return_decoder_weights=True,
+#                                                           neurons_selection=reg)
+#             for xx in ['stim', 'dec']:
+#                 for signat in signature_list:
+#                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
 
-            tmp_dict = make_violin_df_custom(input_dict_df=df_prediction_test,
-                                           flat_normalise_ntrials=False, verbose=0)
-            total_df_test = tmp_dict[tp]
-            lick = total_df_test['true_dec_test'].copy()
-            ps = (total_df_test['true_stim_test'] > 0).astype('int').copy()
-            if projected_data is False:
-                pred_lick = total_df_test['pred_dec_test'].copy()
-            else:
-                pred_lick = total_df_test['pred_dec_test_proj']
-            lick_half[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=(np.zeros_like(lick) + 0.5))  # control for P=0.5
-            lick_acc[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=pred_lick)
+#             tmp_dict = make_violin_df_custom(input_dict_df=df_prediction_test,
+#                                            flat_normalise_ntrials=False, verbose=0)
+#             total_df_test = tmp_dict[tp]
+#             lick = total_df_test['true_dec_test'].copy()
+#             ps = (total_df_test['true_stim_test'] > 0).astype('int').copy()
+#             if projected_data is False:
+#                 pred_lick = total_df_test['pred_dec_test'].copy()
+#             else:
+#                 pred_lick = total_df_test['pred_dec_test_proj']
+#             lick_half[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=(np.zeros_like(lick) + 0.5))  # control for P=0.5
+#             lick_acc[reg][i_tp, :] = average_fun(binary_truth=lick, estimate=pred_lick)
 
-            for x, arr in lick_acc_split.items():
-                arr[reg][i_tp, :] = average_fun(binary_truth=lick[np.where(total_df_test['outcome_test'] == x)[0]],
-                                          estimate=pred_lick[np.where(total_df_test['outcome_test'] == x)[0]])
+#             for x, arr in lick_acc_split.items():
+#                 arr[reg][i_tp, :] = average_fun(binary_truth=lick[np.where(total_df_test['outcome_test'] == x)[0]],
+#                                           estimate=pred_lick[np.where(total_df_test['outcome_test'] == x)[0]])
 
-            if 'pred_stim_test' in total_df_test.columns:
-                if projected_data is False:
-                    pred_ps = total_df_test['pred_stim_test']
-                else:
-                    pred_ps = total_df_test['pred_stim_test_proj']
-                ps_acc[reg][i_tp, :] = average_fun(binary_truth=ps, estimate=pred_ps)
+#             if 'pred_stim_test' in total_df_test.columns:
+#                 if projected_data is False:
+#                     pred_ps = total_df_test['pred_stim_test']
+#                 else:
+#                     pred_ps = total_df_test['pred_stim_test_proj']
+#                 ps_acc[reg][i_tp, :] = average_fun(binary_truth=ps, estimate=pred_ps)
 
-                for x, arr in ps_acc_split.items():
-                    arr[reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
-                                              estimate=pred_ps[lick == x])
-            tmp_all_angles = np.array([])
-            for mouse in df_prediction_train.keys():
-                tmp_all_angles = np.concatenate((tmp_all_angles, df_prediction_train[mouse]['angle_decoders']))
-            angle_dec[reg][i_tp, 0] = mean_angle(tmp_all_angles)  # not sure about periodic std????
+#                 for x, arr in ps_acc_split.items():
+#                     arr[reg][i_tp, :] = average_fun(binary_truth=ps[lick == x],
+#                                               estimate=pred_ps[lick == x])
+#             tmp_all_angles = np.array([])
+#             for mouse in df_prediction_train.keys():
+#                 tmp_all_angles = np.concatenate((tmp_all_angles, df_prediction_train[mouse]['angle_decoders']))
+#             angle_dec[reg][i_tp, 0] = mean_angle(tmp_all_angles)  # not sure about periodic std????
 
-    return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
+#     return (lick_acc, lick_acc_split, ps_acc, ps_acc_split, lick_half, angle_dec, decoder_weights)
 
 ## Main function to compute accuracy of decoders per time point
 def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
                                                   region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False,
                                                   list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'],
-                                                  tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont']):
+                                                  tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont'],
+                                                  concatenate_sessions_per_mouse=True):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
     Parameters
@@ -916,7 +934,10 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
             weights of decoders
 
     """
-    mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+    if concatenate_sessions_per_mouse:
+        mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+    else:
+        mouse_list = [ss.signature for ss in sessions.values()]   
     stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
     dec_list = [0, 1]  # hard_coded!!
     mouse_s_list = []
@@ -950,7 +971,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                                                         verbose=0, include_150=False, list_tt_training=list_tt_training,
                                                                                         include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                                                         train_projected=projected_data, return_decoder_weights=True,
-                                                                                        neurons_selection=reg)
+                                                                                        neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse)
             for xx in dec_w.keys():
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
@@ -1079,6 +1100,7 @@ def make_violin_df_custom(input_dict_df, flat_normalise_ntrials=False, verbose=0
     if not bool_two_regions:
         assert (region_list == ['s1']) or (region_list == ['s2'])
     timepoints = list(dict_df[region_list[0]].keys())
+    assert False, 'check if mouse_list definition is still valid after change with concatenate_sessions per mice'
     mouse_list = list(dict_df[region_list[0]][timepoints[0]].keys())
     n_multi = {}
     mouse_multi = 1

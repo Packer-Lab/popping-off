@@ -343,7 +343,6 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
     time_2 = time_array[time_breakpoint:]
 
     mouse_list = list(plot_array.keys())  # all data sets (including _s1 and _s2 )
-    # mouse_list = ['J065_s1', 'J065_s2']
     assert mouse_list[0][:-2] == mouse_list[1][:-2] and mouse_list[0][-2:] == 's1' and mouse_list[1][-2:] == 's2'
     region_list = np.array(region_list)
     if plot_diff_s1s2:
@@ -375,16 +374,18 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                             markersize=12, color=ccolor, label=None, alpha=0.2)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
                             markersize=12, alpha=0.8, label=mouse, color=ccolor)
+    for reg in region_list:
+        assert count_means[reg] == all_means[reg].shape[0]
     for reg in average_mean.keys():
         average_mean[reg] = average_mean[reg] / count_means[reg]
-    # print(average_mean)
+    
     if plot_groupav:
         #         region_hatch = {'s1': '/', 's2': "\ " }
         if plot_diff_s1s2 is False:
             for rr, av_mean in average_mean.items():
                 # av_mean[2:-2] = np.convolve(av_mean, np.ones(window_size), mode='valid') / window_size
                 if rr in region_list:
-                    std_means = np.std(all_means[rr], 0) / 2
+                    std_means = np.std(all_means[rr], 0) / np.sqrt(count_means[rr]) * 1.96  # 95% CI
                     if plot_errorbar is False:  # plot group means
                         ax.plot(time_1, av_mean[:time_breakpoint],  linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
@@ -1236,15 +1237,16 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
     return ax
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
-                                      smooth_traces=True, one_sided_window_size=1,
+                                      smooth_traces=True, one_sided_window_size=1, ax_acc_ps=None,
                                       plot_std_area=True, plot_indiv=False, title_lick_dec=False,
                                       fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit'):
-    fig = plt.figure(constrained_layout=False, figsize=(12, 4))
-    gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
-                            bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
-    ax_acc_ps = {}
+    
+    if ax_acc_ps is None:
+        fig = plt.figure(constrained_layout=False, figsize=(12, 4))
+        gs_top = fig.add_gridspec(ncols=2, nrows=1, wspace=0.3,
+                                bottom=0.15, top=0.9, left=0.10, right=0.9, hspace=0.4)
+        ax_acc_ps = {reg: fig.add_subplot(gs_top[i_reg]) for i_reg, reg in enumerate(['s1', 's2'])}
     for i_reg, reg in enumerate(['s1', 's2']):
-        ax_acc_ps[reg] = fig.add_subplot(gs_top[i_reg])
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split,
                                     reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces,
                                     one_sided_window_size=one_sided_window_size, plot_indiv=plot_indiv,
