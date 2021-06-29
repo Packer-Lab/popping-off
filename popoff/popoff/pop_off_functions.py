@@ -476,6 +476,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     # cw_dict = {ww: np.sum(train_labels[x] == ww) / len(train_labels[x]) for ww in [0, 1]}
                     dec[x] = sklearn.linear_model.LogisticRegression(penalty=reg_type, C=C_value, class_weight='balanced').fit(
                                     X=train_data.transpose(), y=train_labels[x])
+                    # print(train_labels[x])
                     if return_decoder_weights:
                         dec_weights[x][session.signature][i_loop, :] = dec[x].coef_.copy()
 

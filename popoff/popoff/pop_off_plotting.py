@@ -292,7 +292,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
 def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='',
             plot_laser=True, ccolor='grey', plot_indiv=False,
             plot_groupav=True, individual_mouse_list=None, plot_errorbar=False,
-            plot_std_area=False, region_list=['s1', 's2'],
+            plot_std_area=False, region_list=['s1', 's2'], time_breakpoint=1, time_breakpoint_postnan=None,
             plot_diff_s1s2=False, freq=30, running_average_smooth=True, one_sided_window_size=1):
     """"Same as plot_interrupted_trace_simple(), but customised to plot_array being a dictionary
     of individual mouse traces. Can plot individual traces & group average.
@@ -337,7 +337,6 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
 
     """
     window_size = int(2 * one_sided_window_size + 1)
-    time_breakpoint = 1
     # time_breakpoint = np.argmax(np.diff(time_array)) + 1# finds the 0, equivalent to art_gap_start
     time_1 = time_array[:time_breakpoint]  # time before & after PS
     time_2 = time_array[time_breakpoint:]
@@ -365,7 +364,12 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                 print('skipping', mouse)
                 continue
             if running_average_smooth:
-                plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
+                if time_breakpoint_postnan is not None and np.sum(np.isnan(time_array)) > 0:
+                    ## filter data points for which time is nan when computing running average
+                    plot_mean[one_sided_window_size:time_breakpoint - one_sided_window_size] = np.convolve(plot_mean[:time_breakpoint], np.ones(window_size), mode='valid') / window_size 
+                    plot_mean[time_breakpoint_postnan + one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean[time_breakpoint_postnan:], np.ones(window_size), mode='valid') / window_size 
+                else:
+                    plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
             average_mean[reg] += plot_mean #/ len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
             all_means[reg][count_means[reg] ,:] = plot_mean.copy()  # save data for std
             count_means[reg] += 1
@@ -1204,6 +1208,16 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                 plot_indiv=False, plot_std_area=True):
     if ax is None:
         ax = plt.subplot(111)
+
+    if np.sum(np.isnan(time_array)) > 0:
+        arr_nan = np.where(np.isnan(time_array))[0]
+        assert len(np.unique(np.diff(arr_nan))) == 1 and np.diff(arr_nan)[0] == 1
+        time_breakpoint = arr_nan[0]
+        time_breakpoint_postnan = arr_nan[-1]
+    else:
+        time_breakpoint = 1
+        time_breakpoint_postnan = None
+
     plot_interrupted_trace_simple(ax=ax, time_array=time_array,
                                     plot_array=np.zeros_like(time_array) + 0.5,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
@@ -1211,7 +1225,8 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
                             ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_laser=False, #i_lick,
                             plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
-                            running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size)
+                            running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size,
+                            time_breakpoint=time_breakpoint, time_breakpoint_postnan=time_breakpoint_postnan)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
     if plot_indiv is False:
         ax.legend(loc='upper left', frameon=False); 
@@ -1238,8 +1253,8 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1, ax_acc_ps=None,
-                                      plot_std_area=True, plot_indiv=False, title_lick_dec=False,
-                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit'):
+                                      plot_std_area=True, plot_indiv=False, title_lick_dec=False, plot_legend=True,
+                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit', xlims=[-3, 4]):
     
     if ax_acc_ps is None:
         fig = plt.figure(constrained_layout=False, figsize=(12, 4))
@@ -1261,32 +1276,86 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
 
         ax_acc_ps[reg].set_ylim([0, 1])
         ax_acc_ps[reg].tick_params(reset=True, top=False, right=False)
-        ax_acc_ps[reg].spines['top'].set_visible(False)
-        ax_acc_ps[reg].spines['right'].set_visible(False)
-        
+        despine(ax_acc_ps[reg])
         ax_acc_ps[reg].set_xlim([-4, 6]) 
         ax_acc_ps[reg].set_xticks(np.arange(10) - 3)
-        ax_acc_ps[reg].arrow(-3.1, 0.52, 0, 0.4, head_width=0.3, head_length=0.05, linewidth=3,
-                        color=color_tt[top_yax_tt.lower()], length_includes_head=True, clip_on=False)
-        ax_acc_ps[reg].arrow(-3.1, 0.48, 0, -0.4, head_width=0.3, head_length=0.05, linewidth=3,
-                        color=color_tt[bottom_yax_tt.lower()], length_includes_head=True, clip_on=False)
-        ax_acc_ps[reg].text(s=top_yax_tt, x=-3.7, y=0.73, rotation=90, 
-                        fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[top_yax_tt.lower()]})
-        ax_acc_ps[reg].text(s=bottom_yax_tt, x=-3.7, y=0.33, rotation=90, 
-                        fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
+        if xlims == [-3, 4]:
+            ax_acc_ps[reg].arrow(-2.15, 0.52, 0, 0.4, head_width=0.3, head_length=0.05, linewidth=3,
+                            color=color_tt[top_yax_tt.lower()], length_includes_head=True, clip_on=False)
+            ax_acc_ps[reg].arrow(-2.15, 0.48, 0, -0.4, head_width=0.3, head_length=0.05, linewidth=3,
+                            color=color_tt[bottom_yax_tt.lower()], length_includes_head=True, clip_on=False)
+            ax_acc_ps[reg].text(s=top_yax_tt, x=-2.75, y=0.73, rotation=90, 
+                            fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[top_yax_tt.lower()]})
+            ax_acc_ps[reg].text(s=bottom_yax_tt, x=-2.75, y=0.33, rotation=90, 
+                            fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
+        elif xlims == [-2, 2]:
+            ax_acc_ps[reg].arrow(-1.65, 0.52, 0, 0.4, head_width=0.15, head_length=0.05, linewidth=3,
+                            color=color_tt[top_yax_tt.lower()], length_includes_head=True, clip_on=False)
+            ax_acc_ps[reg].arrow(-1.65, 0.48, 0, -0.4, head_width=0.15, head_length=0.05, linewidth=3,
+                            color=color_tt[bottom_yax_tt.lower()], length_includes_head=True, clip_on=False)
+            ax_acc_ps[reg].text(s=top_yax_tt, x=-1.75, y=0.73, rotation=90, 
+                            fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[top_yax_tt.lower()]})
+            ax_acc_ps[reg].text(s=bottom_yax_tt, x=-1.75, y=0.33, rotation=90, 
+                            fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
         if title_lick_dec:
             ax_acc_ps[reg].set_title(f'Dynamic lick decoding in {reg.upper()}', fontdict={'weight': 'bold'})
-            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of licking P(lick)')
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis')
         else:
-            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis\nProbability of stimulus P(PS)')
+            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis')
         
-    ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
+    if plot_legend:
+        ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
+    else:
+        ax_acc_ps['s1'].get_legend().remove()
     ax_acc_ps['s2'].get_legend().remove()
     if save_fig:
         fn = f'dyn-dec_{int(len(ps_acc_split["hit"]) / 2)}-mice_{fn_suffix}'
         plt.savefig(f'/home/tplas/repos/popping-off/figures/dyn_decoding/{fn}.pdf', bbox_to_inches='tight')
 
     return ax_acc_ps
+
+def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, decoder_key='hit/cr',
+                                              plot_tt=['hit', 'spont', 'miss', 'fp', 'cr'], 
+                                              ax_acc_ps=None, time_array=None, smooth_traces=True,
+                                              one_sided_window_size=2, plot_indiv=False, plot_legend=True,
+                                              indicate_spont=False, indicate_fp=False, xlims=[-3, 4]):
+    ## Plot:
+    if decoder_key == 'spont/cr':  
+        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
+        top_yax_tt = 'Spont'
+    elif decoder_key == 'hit/cr':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
+    elif decoder_key == 'miss/cr':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}
+        top_yax_tt = 'Miss'
+        
+    plot_dynamic_decoding_two_regions(ps_acc_split=plot_dict_split,
+                                        time_array=time_array,
+                                        yaxis_type='prediction', 
+                                        smooth_traces=smooth_traces,
+                                        ax_acc_ps=ax_acc_ps,
+                                        one_sided_window_size=one_sided_window_size,
+                                        save_fig=False,
+                                        fn_suffix='subsampled_SpontCr_10-sessions_ws2',
+                                        top_yax_tt=top_yax_tt,
+                                        plot_indiv=plot_indiv,
+                                        plot_legend=plot_legend,
+                                        plot_std_area=True,
+                                        xlims=xlims)
+
+    if ax_acc_ps is not None:
+        for reg in ['s1', 's2']:
+            add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
+            ax_acc_ps[reg].set_xlim(xlims) 
+            ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', fontdict={'weight': 'bold'}, y=1.05)
+        if indicate_spont:     
+            ax_acc_ps['s1'].text(s='Spont', x=1.8, y=0.32, 
+                                fontdict={'weight': 'bold', 'color': color_tt['spont']})
+        if indicate_fp:     
+            ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62, 
+                                fontdict={'weight': 'bold', 'color': color_tt['fp']})
+
 
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
