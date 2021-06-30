@@ -1604,7 +1604,7 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session=lm.session, 
-                            sort_neurons=False, filter_150_stim=False, start_time=-4)
+                            sort_neurons=False, filter_150_stim=False)
     
     assert (outcome_arr == lm.session.outcome).all()
     # print(np.where(lm.frames_map['pre'])[0])
@@ -1614,7 +1614,7 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
     # Select region and trial outcomes
     if outcome != 'pre_reward':
         flu = data_use_mat_norm  # lm.flu
-        assert data_use_mat_norm.shape == lm.flu.shape, print(f'{data_use_mat_norm.shape}, {lm.flu.shape}')
+        # assert data_use_mat_norm.shape == lm.flu.shape, print(f'{data_use_mat_norm.shape}, {lm.flu.shape}')
         outcome_bool = lm.session.outcome == outcome
         
         if outcome in ['hit', 'miss']:
@@ -1637,7 +1637,7 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
     if frames != 'all':
         flu = flu[:, lm.frames_map[frames]]
     
-    return flu
+    return flu, time_axis
 
 def select_cells_and_frames(lm, region='s1', frames='pre'):
     flu = lm.flu

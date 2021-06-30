@@ -507,7 +507,8 @@ def transform_suite2p_cell_number(session, n_suite2p):
     assert len(n) == 1, f'Suite2p ID {n_suite2p} not in {session}'
     return int(n[0])
 
-def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.35, demean=True, y_lim=None, osws=3):
+def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.35, 
+                                demean=True, y_lim=None, osws=3):
 
     fig, ax = plt.subplots(2, 3, figsize=(20, 7), gridspec_kw={'hspace': 0.6, 'wspace': 0.4})
 
@@ -591,9 +592,9 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
         sorting = np.argsort(sum_data)
     return sorting
 
-def normalise_raster_data(session, start_time=-2, start_baseline_time=-2.1, end_time=4,
+def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, end_time=4,
                           pre_stim_window=-0.07, post_stim_window=None, filter_150_stim=False,
-                          sorting_method='euclidean', sort_tt_list=['hit'], sort_neurons=True):
+                          sorting_method='euclidean', sort_tt_list=['hit', 'miss', 'spont'], sort_neurons=True):
     '''overrides session.outcome with ARM and URH types!!'''
     if post_stim_window is None:
         if filter_150_stim:
@@ -626,7 +627,7 @@ def normalise_raster_data(session, start_time=-2, start_baseline_time=-2.1, end_
     data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
     # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
     data_spont_mat_norm = data_spont_mat - np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
-
+    
     data_use_mat_norm_s1 = data_use_mat_norm[session.s1_bool, :, :]
     data_use_mat_norm_s2 = data_use_mat_norm[session.s2_bool, :, :]
     outcome_arr = session.outcome
@@ -739,10 +740,14 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
         elif reg == 'S2':
             reg_bool = session.s2_bool
         assert len(np.unique(session.is_target.mean((0, 1)))) == 1  # same for all time points
-        if spec_target_trial is None:
-            neuron_targ = np.mean(session.is_target, (1, 2))
+        if filter_150_artefact:  # 150 not included 
+            target_mat = session.is_target[:, session.photostim < 2, :]
         else:
-            neuron_targ = np.mean(session.is_target, 2)
+            target_mat = session.is_target
+        if spec_target_trial is None:
+            neuron_targ = np.mean(target_mat, (1, 2))
+        else:
+            neuron_targ = np.mean(target_mat, 2)
             neuron_targ = neuron_targ[:, spec_target_trial]
         neuron_targ_reg = neuron_targ[reg_bool]  # select region
         if reg == 'S1':
@@ -1571,12 +1576,21 @@ def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
     if save_fig:
         plt.savefig('figures/average_all_sessions.pdf', bbox_extra_artists=legend_tuple, bbox_inches='tight')
 
-def single_cell_plot(session, cell_id, tt=['hit'], smooth_window=5, remove_easy=False, 
-                     ax=None, plot_ylabel=True, plot_title=False):
+def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_window=5, 
+                     filter_150_stim=False, ylims=(-1, 2), plot_artefact=False,
+                     ax=None, plot_ylabel=True, plot_title=False, plot_indiv=True, 
+                     plot_total_mean=True, plot_n_cell_split=False):
+    assert len(tt) == 1, 'trial types are averaged'
+    if tt[0] == 'prereward':
+        if plot_n_cell_split and not plot_total_mean and not plot_indiv:
+            plot_total_mean = True 
+            plot_n_cell_split = False 
+        elif plot_n_cell_split:
+            plot_n_cell_split = False
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=session, 
-                            sort_neurons=False, filter_150_stim=False, start_time=-4)
+                            sort_neurons=False, filter_150_stim=filter_150_stim)
 
     if ax is None:
         ax = plt.subplot(111)
@@ -1587,29 +1601,53 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_window=5, remove_easy=
         arr = data_spont_mat_norm[cell_id, :, :]  # session.pre_rew_trials[cell_id, :, :]
     else:
         arr = data_use_mat_norm[cell_id, :, :]  #session.behaviour_trials[cell_id, :, :]
-        trial_idx = np.isin(session.outcome, tt)
-        
-        if remove_easy:
-            trial_idx = np.logical_and(trial_idx, session.photostim != 2)
+        trial_idx = np.isin(outcome_arr, tt)
         arr = arr[trial_idx, :]
-    x_axis = copy.deepcopy(session.filter_ps_time)
+        
+        if filter_150_stim:
+            n_cells_stim_per_trial = session.trial_subsets[session.photostim < 2]
+        else:
+            n_cells_stim_per_trial = session.trial_subsets
+        n_cells_stim_arr = n_cells_stim_per_trial[trial_idx]
+    x_axis = copy.deepcopy(time_axis)
 
     ## Remove photostim artefact:
-    remove_photostim = np.logical_or(x_axis < -0.07,
-                                     x_axis > 0.8)
+    if filter_150_stim:
+        remove_photostim = np.logical_or(x_axis <= -0.07,
+                                     x_axis > 0.35)
+    else:
+        remove_photostim = np.logical_or(x_axis <= -0.07,
+                                     x_axis > 0.83)
     if 'prereward' not in tt:
         x_axis[~remove_photostim] = np.nan
 
     ## Plot:
-    for trial in arr: ## individual trials
-        trial = smooth_trace(trial, smooth_window)
-        ax.plot(x_axis, trial, alpha=0.3, color='grey')
-    meaned = smooth_trace(np.mean(arr, 0), smooth_window)
-    if 'prereward' not in tt:
+    if plot_indiv:
+        for i_trial in range(arr.shape[0]): ## individual trials
+            if smooth_traces:
+                trial = smooth_trace(arr[i_trial, :], smooth_window)
+            else:
+                trial = arr[i_trial, :]
+            ax.plot(x_axis, trial, alpha=0.3, color='grey')
+    if plot_total_mean:
+        if smooth_traces:
+            meaned = smooth_trace(np.mean(arr, 0), smooth_window)
+        else:
+            meaned = np.mean(arr, 0)
+        ax.plot(x_axis, meaned, color=color_tt[tt[0]], linewidth=4)  # trial-average
+    
+    if plot_n_cell_split:
+        alpha_arr = np.arange(7) / 7 + 0.3
+        for i_n_cells, n_cells in enumerate(np.unique(n_cells_stim_arr)):
+            trial_inds = np.where(n_cells_stim_arr == n_cells)[0]
+            plot_trace = np.mean(arr[trial_inds, :], 0)
+            plot_trace = smooth_trace(plot_trace, 2)
+            ax.plot(x_axis, plot_trace, alpha=alpha_arr[i_n_cells], color=color_tt[tt[0]], linewidth=3)
+
+    if 'prereward' not in tt and plot_artefact:
         add_ps_artefact(ax=ax, time_axis=x_axis)
-    ax.plot(x_axis, meaned, color=color_tt[tt[0]], linewidth=4)  # trial-average
-    ax.set_xlim(-2, 7)
-    ax.set_ylim(-1, 2.5)
+    ax.set_xlim(-2.1, 4)
+    ax.set_ylim(ylims)
     if plot_title:
         ax.set_title(f'{tt[0]} Trials', fontdict={'color': color_tt[tt[0]]})
     if plot_ylabel:
@@ -1663,7 +1701,7 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
     if plot_logscale:
         ax.set_xscale('log')
 
-def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit'):
+def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', plot_legend=True):
     if ax_s1 is None or ax_s2 is None:
         fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(8, 3), gridspec_kw={'wspace': 0.4})
 
@@ -1691,8 +1729,9 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit')
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
         ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, P < {two_digit_sci_not(pearson_p)}',
                           xy=(0.05,0.91), xycoords='axes fraction')
-    ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.1, 0.54), xycoords='axes fraction')
-    ax_dict['s2'].legend(frameon=False, loc='upper left', bbox_to_anchor=(1, 0.52))
+    if plot_legend:
+        ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.2, 0.77), xycoords='axes fraction')
+        ax_dict['s2'].legend(frameon=False, loc='upper left', bbox_to_anchor=(1.1, 0.75))
 
 def plot_spont(msm, region='s1', direction='positive', ax=None):
     if ax is None:
@@ -1707,24 +1746,23 @@ def plot_spont(msm, region='s1', direction='positive', ax=None):
     ci = np.std(n_responders) / np.sqrt(len(n_responders)) * 1.96
     ax.fill_between([5, 150], [meaned - ci, meaned - ci], [meaned + ci, meaned + ci], 
                      color=color_tt['spont'], alpha=0.2)
-    
 
 
 def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-trials', ax=None, 
-                           plot_ps_artefact=False):
+                           plot_ps_artefact=False, art_150_included=True):
     
     if ax is None:
         ax = plt.subplot(111)        
         
     flu = []
     for lm in msm.linear_models:
-        sf = pof.session_flu(lm, region=region, outcome=outcome, frames=frames, 
+        sf, time_axis = pof.session_flu(lm, region=region, outcome=outcome, frames=frames, 
                          n_cells=n_cells)
         if stack == 'all-trials':
             flu.append(sf)  # stack every trial from every session in a big array
         else:
             flu.append(np.mean(sf, 0))  # stack the session mean into a big array
-    x_axis = copy.deepcopy(lm.session.filter_ps_time)  # use last session, they are all the same 
+    x_axis = copy.deepcopy(time_axis)  # use last session, they are all the same 
     flu = np.vstack(flu)  # Go from list of 2D arrays (trials x time points) to stacked 2D (along trial axis)
     mean_flu = np.mean(flu, 0)  # average across trials
     z = 1.96  # 95% confidence interval value 
@@ -1732,7 +1770,10 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
 
     if outcome != 'pre_reward':
         # Remove the artifact
-        artifact_frames = np.where((lm.times_use > -0.1) & (lm.times_use < 0.83))
+        if art_150_included:
+            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.83))
+        else:
+            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.35))
         mean_flu[artifact_frames] = np.nan
         x_axis[artifact_frames] = np.nan
         label = outcome.capitalize()
@@ -1743,7 +1784,7 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     ax.fill_between(x=x_axis, y1=mean_flu + ci, y2=mean_flu - ci, color=color_tt[outcome], alpha=0.2)
     ax.set_xlabel('Time (seconds)')
     ax.axhline(0, ls=':', color='grey')
-    ax.set_xlim(-2, 6)
+    ax.set_xlim(-2, 4)
     if plot_ps_artefact:
         add_ps_artefact(ax, time_axis=x_axis)
 
@@ -1751,19 +1792,18 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
         ax.set_ylabel(r'$\Delta$F/F')
 
 def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, plot_legend=False,
-                          tts_plot=['hit', 'miss'], frames='all', stack='all-trials'):
+                          tts_plot=['hit', 'miss'], frames='all', stack='all-trials', 
+                          ylims=(-0.05, 0.07)):
     if ax_s1 is None or ax_s2 is None:
         fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(10,3))
 
-    ylims = (-0.05, 0.07)
-    # plt.suptitle(f'Number of cells stimmed = {n_cells}', fontsize=25)
-    
     ## S1 plot
     ax_list = [ax_s1, ax_s2]
     for i_plot, reg in enumerate(['s1', 's2']):
         for tt in tts_plot:
             plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
-                            stack=stack, ax=ax_list[i_plot], plot_ps_artefact=(tt == 'hit'))
+                            stack=stack, ax=ax_list[i_plot], plot_ps_artefact=(tt == 'hit'),
+                            art_150_included=(150 in n_cells))
         ax_list[i_plot].set_title(f'Average activity {reg.upper()}')
         ax_list[i_plot].set_ylim(ylims)
         naked(ax_list[i_plot])
@@ -1773,8 +1813,8 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         lines = leg.get_lines()
         _ = [line.set_linewidth(4) for line in lines]
     else:
-        ax_s1.text(s='Hit', x=5, y=0.052, fontdict={'color': color_tt['hit']})
-        ax_s1.text(s='Miss', x=5, y=0.04, fontdict={'color': color_tt['miss']})
+        ax_s1.text(s='Hit', x=3, y=0.052, fontdict={'color': color_tt['hit']})
+        ax_s1.text(s='Miss', x=3, y=0.04, fontdict={'color': color_tt['miss']})
         ax_s1.text(s='Photostimulation', x=1, y=-0.05, fontdict={'color': color_tt['photostim']})
 
     if save_fig:
@@ -1961,52 +2001,52 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     ax.set_ylabel(f'S2 {cov_name}')
     ax.set_title(f'S1 vs S2 {cov_name}\n')
 
-def get_plot_trace(lm, targets=False, region='s1', remove_easy=False, i_col=0):
+# def get_plot_trace(lm, targets=False, region='s1', filter_150_stim=False, i_col=0):
     
-    global COLOR_IDX
+#     global COLOR_IDX
     
-    if targets:
-        mask = ~lm.session.is_target
-    else:
-        mask = lm.session.is_target
+#     if targets:
+#         mask = ~lm.session.is_target
+#     else:
+#         mask = lm.session.is_target
     
-    flu = lm.flu[lm.region_map[region], :, :]
-    mask = mask[lm.region_map[region], :, :]
+#     flu = lm.flu[lm.region_map[region], :, :]
+#     mask = mask[lm.region_map[region], :, :]
     
-    # Take out catch trials
-    if remove_easy:
-        stim_idx = lm.session.photostim == 1
-    else:
-        stim_idx = lm.session.photostim != 0
+#     # Take out catch trials
+#     if filter_150_stim:
+#         stim_idx = lm.session.photostim == 1
+#     else:
+#         stim_idx = lm.session.photostim != 0
         
-    flu = flu[:, stim_idx, :]
-    mask = mask[:, stim_idx, :]
+#     flu = flu[:, stim_idx, :]
+#     mask = mask[:, stim_idx, :]
     
-    # Fluoresence averaged across cells with (non)targets filtered
-    flu = np.ma.array(flu, mask=mask).mean(0)
-    flu = pof.baseline_subtraction(flu, lm)
+#     # Fluoresence averaged across cells with (non)targets filtered
+#     flu = np.ma.array(flu, mask=mask).mean(0)
+#     flu = pof.baseline_subtraction(flu, lm)
     
-    # x axis in seconds aligned to stim
-    x_axis = (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
-    label = 'Targets' if targets else f'Non Targets {region.upper()}'
+#     # x axis in seconds aligned to stim
+#     x_axis = (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
+#     label = 'Targets' if targets else f'Non Targets {region.upper()}'
     
-    # Need to plot pre and post as two separate lines cos seaborn is uncooperative
-    for idx_frames in [lm.pre, lm.post]:
+#     # Need to plot pre and post as two separate lines cos seaborn is uncooperative
+#     for idx_frames in [lm.pre, lm.post]:
         
-        data = flu[:, idx_frames]
+#         data = flu[:, idx_frames]
         
-        df = pd.DataFrame(data).melt()
-        df['time (seconds)'] = np.repeat(x_axis[idx_frames], data.shape[0])
+#         df = pd.DataFrame(data).melt()
+#         df['time (seconds)'] = np.repeat(x_axis[idx_frames], data.shape[0])
         
-        sns.lineplot(x='time (seconds)', y='value', data=df, color=color_dict_stand[i_col],
-                    label=label)
-        label = None
+#         sns.lineplot(x='time (seconds)', y='value', data=df, color=color_dict_stand[i_col],
+#                     label=label)
+#         label = None
         
-    plt.ylabel(r'$\Delta$F/F')
-    plt.ylim(-0.07, 0.4)
-    plt.xlim(-1,6)
-    legend = plt.legend(bbox_to_anchor=(1.4, 1.3))
-    legend.get_frame().set_facecolor('none')
+#     plt.ylabel(r'$\Delta$F/F')
+#     plt.ylim(-0.07, 0.4)
+#     plt.xlim(-1,6)
+#     legend = plt.legend(bbox_to_anchor=(1.4, 1.3))
+#     legend.get_frame().set_facecolor('none')
 
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
