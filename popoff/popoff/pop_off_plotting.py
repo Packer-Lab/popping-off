@@ -711,7 +711,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
 
     if plot_cbar:
         # plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
-        plt.colorbar(im, ax=ax).set_label('DF/F activity\nnormalised per neuron')
+        plt.colorbar(im, ax=ax).set_label('DF/F activity')# \nnormalised per neuron')
 
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation', fontdict={'weight': 'bold'}, loc=('bottom' if n_stim is not None else 'center'))
@@ -1118,12 +1118,16 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                 elif reg == 's2':
                     data_mat = np.mean(data_spont_mat_norm[session.s2_bool, :, :], 1)  # Spont S2
                     plot_single_raster_plot(data_mat=data_mat[ol_neurons_s2, :], session=session, ax=ax, reg='S2', tt='spont', c_lim=c_lim,
-                                    imshow_interpolation=imshow_interpolation, plot_cbar=True, print_ylabel=False,
+                                    imshow_interpolation=imshow_interpolation, plot_cbar=False, print_ylabel=False,
                                     sort_tt_list=sort_tt_list, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                                     ol_neurons_s2=ol_neurons_s2, time_axis=time_axis, filter_150_artefact=filter_150_stim)
             ax.set_ylabel(f'Sorted {reg.upper()} neurons', fontdict={'weight': 'normal'})
             ax.set_title(f'{label_tt[xx]} {reg.upper()}', fontdict={'color': color_tt[xx]})
+            if reg == 's1':
+                ax.set_yticks(np.arange(int(np.floor(np.sum(session.s1_bool) / 50))) * 50)
+            elif reg == 's2':
+                ax.set_yticks(np.arange(int(np.floor(np.sum(session.s2_bool) / 50))) * 50)
         # ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
         #                 xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
     
