@@ -1572,7 +1572,8 @@ def transfer_dict(msm, region, direction='positive'):
     for both hit and miss trials. '''
     n_cells_list_of_lists = [[5], [10], [20], [30], [40], [50], [150]]
     # n_cells_list_of_lists = [[5,10], [20,30], [40,50], [150]]
-    hitty, missy = {}, {}
+    hit_mean_dict, miss_mean_dict = {}, {}
+    hit_var_dict, miss_var_dict = {}, {}
     n_sessions = len(msm.linear_models)
     for session_idx in range(n_sessions):
         session = msm.linear_models[session_idx].session
@@ -1584,12 +1585,18 @@ def transfer_dict(msm, region, direction='positive'):
             idx_hit = np.logical_and(idx, session.outcome == 'hit')
 
             centre_cells = np.mean(n_cells)
-            if centre_cells not in hitty:
-                hitty[centre_cells] = np.zeros(n_sessions)
-                missy[centre_cells] = np.zeros(n_sessions)
-            hitty[centre_cells][session_idx] = np.mean(n_responders[idx_hit])
-            missy[centre_cells][session_idx] = np.mean(n_responders[idx_miss])
-    return hitty, missy
+            if centre_cells not in hit_mean_dict:
+                hit_mean_dict[centre_cells] = np.zeros(n_sessions)
+                miss_mean_dict[centre_cells] = np.zeros(n_sessions)
+                hit_var_dict[centre_cells] = np.zeros(n_sessions)
+                miss_var_dict[centre_cells] = np.zeros(n_sessions)
+
+            hit_mean_dict[centre_cells][session_idx] = np.mean(n_responders[idx_hit])
+            miss_mean_dict[centre_cells][session_idx] = np.mean(n_responders[idx_miss])
+            hit_var_dict[centre_cells][session_idx] = np.var(n_responders[idx_hit])
+            miss_var_dict[centre_cells][session_idx] = np.var(n_responders[idx_miss])
+            
+    return hit_mean_dict, miss_mean_dict, hit_var_dict, miss_var_dict
 
 def baseline_subtraction(flu, lm):
     ''' Takes a cell averaged flu matrix [n_trials x time]
