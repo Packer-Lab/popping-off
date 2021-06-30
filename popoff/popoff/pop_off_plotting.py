@@ -64,9 +64,7 @@ def add_ps_artefact(ax, time_axis):
     ## plot box over artefact
     color_box = color_tt['photostim']
     alpha_box = 0.3
-    # print(time_axis, np.where(np.isnan(time_axis)))
-    start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0]) - 1]
-    # end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0])]
+    start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0])- 1] + 1 / 30
     end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0]) + 1] - 1 / 30
     ax.axvspan(start_box, end_box, alpha=alpha_box, color=color_box)
 
@@ -1316,7 +1314,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
 
 def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, decoder_key='hit/cr',
                                               plot_tt=['hit', 'spont', 'miss', 'fp', 'cr'], 
-                                              ax_acc_ps=None, time_array=None, smooth_traces=True,
+                                              ax_acc_ps=None, time_array=None, smooth_traces=False,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
                                               plot_artefact=True):
