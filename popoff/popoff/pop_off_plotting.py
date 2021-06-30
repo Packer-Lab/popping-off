@@ -507,7 +507,7 @@ def transform_suite2p_cell_number(session, n_suite2p):
     assert len(n) == 1, f'Suite2p ID {n_suite2p} not in {session}'
     return int(n[0])
 
-def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.3, demean=True, y_lim=None, osws=3):
+def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.35, demean=True, y_lim=None, osws=3):
 
     fig, ax = plt.subplots(2, 3, figsize=(20, 7), gridspec_kw={'hspace': 0.6, 'wspace': 0.4})
 
@@ -589,14 +589,14 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
     return sorting
 
 def normalise_raster_data(session, start_time=-4, start_baseline_time=-2.1, 
-                          pre_stim_window=-0.1, post_stim_window=None, filter_150_stim=False,
+                          pre_stim_window=-0.07, post_stim_window=None, filter_150_stim=False,
                           sorting_method='euclidean', sort_tt_list=['hit'], sort_neurons=True):
     '''overrides session.outcome with ARM and URH types!!'''
     if post_stim_window is None:
         if filter_150_stim:
             post_stim_window = 0.83
         else:
-            post_stim_window = 0.3
+            post_stim_window = 0.35
     start_frame = np.argmin(np.abs(session.filter_ps_time - start_time))  # cut off at start
     start_baseline_frame = np.argmin(np.abs(session.filter_ps_time - start_baseline_time))  # start of baselining pre stim eriod
     pre_stim_frame = np.argmin(np.abs(session.filter_ps_time - pre_stim_window))  # end of baselining period pre stim ( to avoid using stim artefact)
@@ -742,7 +742,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, reg='S1', tt='hit', c_li
 
 
 def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=['hit'],
-                                              plot_averages=False, post_stim_window=0.3,
+                                              plot_averages=False, post_stim_window=0.35,
                                               start_time=-4, filter_150_stim=False,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean',
@@ -826,7 +826,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=[
 
 
 def plot_raster_plots_number_stim_one_session(session, c_lim=0.2, sort_tt_list=['hit', 'miss', 'spont'],
-                                              plot_averages=False, stim_window=0.3,
+                                              plot_averages=False, stim_window=0.35,
                                               start_time=-4,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean',
@@ -905,7 +905,7 @@ def plot_raster_plots_number_stim_one_session(session, c_lim=0.2, sort_tt_list=[
 
 
 def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2, sort_tt_list=['hit'],
-                                              stim_window=0.3, start_time=-4,
+                                              stim_window=0.35, start_time=-4,
                                               n_cols=6, reg='S1',
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean',
