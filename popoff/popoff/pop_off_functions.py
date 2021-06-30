@@ -364,7 +364,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
             ## Retrieve normalized data:
             (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
+                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
             assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape, len(trial_inds))
             ## Filter neurons
             data_use = data_use_mat_norm[neurons_include, :, :]
@@ -1603,7 +1603,7 @@ def baseline_subtraction(flu, lm):
 def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-        time_ticks, time_tick_labels, start_frame) = pop.normalise_raster_data(session=lm.session, 
+        time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session=lm.session, 
                             sort_neurons=False, filter_150_stim=False, start_time=-4)
     
     assert (outcome_arr == lm.session.outcome).all()
