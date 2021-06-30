@@ -1318,7 +1318,8 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               plot_tt=['hit', 'spont', 'miss', 'fp', 'cr'], 
                                               ax_acc_ps=None, time_array=None, smooth_traces=True,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
-                                              indicate_spont=False, indicate_fp=False, xlims=[-3, 4]):
+                                              indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
+                                              plot_artefact=True):
     ## Plot:
     if decoder_key == 'spont/cr':  
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
@@ -1349,7 +1350,8 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
 
     if ax_acc_ps is not None:
         for reg in ['s1', 's2']:
-            add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
+            if plot_artefact:
+                add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
             ax_acc_ps[reg].set_xlim(xlims) 
             ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', fontdict={'weight': 'bold'}, y=1.05)
         if indicate_spont:     
