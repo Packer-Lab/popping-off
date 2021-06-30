@@ -25,6 +25,7 @@ import scipy.stats, scipy.spatial
 from statsmodels.stats import multitest
 from Session import Session  # class that holds all data per session
 import pop_off_plotting as pop
+import utils
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
@@ -1590,14 +1591,14 @@ def transfer_dict(msm, region, direction='positive'):
             missy[centre_cells][session_idx] = np.mean(n_responders[idx_miss])
     return hitty, missy
 
-# def baseline_subtraction(flu, lm):
-#     ''' Takes a cell averaged flu matrix [n_trials x time]
-#         and subtracts pre-stim activity of an individual trial 
-#         from every timepoint in that trial.
-#         '''
-#     baseline = np.mean(flu[:, lm.frames_map['pre']], 1)
-#     flu = np.subtract(flu.T, baseline).T
-#     return flu
+def baseline_subtraction(flu, lm):
+    ''' Takes a cell averaged flu matrix [n_trials x time]
+        and subtracts pre-stim activity of an individual trial 
+        from every timepoint in that trial.
+        '''
+    baseline = np.mean(flu[:, lm.frames_map['pre']], 1)
+    flu = np.subtract(flu.T, baseline).T
+    return flu
 
 def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
 
@@ -1715,3 +1716,38 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
             prev_perc = cov_perc
     assert total_n == len(super_covar_df), f'not all rows have been used: {total_n}/{len(super_covar_df)}'
     return mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr
+
+def get_subset_dprime(session):
+    
+    assert session.trial_subsets.shape == session.outcome.shape
+    
+    fp_rate = np.sum(session.outcome=='fp') / (np.sum(session.outcome=='fp') + np.sum(session.outcome=='cr'))
+    subset_dprimes = []
+#     for subset in [[5, 10], [20, 30], [40, 50], [150]]:
+    for subset in [[5], [10], [20], [30], [40], [50], [150]]:
+        idx = np.isin(session.trial_subsets, subset)
+        outcome = session.outcome[idx]
+        hit_rate = np.sum(outcome=='hit') / (np.sum(outcome=='hit') + np.sum(outcome=='miss'))
+        subset_dprimes.append(utils.utils_funcs.d_prime(hit_rate, fp_rate))
+#         subset_dprimes.append(hit_rate)
+    
+    return subset_dprimes
+
+def pf(x, max_value, alpha, beta):
+    # psychometric function
+    ''' Max value: max value of sigmoid
+        alpha: x_axis midpoint
+        beta: the growth rate
+    '''
+    return max_value / (1 + np.exp( -(x-alpha)/beta)) 
+
+def trial_binner(arr):
+    group_dict = {0: '0',
+                    5: '5-10',
+                    10: '5-10',
+                    20: '20-30',
+                    30: '20-30',
+                    40: '40-50',
+                    50: '40-50',
+                    150: '150'}
+    return np.array([group_dict[a] for a in arr])

@@ -1,6 +1,7 @@
 import sys
 import os
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -16,7 +17,7 @@ from cycler import cycler
 import pandas as pd
 import math, cmath, copy
 from tqdm import tqdm
-import scipy.stats
+import scipy.stats, scipy.optimize
 from Session import Session  # class that holds all data per session
 import pop_off_functions as pof
 # from linear_model import PoolAcrossSessions, LinearModel, MultiSessionModel
@@ -1939,3 +1940,252 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     ax.set_xlabel(f'S1 {cov_name}')
     ax.set_ylabel(f'S2 {cov_name}')
     ax.set_title(f'S1 vs S2 {cov_name}\n')
+
+def get_plot_trace(lm, targets=False, region='s1', remove_easy=False, i_col=0):
+    
+    global COLOR_IDX
+    
+    if targets:
+        mask = ~lm.session.is_target
+    else:
+        mask = lm.session.is_target
+    
+    flu = lm.flu[lm.region_map[region], :, :]
+    mask = mask[lm.region_map[region], :, :]
+    
+    # Take out catch trials
+    if remove_easy:
+        stim_idx = lm.session.photostim == 1
+    else:
+        stim_idx = lm.session.photostim != 0
+        
+    flu = flu[:, stim_idx, :]
+    mask = mask[:, stim_idx, :]
+    
+    # Fluoresence averaged across cells with (non)targets filtered
+    flu = np.ma.array(flu, mask=mask).mean(0)
+    flu = pof.baseline_subtraction(flu, lm)
+    
+    # x axis in seconds aligned to stim
+    x_axis = (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
+    label = 'Targets' if targets else f'Non Targets {region.upper()}'
+    
+    # Need to plot pre and post as two separate lines cos seaborn is uncooperative
+    for idx_frames in [lm.pre, lm.post]:
+        
+        data = flu[:, idx_frames]
+        
+        df = pd.DataFrame(data).melt()
+        df['time (seconds)'] = np.repeat(x_axis[idx_frames], data.shape[0])
+        
+        sns.lineplot(x='time (seconds)', y='value', data=df, color=color_dict_stand[i_col],
+                    label=label)
+        label = None
+        
+    plt.ylabel(r'$\Delta$F/F')
+    plt.ylim(-0.07, 0.4)
+    plt.xlim(-1,6)
+    legend = plt.legend(bbox_to_anchor=(1.4, 1.3))
+    legend.get_frame().set_facecolor('none')
+
+
+def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
+    np.seterr(divide='ignore')  # Ugly division by 0 error
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    
+    # x_axis = [7.5, 25, 45, 150]
+    x_axis = [5, 10, 20, 30, 40, 50, 150]
+    all_dp = []
+    n = 0
+
+    min_x = 5
+    for idx, dp in enumerate(subset_dprimes):
+        
+        all_dp.append(dp)
+        
+        # Subtract the min val from the data and then add it 
+        # back on later, to get the fit below 0 if required
+        min_val = np.min(dp)
+        dp = dp - min_val
+        popt, pcov = scipy.optimize.curve_fit(pof.pf, x_axis, dp, method='dogbox', p0=[np.max(dp), 50, 200])
+        
+        dp = dp + min_val
+
+        ax.plot(x_axis, dp, '.', color='grey', alpha=0.2)
+        
+        ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val, 
+                color='grey', alpha=0.3)
+        ax.set_xscale('log')
+        
+    y = np.concatenate(all_dp)
+    x = np.tile(x_axis, subset_dprimes.shape[0])
+
+    min_val = np.min(y)
+
+    y = y - min_val
+    popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
+
+    y = y + min_val
+    ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val, 
+            color='red')
+
+    # plt.tick_params(
+    #     axis='x',
+    #     which='both',
+    #     bottom=True
+    # )
+
+    # plt.gca().tick_params(which='minor', labelbottom=True)
+
+    # ax = plt.gca()
+
+    ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(10))
+
+
+    ax.set_xscale('log')
+    ax.set_ylabel('d\'')
+    ax.set_xlabel('number of cells stimulated')
+
+
+    # Centre point of the rescaled sigmoid.
+    # Assumes sigmoid min is 0. Which is approx true here
+    midpoint = (popt[0] + min_val) / 2
+
+    # Empirically find the x-axis position matching the midpoint
+    x_range = np.arange(min_x, np.max(x_axis))
+    res = pof.pf(x_range, *popt) + min_val
+    n_cells_mid = x_range[np.argmin(np.abs(res - midpoint))]
+
+    # Line doesn't go far enough but just extend in illustrator
+    ax.vlines(x=n_cells_mid, ymin=0, ymax=midpoint, color='red', ls=':')
+    ax.hlines(y=midpoint, xmin=n_cells_mid, xmax=popt[1], color='red', ls=':')
+
+    ax.xaxis.set_minor_locator(MultipleLocator(10))
+    ax.xaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10))
+
+    ticks = [10, 100]
+    ax.set_xticks(ticks, ticks)
+    despine(ax)
+    # save_figure('Figure1PanelG', figure_path)
+
+def lick_raster(lm):
+    CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
+                  '#f781bf', '#a65628', '#984ea3',
+                  '#999999', '#e41a1c', '#dede00']
+
+    session = lm.session
+    binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]
+    trial_subsets = session.trial_subsets
+    outcome = session.outcome
+    
+    assert len(binned_licks) == len(trial_subsets) == len(outcome)
+    
+    # Current putting too_soons back in as hits. You can also 
+    # remove them completely 
+    ## Its currently called 'too_' for some reason
+    
+    outcome[outcome=='too_'] = 'hit'
+    
+    # Sort variables by whether the number of cells stimmed
+    trial_idxs = np.argsort(trial_subsets, kind='mergesort')
+    
+    sorted_licks = binned_licks[trial_idxs]
+    sorted_outcome = outcome[trial_idxs]
+    sorted_subsets = trial_subsets[trial_idxs]
+    sorted_subsets = pof.trial_binner(sorted_subsets)
+        
+    # Map a plot color to each subset size
+    #colors = ['black', 'dimgrey', 'darkgrey', 'silver', 'pink']
+    colors = ['pink'] * 4
+    colors.append('c')
+    colors = ['black'] * 5
+    subsets = ['150', '40-50', '20-30', '5-10', '0']
+    
+    color_map = {}
+    for i, sub in enumerate(subsets):
+        color_map[sub] = colors[i] 
+    subset_colors = [color_map[i] for i in sorted_subsets]
+    
+    fig = plt.figure(figsize=(5,10))
+    gs = fig.add_gridspec(2, 2,  width_ratios=(4,1),
+                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      wspace=0.05, hspace=0.05)
+    ax0 = plt.subplot(gs[0]) 
+    ax1 = plt.subplot(gs[1])
+    
+    # Plot lick rasters 
+    line_pos = []
+    
+    reaction_times = []
+    for i, rast in enumerate(sorted_licks):
+
+        color=subset_colors[i]
+        y_axis = np.ones(len(rast)) + i
+
+        if sorted_subsets[i] != sorted_subsets[i-1] and i != 0:
+            ax0.axhline(y=i, ls='--', color='black')
+            line_pos.append(i)
+        try:
+            point = rast[0] / 1000
+            if point <= 1:
+                marker = '.'
+                fillstyle = 'full'
+            else:
+                marker = '.'
+                fillstyle = 'none'
+            ax0.plot(point, y_axis[0], marker=marker,
+                     fillstyle=fillstyle, c=color, markersize=8.5)
+            reaction_times.append(rast[0])
+        except IndexError:
+            reaction_times.append(np.nan)
+            pass
+
+    # Get positions of dividing lines so know where to put y tick labels
+    line_pos.insert(0,0)
+    line_pos.append(len(sorted_subsets))
+    subset_centre = [(line_pos[i] + line_pos[i+1]) / 2 for i in range(len(line_pos)-1)]
+    
+    # Setup raster axis 
+    ax0.fill_between([0, 1], 0, len(sorted_licks), color='gainsboro', alpha=0.5)
+    ax0.set_xlim((0, 1.95))
+    ax0.set_xlabel('Time (s)')
+    ax0.set_ylim((0, len(sorted_licks)+1))
+    ax0.set_yticks(subset_centre)
+    ax0.set_yticklabels(np.flip(subsets))
+    ax0.set_ylabel('Number of Cells Stimulated')
+    despine(ax0)
+    despine(ax1)
+    
+    # Map trial types to ints so can express as colormap
+    int_map = {
+        'hit': 3,
+        'miss': 2,
+        'fp': 1,
+        'cr': 0
+    }
+    
+    int_mapped = [int_map[out] for out in np.flip(sorted_outcome)]        
+    bar_width = 10
+    bar_data = np.stack([int_mapped for _ in range(bar_width)], axis=1)
+    
+    to_rbga = lambda col: hex2color(col)
+    cols =  [color_dict_stand[0], color_dict_stand[1],
+             CB_color_cycle[7], color_dict_stand[2]]
+    
+    cm = matplotlib.colors.LinearSegmentedColormap.from_list('hit_miss', cols, N=4)
+    
+    # Build the colorbar
+    im = ax1.imshow(bar_data, cmap=cm)
+    ax1.set_xticks([])
+    trial_scale = [0, len(sorted_outcome)]
+    ax1.set_yticks(trial_scale)
+    # This gives you the trial number on the axis
+#     ax1.set_yticklabels([('#'+str(t)) for t in np.flip(trial_scale)])
+    ax1.set_yticklabels([])
+    
+    fontsize = 18
+    plt.text(18, len(sorted_outcome)/3, 'Hit', color=cols[3], fontsize=fontsize)
+    plt.text(18, len(sorted_outcome)/1.7, 'Miss', color=cols[2], fontsize=fontsize)
+    plt.text(18, len(sorted_outcome)/1.22, 'Correct\nRejection', color=cols[0], fontsize=fontsize)
+    plt.text(18, len(sorted_outcome)/1.01, 'False\nPositive', color=cols[1], fontsize=fontsize)
