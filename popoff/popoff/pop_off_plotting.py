@@ -620,15 +620,17 @@ def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, en
         data_use_mat = session.behaviour_trials[:, session.photostim < 2, :]
     else:
         data_use_mat = session.behaviour_trials
-    data_use_mat = data_use_mat[:, :, start_frame:end_frame]  # discarded pre -4 seconds
-    data_spont_mat = session.pre_rew_trials[:, :, start_frame:end_frame]
-    start_baseline_frame = start_baseline_frame - start_frame  # correct for cutting off data at start_frame
-    pre_stim_frame = pre_stim_frame - start_frame
-    post_stim_frame = post_stim_frame - start_frame
-    # end_frame = end_frame - start_frame
     data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
     # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
-    data_spont_mat_norm = data_spont_mat - np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+    data_spont_mat_norm = session.pre_rew_trials - np.mean(session.pre_rew_trials[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+
+    data_use_mat_norm = data_use_mat_norm[:, :, start_frame:end_frame]  # discarded pre -4 seconds
+    data_spont_mat_norm = data_spont_mat_norm[:, :, start_frame:end_frame]
+    # start_baseline_frame = start_baseline_frame - start_frame  # correct for cutting off data at start_frame
+    # pre_stim_frame = pre_stim_frame - start_frame
+    post_stim_frame = post_stim_frame - start_frame
+    # end_frame = end_frame - start_frame
+    
     
     data_use_mat_norm_s1 = data_use_mat_norm[session.s1_bool, :, :]
     data_use_mat_norm_s2 = data_use_mat_norm[session.s2_bool, :, :]
@@ -1058,14 +1060,14 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
 
 def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 's2': {}}, c_lim=0.2, sort_tt_list=['hit'],
                                               plot_averages=False, post_stim_window=0.35,
-                                              start_time=-2.1, filter_150_stim=False,
+                                              start_time=-1.1, end_time=2, filter_150_stim=False,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean',
                                               s1_lim=None, s2_lim=None):
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session, start_time=start_time, filter_150_stim=filter_150_stim, 
-                                        sorting_method=sorting_method, sort_tt_list=sort_tt_list, sort_neurons=True)
+                                        sorting_method=sorting_method, sort_tt_list=sort_tt_list, sort_neurons=True, end_time=end_time)
     sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}
     reg_names = ['S1' ,'S2']
     
