@@ -596,7 +596,8 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
 
 def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, end_time=4,
                           pre_stim_window=-0.07, post_stim_window=None, filter_150_stim=False,
-                          sorting_method='euclidean', sort_tt_list=['hit', 'miss', 'spont'], sort_neurons=True):
+                          sorting_method='euclidean', sort_tt_list=['hit', 'miss', 'spont'], 
+                          sort_neurons=True):
     '''overrides session.outcome with ARM and URH types!!'''
     if post_stim_window is None:
         if filter_150_stim:
@@ -620,9 +621,11 @@ def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, en
         data_use_mat = session.behaviour_trials[:, session.photostim < 2, :]
     else:
         data_use_mat = session.behaviour_trials
+    data_spont_mat = session.pre_rew_trials
+    
     data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
     # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
-    data_spont_mat_norm = session.pre_rew_trials - np.mean(session.pre_rew_trials[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+    data_spont_mat_norm = data_spont_mat - np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
 
     data_use_mat_norm = data_use_mat_norm[:, :, start_frame:end_frame]  # discarded pre -4 seconds
     data_spont_mat_norm = data_spont_mat_norm[:, :, start_frame:end_frame]
@@ -1918,7 +1921,7 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
 
 def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, plot_legend=False,
                           tts_plot=['hit', 'miss'], frames='all', stack='all-trials', 
-                          main_ylims=(-0.2, 0.2), zoom_ylims=(-0.03, 0.055), zoom_inset=True):
+                          main_ylims=(-0.2, 0.2), zoom_ylims=(-0.025, 0.055), zoom_inset=True):
     if ax_s1 is None or ax_s2 is None:
         fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(10,3))
 
@@ -2002,6 +2005,7 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False):
              rotation=90)
 
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
+                            plot_type='scatter',
                     cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
     if ax_dict is None:
         fig, ax = plt.subplots(1, len(cov_names), figsize=(3 * len(cov_names), 2),
@@ -2025,31 +2029,44 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
 
         _, p_val = scipy.stats.wilcoxon(all_hit, all_miss) 
         bool_sign = p_val < (5e-2 / len(cov_names)) # bonferoni correction
-        tmp_ax.scatter(all_hit, all_miss, 
-                    s=80, facecolors=('grey' if bool_sign else 'none'), 
-                    edgecolors=('k' if bool_sign else 'grey'),
-                    linewidth=3)
-        if lims is not None:
-            tmp_ax.set_xlim(lims)
-            tmp_ax.set_ylim(lims)
-        else:
-            equal_xy_lims(tmp_ax)
-            lims = tmp_ax.get_xlim()
-        tmp_ax.plot(lims, lims, linestyle=(0, (5, 10)), color='grey')
-        tmp_ax.set_xlabel('Hit Trials (z-score)')
-        tmp_ax.set_ylabel('Miss Trials (z-score)')
+
+        if plot_type == 'scatter':
+            tmp_ax.scatter(all_hit, all_miss, 
+                        s=80, facecolors=('grey' if bool_sign else 'none'), 
+                        edgecolors=('k' if bool_sign else 'grey'),
+                        linewidth=3)
+            if lims is not None:
+                tmp_ax.set_xlim(lims)
+                tmp_ax.set_ylim(lims)
+            else:
+                equal_xy_lims(tmp_ax)
+                lims = tmp_ax.get_xlim()
+            tmp_ax.plot(lims, lims, linestyle=(0, (5, 10)), color='grey')
+            tmp_ax.set_xlabel('Hit Trials (z-score)')
+            tmp_ax.set_ylabel('Miss Trials (z-score)')
+        elif plot_type == 'pointplot':
+            tmp_df = pd.DataFrame({'zscore': np.concatenate((all_miss, all_hit)),
+                                   'trial_type': ['miss'] * len(all_miss) + ['hit'] * len(all_hit)})
+            sns.stripplot(data=tmp_df, x='trial_type', y='zscore', ax=tmp_ax,
+                            s=8, color=('grey' if bool_sign else 'white'),
+                            edgecolor=('k' if bool_sign else 'grey'), linewidth=3)
+            sns.pointplot(data=tmp_df, x='trial_type', y='zscore', ax=tmp_ax,
+                            s=80, color=('k' if bool_sign else 'grey'),
+                            linewidth=3, ci=95)
+            tmp_ax.set_ylabel('Mean z-score')
+            tmp_ax.set_xlabel('Trial type')
 
         
         tmp_ax.set_title(f'{cov_name}\nP < {two_digit_sci_not(p_val)}')
 
 def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
-                        one_sided_ws=20, ax=None):
+                        one_sided_ws=20, ax=None, sessions=None, metric='fraction_hit'):
     if ax is None:
         ax = plt.subplot(111)
     n_sessions = len(cov_dicts)
     for i_ss in range(n_sessions):
 
-        tmp_vcr = cov_dicts[i_ss][cov_name]
+        tmp_vcr = copy.deepcopy(cov_dicts[i_ss][cov_name])
         if zscore_covar:
             tmp_vcr = scipy.stats.zscore(tmp_vcr)
         tmp_y = cov_dicts[i_ss]['y']  #0 = miss, 1= hit
@@ -2066,22 +2083,27 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         for i_cdp in range(one_sided_ws, n_dp - one_sided_ws):  # running mean 
             wind_inds = np.arange(i_cdp - one_sided_ws, i_cdp + one_sided_ws)  # window 
             av_vcr = np.mean(sorted_vcr[wind_inds])
-            av_y = np.mean(sorted_y[wind_inds])
+            if metric == 'fraction_hit':
+                av_y = np.mean(sorted_y[wind_inds])
+            elif metric == 'dprime':
+                trial_inds = sorted_inds_vcr[wind_inds]
+                av_y = pof.get_alltrials_dprime(session=sessions[i_ss], trial_inds=trial_inds)
             av_vcr_arr[i_dp] = av_vcr
             av_y_arr[i_dp] = av_y
             i_dp += 1
-
+        result_lr = scipy.stats.linregress(x=av_vcr_arr, y=av_y_arr)
+        print(f'Session {i_ss}, {result_lr}')
         ax.plot(av_vcr_arr, av_y_arr, label=f'session {i_ss}', linewidth=3, alpha=0.7)
     if zscore_covar:
         ax.set_xlabel(f'z-scored {cov_name}')
     else:
         ax.set_xlabel(f'{cov_name}')
     ax.set_ylabel('Probability Hit')
-    ax.set_ylim([0, 1])
+    # ax.set_ylim([0, 1])
     ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)')
     despine(ax)
 
-def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
+def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
                                 metric='fraction_hit'):
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
@@ -2111,6 +2133,31 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=10, ax=None,
         ax.set_xlabel(f'Binned {covar_name}')
     ax.set_ylabel('Number of cells stimulated')
 
+def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
+                            covar_name='variance_cell_rates', zscored_covar=True,
+                            metric='fraction_hit'):
+    if ax is None:
+        ax = plt.subplot(111)
+    (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
+        n_stim_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
+                                             n_bins_covar=n_bins_covar, metric=metric)
+    
+    arr_diag_index = np.arange(-n_bins_covar + 1, n_bins_covar - 1)
+    mean_mat_arr = np.zeros(len(arr_diag_index))
+    ## The most negative number corresponds to the top left (ie 150, low VCR)
+    for i_diag_index, diag_index in enumerate(arr_diag_index):
+        mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)
+        mat_vals = mat_fraction[mat_inds]
+        mean_val = np.mean(mat_vals)
+        # return mean_val
+        mean_mat_arr[i_diag_index] = mean_val
+
+    ax.plot(mean_mat_arr, color='k', linewidth=3)
+    ax.set_xlabel('Diagonal element (top left to bottom right)')
+    ax.set_ylabel('Fraction hit')
+    despine(ax)
+
+
 def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
     if ax is None:
         ax = plt.subplot(111)
@@ -2122,7 +2169,6 @@ def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
         ax.set_xlabel(covar_name)
         ax.set_title(f'{covar_name} across\n{len(super_covar_df)} trials')
     ax.set_ylabel('Frequency')
-    
     despine(ax)
 
 def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=None):
@@ -2143,52 +2189,100 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     ax.set_ylabel(f'S2 {cov_name}')
     ax.set_title(f'S1 vs S2 {cov_name}\n')
 
-# def get_plot_trace(lm, targets=False, region='s1', filter_150_stim=False, i_col=0):
+def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=False, 
+                    only_150_stim=False, i_col=0,
+                    absolute_vals=False, plot_artefact=False, plot_legend=False):
     
-#     global COLOR_IDX
+    if ax is None:
+        ax = plt.subplot(111)
+    if targets:
+        mask = ~lm.session.is_target
+    else:
+        mask = lm.session.is_target
     
-#     if targets:
-#         mask = ~lm.session.is_target
-#     else:
-#         mask = lm.session.is_target
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+        time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session, start_time=-1, 
+                                    filter_150_stim=False, # start_baseline_time=-2.1,
+                                    sort_neurons=False, end_time=6)
     
-#     flu = lm.flu[lm.region_map[region], :, :]
-#     mask = mask[lm.region_map[region], :, :]
+    mask = mask[lm.region_map[region], :, :]
+    if region == 's1':
+        flu = data_use_mat_norm_s1
+    elif region == 's2':
+        flu = data_use_mat_norm_s2
     
-#     # Take out catch trials
-#     if filter_150_stim:
-#         stim_idx = lm.session.photostim == 1
-#     else:
-#         stim_idx = lm.session.photostim != 0
+    # Take out catch trials
+    if filter_150_stim:
+        stim_idx = lm.session.photostim == 1
+    elif only_150_stim:
+        stim_idx = lm.session.photostim == 2
+    else:
+        stim_idx = lm.session.photostim != 0
         
-#     flu = flu[:, stim_idx, :]
-#     mask = mask[:, stim_idx, :]
+    flu = flu[:, stim_idx, :]
+    mask = mask[:, stim_idx, :]
     
-#     # Fluoresence averaged across cells with (non)targets filtered
-#     flu = np.ma.array(flu, mask=mask).mean(0)
-#     flu = pof.baseline_subtraction(flu, lm)
+    mask = np.mean(mask, 2)
+    mask = np.repeat(mask[:, :, None], flu.shape[2], axis=2)
+
+    # Fluoresence averaged across cells with (non)targets filtered
+    flu = np.ma.array(flu, mask=mask)
+    # flu = pof.baseline_subtraction(flu, lm)
     
-#     # x axis in seconds aligned to stim
-#     x_axis = (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
-#     label = 'Targets' if targets else f'Non Targets {region.upper()}'
+    # x axis in seconds aligned to stim
+    x_axis = time_axis  # (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
+    label = 'Targets S1' if targets else f'Non Targets {region.upper()}'
     
-#     # Need to plot pre and post as two separate lines cos seaborn is uncooperative
-#     for idx_frames in [lm.pre, lm.post]:
+    if absolute_vals:
+        flu = np.abs(flu)
+    mean_arr = np.mean(flu, (0, 1))
+    std_arr = np.std(flu, (0, 1))
+    ci_arr = std_arr * 1.96 / np.sqrt(flu.shape[0] * flu.shape[1])
+
+    remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
+    time_axis = copy.deepcopy(time_axis)
+    time_axis[remove_stim_art_inds] = np.nan
+    pre_stim_frame = np.where(np.isnan(time_axis))[0][0]
+    
+    if absolute_vals:
+        mean_arr -= np.mean(mean_arr[:pre_stim_frame])
+    # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
+    ax.plot(time_axis, mean_arr, color=color_dict_stand[i_col], label=label)
+    ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr, 
+                     color=color_dict_stand[i_col], alpha=0.2)
+
+    if plot_artefact:
+        add_ps_artefact(ax=ax, time_axis=time_axis)
+    # # Need to plot pre and post as two separate lines cos seaborn is uncooperative
+    # for idx_frames in [lm.pre, lm.post]:
         
-#         data = flu[:, idx_frames]
+    #     data = flu[:, idx_frames]
         
-#         df = pd.DataFrame(data).melt()
-#         df['time (seconds)'] = np.repeat(x_axis[idx_frames], data.shape[0])
+    #     df = pd.DataFrame(data).melt()
+    #     df['Time (s)'] = np.repeat(x_axis[idx_frames], data.shape[0])
         
-#         sns.lineplot(x='time (seconds)', y='value', data=df, color=color_dict_stand[i_col],
-#                     label=label)
-#         label = None
-        
-#     plt.ylabel(r'$\Delta$F/F')
-#     plt.ylim(-0.07, 0.4)
-#     plt.xlim(-1,6)
-#     legend = plt.legend(bbox_to_anchor=(1.4, 1.3))
-#     legend.get_frame().set_facecolor('none')
+    #     sns.lineplot(x='Time (s)', y='value', data=df, color=color_dict_stand[i_col],
+    #                 label=label, ci=95)
+    #     label = None
+    # add_ps_artefact()
+    if absolute_vals:
+        ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
+    else:
+        ax.set_ylabel(r'$\Delta$F/F')
+    ax.set_xlabel('Time (s)')
+    
+    if absolute_vals:
+        ax.set_ylim([ -0.06, 0.15])
+    else:
+        ax.set_ylim(-0.06, 0.15)
+
+    # ax.set_xlim(-1,4)
+    despine(ax)
+    if plot_legend:
+        if absolute_vals:
+            legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
+        else:
+            legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
 
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):

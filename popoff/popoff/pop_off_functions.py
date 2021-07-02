@@ -15,7 +15,7 @@ import seaborn as sns
 # import utils_funcs as utils
 # import run_functions as rf
 # from subsets_analysis import Subsets
-import pickle
+import pickle, copy
 import sklearn.decomposition, sklearn.discriminant_analysis
 from cycler import cycler
 import pandas as pd
@@ -25,7 +25,7 @@ import scipy.stats, scipy.spatial
 from statsmodels.stats import multitest
 from Session import Session  # class that holds all data per session
 import pop_off_plotting as pop
-import utils
+import utils  # from Vape
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
@@ -1676,6 +1676,7 @@ def get_covariates(lm, region, match_tnums=False):
     return covariate_dict
 
 def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
+    cov_dicts = copy.deepcopy(cov_dicts)
     n_sessions = len(cov_dicts)
     if len(zscore_list) > 0:
         for zscore_covar_name in zscore_list:
@@ -1725,20 +1726,34 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
     return mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr
 
 def get_subset_dprime(session):
-    
     assert session.trial_subsets.shape == session.outcome.shape
     
-    fp_rate = np.sum(session.outcome=='fp') / (np.sum(session.outcome=='fp') + np.sum(session.outcome=='cr'))
+    outcome_arr = session.outcome
+    trial_subsets_arr = session.trial_subsets
+
+    fp_rate = np.sum(outcome_arr == 'fp') / (np.sum(outcome_arr == 'fp') + np.sum(outcome_arr == 'cr'))
     subset_dprimes = []
-#     for subset in [[5, 10], [20, 30], [40, 50], [150]]:
+#     for subset in [[5, 10], [20, 30], [40, 50], 1[50]]:
     for subset in [[5], [10], [20], [30], [40], [50], [150]]:
-        idx = np.isin(session.trial_subsets, subset)
-        outcome = session.outcome[idx]
-        hit_rate = np.sum(outcome=='hit') / (np.sum(outcome=='hit') + np.sum(outcome=='miss'))
+        idx = np.isin(trial_subsets_arr, subset)
+        outcome = outcome_arr[idx]
+        hit_rate = np.sum(outcome == 'hit') / (np.sum(outcome == 'hit') + np.sum(outcome == 'miss'))
         subset_dprimes.append(utils.utils_funcs.d_prime(hit_rate, fp_rate))
-#         subset_dprimes.append(hit_rate)
     
     return subset_dprimes
+
+def get_alltrials_dprime(session, trial_inds=None):
+    assert session.trial_subsets.shape == session.outcome.shape
+    if trial_inds is None:
+        trial_inds = np.arange(len(session.outcome))
+    outcome_arr = session.outcome[trial_inds]
+    trial_subsets_arr = session.trial_subsets[trial_inds]
+
+    fp_rate = np.sum(session.outcome == 'fp') / (np.sum(session.outcome == 'fp') + np.sum(session.outcome == 'cr'))
+    hit_rate = np.sum(outcome_arr == 'hit') / (np.sum(outcome_arr == 'hit') + np.sum(outcome_arr == 'miss'))
+    dprime = utils.utils_funcs.d_prime(hit_rate, fp_rate)
+
+    return dprime
 
 def pf(x, max_value, alpha, beta):
     # psychometric function
@@ -1758,3 +1773,55 @@ def trial_binner(arr):
                     50: '40-50',
                     150: '150'}
     return np.array([group_dict[a] for a in arr])
+
+def log_reg_covars(covar_dict, list_x_var=['mean_pre', 'corr_pre', 'variance_cell_rates'], 
+                    region='s1', hard_balance=True, zscore_data=False):
+    covar_dict = covar_dict[region]
+    n_sessions = len(covar_dict)
+
+    mean_pred_dict = {x: np.zeros(n_sessions) for x in list_x_var}
+    var_pred_dict = {x: np.zeros(n_sessions) for x in list_x_var}
+
+    for i_x_var, x_var in enumerate(list_x_var):
+        for i_s in range(n_sessions):
+
+            x_var_array = copy.deepcopy(covar_dict[i_s][x_var])
+            y_array = copy.deepcopy(covar_dict[i_s]['y'])
+            if zscore_data:
+                x_var_array = scipy.stats.zscore(x_var_array)
+            # if x_var == 'variance_cell_rates':
+                # print('------')
+                # print(np.mean(x_var_array[y_array == 0]), np.mean(x_var_array[y_array == 1]))
+            if hard_balance:
+                # print(len(y_array))
+                n_trials_per_tt = np.minimum(np.sum(y_array == 0), np.sum(y_array == 1))
+                trial_inds_0 = np.random.choice(a=np.where(y_array == 0)[0], size=n_trials_per_tt, replace=False)
+                trial_inds_1 = np.random.choice(a=np.where(y_array == 1)[0], size=n_trials_per_tt, replace=False)
+                subsample_trial_inds = np.concatenate((trial_inds_0, trial_inds_1))
+                x_var_array = x_var_array[subsample_trial_inds]
+                y_array = y_array[subsample_trial_inds]
+                # print(len(y_array), np.sum(y_array == 0), np.sum(y_array == 1))
+                # print('------')
+            pred_arr = np.zeros(len(y_array))
+            y_array[x_var_array < 0] = 0
+            y_array[x_var_array > 0] = 1
+            kfolds = sklearn.model_selection.StratifiedKFold(n_splits=4)
+
+            for train_idx, test_idx in kfolds.split(x_var_array, y_array):
+
+                x_var_array_train, x_var_array_test = x_var_array[train_idx].reshape(-1, 1), x_var_array[test_idx].reshape(-1, 1)
+                y_array_train, y_array_test = y_array[train_idx], y_array[test_idx]
+                # if x_var == 'variance_cell_rates':
+                #     print(np.mean(x_var_array_train[y_array_train == 0]), np.mean(x_var_array_train[y_array_train == 1]))
+                model = sklearn.linear_model.LogisticRegression(penalty='l1', C=0.5, solver='saga',
+                                                                class_weight='balanced')
+                # model = sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis() 
+                model.fit(X=x_var_array_train, y=y_array_train)
+                # print(model.coef_, model.intercept_)
+                # print(model.predict_proba(x_var_array_train).shape, y_array_train.shape)
+                pred_arr[test_idx] = model.predict_proba(x_var_array_test)[:, 1]
+                print(pred_arr[test_idx])
+            mean_pred_dict[x_var][i_s] = np.mean(pred_arr)
+            var_pred_dict[x_var][i_s] = np.var(pred_arr)
+            
+    return mean_pred_dict, var_pred_dict
