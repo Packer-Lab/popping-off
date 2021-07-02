@@ -481,7 +481,7 @@ class LinearModel():
         # times_use inherited from AverageTraces
 
         # 2 seconds pre-stimulus with a buffer to the artifact just in case
-        self.pre = np.logical_and(self.times_use < -0.07, self.times_use >= -2.1)
+        self.pre = np.logical_and(self.times_use < -0.07, self.times_use >= -0.51)
 
         long_post = True
         if long_post:
@@ -539,15 +539,12 @@ class LinearModel():
         y : vector for use as dependent variable [n_samples]
 
         '''
-
         if prereward:
             flu = self.pre_flu
             y = np.zeros(flu.shape[1])
             trial_bool = y.astype('bool')
-
         else:
             outcome = self.session.outcome
-
             trial_bool = np.isin(outcome, outcomes)
 
             if remove_easy:
@@ -560,7 +557,7 @@ class LinearModel():
             # Fit encoder on data that is independent of the trial
             # order in the session
             self.encoder.fit(outcome)
-            print(self.encoder)
+            # print(self.encoder)
             y = self.encoder.transform(outcome)
 
         # Select cells from required region
@@ -598,11 +595,6 @@ class LinearModel():
         return self.transform_data(X)
 
     def covariates_full(self, flu, frames):
-
-        # Use this to check that PC performance
-        # was not ~= full model as PCs are subbed but cells are
-        # not. Confirmed that performance for full subbed is roughly
-        # the same
         if frames == 'subbed':
             pre = flu[:, :, self.frames_map['pre']]
             post = flu[:, :, self.frames_map['post']]
@@ -1372,42 +1364,35 @@ class LinearModel():
                 (np.mean(accs_miss), np.std(accs_miss)),
                 (np.mean(accs_pre), np.std(accs_pre)))
 
-    def compare_regions(self, frames='all', outcomes=['hit', 'miss'], plot=True):
-
-        penalty = 'l1'
-        C = 0.5
+    def compare_regions(self, frames='all', outcomes=['hit', 'miss'], plot=False,
+                        regions=['s1', 's2', 'shuffled-s1']):
+        # regions = ['s1', 's2', 'all', 'shuffled']
+        penalty = 'l2'
+        C = 1
         solver = 'saga'
 
-        regions = ['s1', 's2', 'all']
-        regions = ['s1']
-        regions = ['s1', 's2', 'shuffled']
-
-        mean_accs = []
-        std_accs = []
+        mean_accs = np.zeros(len(regions))
+        std_accs = np.zeros(len(regions))
         coefs = []
 
-        for idx, region in enumerate(regions):
-            
-
-
+        for i_reg, region in enumerate(regions):
             X, y = self.prepare_data(frames=frames, model='full',
                                      outcomes=outcomes,
                                      remove_easy=False,
-                                     region=(region if region != 'shuffled' else 's1'),
+                                     region=(region if 'shuffled' not in region else region[-2:]),
                                      n_comps_include=0)
-            if region == 'shuffled':
+            if 'shuffled' in region:
                 np.random.shuffle(y)
 
             mean_acc, std_acc, models = self.logistic_regression(X, y, penalty,
                                                             C, solver)
-            mean_accs.append(mean_acc)
-            std_accs.append(std_acc)
+            mean_accs[i_reg] = mean_acc
+            std_accs[i_reg] = std_acc
             all_coefs = np.array([np.squeeze(model.coef_) for model in models])
-            coefs.append(np.mean(all_coefs, axis = 0))
-
+            coefs.append(np.mean(all_coefs, axis=0))
 
             if plot:
-                plt.errorbar(idx, mean_acc, yerr=std_acc, fmt='o',
+                plt.errorbar(i_reg, mean_acc, yerr=std_acc, fmt='o',
                              color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
 
         if plot:
@@ -1932,36 +1917,31 @@ class PoolAcrossSessions(AverageTraces):
           plt.ylim(0.4, 1)
           plt.axhline(0.5, linestyle=':')
 
-    def compare_regions(self, frames='all'):
+    def compare_regions_all_sessions(self, frames='all', make_plot=False):
 
-        all_means = []
-        all_stds = []
-        all_coefs = []
+        n_sessions = len(self.linear_models)
+        region_classifiers = ['s1', 's2', 'shuffled-s1']
+        all_means = np.zeros((n_sessions, len(region_classifiers)))
+        all_stds = np.zeros((n_sessions, len(region_classifiers)))
+        all_coefs = {}
 
-        for linear_model in self.linear_models:
+        for i_s, linear_model in enumerate(self.linear_models):
            mean_accs, std_accs, coefs = linear_model.compare_regions(
-               frames=frames, plot=False)
-           all_means.append(mean_accs)
-           all_stds.append(std_accs)
-           all_coefs.append(coefs)
+               frames=frames, plot=False, regions=region_classifiers)
+           all_means[i_s, :] = mean_accs
+           all_stds[i_s, :] = std_accs
+           all_coefs[i_s] = coefs
 
-        all_means = np.array(all_means)
-        all_stds = np.array(all_stds)
-
-        grand_mean = np.mean(all_means, axis=0)
-        grand_std = self.combine_stds(all_stds)
-        # 1/0
-
-        plt.errorbar(range(len(grand_mean)), grand_mean, yerr=grand_std, fmt='o',
-                     color=COLORS[1], ecolor='lightgray', elinewidth=3, capsize=5)
-
-        regions = ['Mean cell activity\nprior to stimulation']
-        regions = ['S1', 'S2', 'shuffled null']
-
-        plt.ylim(0, 1)
-        plt.axhline(0.5, linestyle=':')
-        plt.xticks(range(len(grand_mean)), regions)
-        return all_coefs
+        if make_plot:
+            grand_mean = np.mean(all_means, axis=0)
+            grand_std = self.combine_stds(all_stds)
+            # 1/0
+            plt.errorbar(np.arange(len(grand_mean)), grand_mean, yerr=grand_std, fmt='o',
+                        color='k', ecolor='lightgray', elinewidth=3, capsize=5)
+            plt.ylim(0, 1)
+            plt.axhline(0.5, linestyle=':')
+            plt.xticks(range(len(grand_mean)), region_classifiers)
+        return all_means, all_stds, all_coefs
 
     def build_confusion_matrix(self):
         ''' Builds a "3d" confusion matrix, allowing you to stack
