@@ -2133,9 +2133,14 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
             av_y_arr[i_dp] = av_y
             i_dp += 1
         result_lr = scipy.stats.linregress(x=av_vcr_arr, y=av_y_arr)
+        slope, _, corr_coef, p_val, __ = result_lr
+        label = ' '
+        if slope < 0 and corr_coef < 0:
+            if p_val < 1e-5:
+                label = '**'
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
-        ax.plot(av_vcr_arr, av_y_arr, label=f'{i_ss}', linewidth=3, alpha=0.7)
+        ax.plot(av_vcr_arr, av_y_arr, label=label, linewidth=3, alpha=0.7)
     if zscore_covar:
         assert cov_name == 'variance_cell_rates'
         ax.set_xlabel('Z-scored population variance')
@@ -2144,10 +2149,12 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         ax.set_xlabel('Population variance')
     ax.set_ylabel('Probability Hit')
     # ax.set_ylim([0, 1])
-    ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)')
+    ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)', y=1.1)
     despine(ax)
-    ax.text(s='Session ID', x=2.1, y=0.8)
-    ax.legend(bbox_to_anchor=(1.1, 0), loc='lower left', frameon=False, ncol=2)
+    ax.set_ylim([0, 1])
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
+    ax.text(s='**: p < ' + r"$10^{-5}$:", x=2.1, y=0.75)
+    ax.legend(bbox_to_anchor=(1.1, -0.1), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
@@ -2163,7 +2170,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
                     cbar_kws={'label': 'Probability Hit'}, rasterized=False,
                     cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
-        ax.set_title('P(Hit) as a function of VCR and N_stim')
+        ax.set_title('P(Hit) as a function of pop. variance\n and number of cells stimulated')
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
@@ -2174,9 +2181,9 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
     ax.set_yticklabels(n_stim_arr, rotation=0)
     ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr]);
     if zscored_covar:
-        ax.set_xlabel(f'Binned z-scored {covar_name}')
+        ax.set_xlabel(f'Binned z-scored {covar_labels[covar_name]}')
     else:
-        ax.set_xlabel(f'Binned {covar_name}')
+        ax.set_xlabel(f'Binned {covar_labels[covar_name]}')
     ax.set_ylabel('Number of cells stimulated')
     if plot_arrow:
         ax.arrow(n_bins_covar - 0.5, 0.5, -n_bins_covar + 1, n_bins_covar - 1, 
@@ -2219,9 +2226,11 @@ def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
         ax.plot(diag_arr, mean_mat_arr, color='k', linewidth=3, label='mean of means')
         ax.set_xlabel('Diagonal element (top left to bottom right)')
-    ax.set_ylabel('Fraction hit')
+    ax.set_ylabel('Probability hit')
+    ax.set_ylim([0, 1])
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
     despine(ax)
-    ax.set_title('Diagonal of matrix')
+    ax.set_title('Diagonal of matrix', y=1.1)
 
 def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
     if ax is None:
