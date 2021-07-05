@@ -1690,7 +1690,7 @@ def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
     return super_df
 
 def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates', 
-                          include_150=True, n_bins_covar=7, zscore_covar=False,
+                          include_150=True, n_bins_covar=7, #zscore_covar=False,
                           metric='fraction_hit'):
     n_stim_arr = [5, 10, 20, 30, 40, 50]
     if include_150:

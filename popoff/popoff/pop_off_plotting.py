@@ -41,6 +41,8 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
              'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Spont.', 'prereward': 'Spont.'}
+covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance', 
+                'corr_pre': 'Pop. correlation'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -1864,7 +1866,7 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
         despine(ax_dict[reg])
         equal_xy_lims(ax=ax_dict[reg], start_zero=True)
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
-        ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, P < {two_digit_sci_not(pearson_p)}',
+        ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
                           xy=(0.05,0.91), xycoords='axes fraction')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.25, 0.77), xycoords='axes fraction')
@@ -1975,10 +1977,13 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         name_plot  = '-'.join(tts_plot)
     #     save_figure('Figure2_grandAverageTraces', figure_path)
     
-def firing_rate_dist(lm, region, match_tnums=False, sort=False):
-    
-    flu = pof.select_cells_and_frames(lm, region=region, frames='pre')
+def firing_rate_dist(lm, region, match_tnums=False, sort=False,
+                     ax_hit=None, ax_miss=None):
+    if ax_hit is None or ax_miss is None:
+        fig, ax = plt.subplots(2, 1, figsize=(15,4))
+        ax_hit, ax_miss = ax[0], ax[1]
 
+    flu = pof.select_cells_and_frames(lm, region=region, frames='pre')
     flu = np.mean(flu, 2)  # Mean across time
 
     miss = flu[:, lm.session.outcome == 'miss']
@@ -2000,18 +2005,40 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False):
         hit = np.sort(hit)
         miss = np.sort(miss)
 
-    fig, ax = plt.subplots(2, 1, figsize=(15,4))
     
-    ax[1].bar(np.arange(len(miss)), miss, width=2, color=color_tt['miss'], label='miss')
-    ylims = ax[1].get_ylim()
-    ax[1].set_xlabel('Cell ID')
+    ax_miss.bar(np.arange(len(miss)), miss, width=2, color=color_tt['miss'], label='miss')
+    ylims = ax_miss.get_ylim()
+    naked(ax_miss)
+    ax_miss.spines['bottom'].set_visible(True)
+    ax_miss.set_xticks([0, 100, 200, 300])
+    ax_miss.set_xlabel('Neuron ID')
+    
+    ax_hit.bar(np.arange(len(hit)), hit, width=2, color=color_tt['hit'], label='hit')
+    ax_hit.set_ylim(ylims)
+    naked(ax_hit)
 
-    ax[0].bar(np.arange(len(hit)), hit, width=2, color=color_tt['hit'], label='hit')
-    ax[0].set_ylim(ylims)
+    ax_hit.text(s='Hit', x=0, y=0.4, fontdict={'color': color_tt['hit']})
+    ax_miss.text(s='Miss', x=0, y=0.6, fontdict={'color': color_tt['miss']})
+    ax_hit.set_title('Pre-stimulus average activity')
+    # ax_miss.text(x=-50, y=0.2, s='DF/F meaned across\nframes pre-stim and\nacross trials', 
+    #          rotation=90)
 
-
-    ax[1].text(x=-50, y=0.2, s='DF/F meaned across\nframes pre-stim and\nacross trials', 
-             rotation=90)
+def pre_stim_sketch(ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
+    if ax is None:
+        ax = plt.subplot(111)
+    color_prestim = 'grey'
+    ax.plot([x_min, x_max], [0, 0], color='grey', linestyle=':')
+    time_axis = np.arange(x_min, x_max, 1/30)
+    remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
+    time_axis[remove_stim_art_inds] = np.nan
+    add_ps_artefact(ax=ax, time_axis=time_axis)
+    ax.set_ylim([-0.2, 0.2])
+    naked(ax)
+    ax.spines['left'].set_visible(True)
+    ax.spines['bottom'].set_visible(True)
+    ax.set_xticks(np.arange(x_min, x_max, 1))
+    ax.axvspan(pre_stim_start, -0.07, alpha=0.2, color=color_prestim)
+    ax.text(s='Pre-stimulus', x=-0.07, y=0.24, fontdict={'color': color_prestim, 'ha': 'right'})
 
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                             plot_type='scatter',
@@ -2025,7 +2052,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
 
     n_sessions = len(cov_dicts)
 
-    for cov_name in cov_names:
+    for i_plot, cov_name in enumerate(cov_names):
         tmp_ax = ax_dict[cov_name]
         all_hit = np.zeros(n_sessions)
         all_miss = np.zeros(n_sessions)
@@ -2062,14 +2089,19 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             sns.pointplot(data=tmp_df, x='trial_type', y='zscore', ax=tmp_ax,
                             s=80, color=('k' if bool_sign else 'grey'),
                             linewidth=3, ci=95)
-            tmp_ax.set_ylabel('Mean z-score')
-            tmp_ax.set_xlabel('Trial type')
-
-        
-        tmp_ax.set_title(f'{cov_name}\nP < {two_digit_sci_not(p_val)}')
+            if i_plot == 0:
+                tmp_ax.set_ylabel('Mean z-score')
+            else:
+                tmp_ax.set_ylabel('')
+            # tmp_ax.set_xlabel('Trial type')
+            tmp_ax.set_xlabel('')
+            tmp_ax.set_ylim([-0.55 , 0.75])
+            despine(tmp_ax)
+        tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {two_digit_sci_not(p_val)}')
 
 def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
-                        one_sided_ws=20, ax=None, sessions=None, metric='fraction_hit'):
+                        one_sided_ws=20, ax=None, sessions=None, metric='fraction_hit',
+                        verbose=0):
     if ax is None:
         ax = plt.subplot(111)
     n_sessions = len(cov_dicts)
@@ -2101,20 +2133,25 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
             av_y_arr[i_dp] = av_y
             i_dp += 1
         result_lr = scipy.stats.linregress(x=av_vcr_arr, y=av_y_arr)
-        print(f'Session {i_ss}, {result_lr}')
-        ax.plot(av_vcr_arr, av_y_arr, label=f'session {i_ss}', linewidth=3, alpha=0.7)
+        if verbose > 0:
+            print(f'Session {i_ss}, {result_lr}')
+        ax.plot(av_vcr_arr, av_y_arr, label=f'{i_ss}', linewidth=3, alpha=0.7)
     if zscore_covar:
-        ax.set_xlabel(f'z-scored {cov_name}')
+        assert cov_name == 'variance_cell_rates'
+        ax.set_xlabel('Z-scored population variance')
     else:
-        ax.set_xlabel(f'{cov_name}')
+        assert cov_name == 'variance_cell_rates'
+        ax.set_xlabel('Population variance')
     ax.set_ylabel('Probability Hit')
     # ax.set_ylim([0, 1])
     ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)')
     despine(ax)
+    ax.text(s='Session ID', x=2.1, y=0.8)
+    ax.legend(bbox_to_anchor=(1.1, 0), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
-                                metric='fraction_hit'):
+                                metric='fraction_hit', plot_arrow=False):
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
         n_stim_arr), _ = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
                                              n_bins_covar=n_bins_covar, metric=metric)
@@ -2141,31 +2178,50 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
     else:
         ax.set_xlabel(f'Binned {covar_name}')
     ax.set_ylabel('Number of cells stimulated')
+    if plot_arrow:
+        ax.arrow(n_bins_covar - 0.5, 0.5, -n_bins_covar + 1, n_bins_covar - 1, 
+                            head_width=0.35, head_length=0.45, linewidth=3,
+                            color='k', length_includes_head=True, clip_on=False)
+        assert n_bins_covar == 7
+        ax.text(s='SNR axis', x=3, y=2.5, rotation=-45, fontdict={'weight': 'bold'})   
+        ax.text(s='0%', x=6, y=0.75, rotation=-45, fontdict={'weight': 'bold'})   
+        ax.text(s='100%', x=1.0, y=5.2, rotation=-45, fontdict={'weight': 'bold'})   
 
 def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
-                            covar_name='variance_cell_rates', zscored_covar=True,
-                            metric='fraction_hit'):
+                            covar_name='variance_cell_rates', #zscored_covar=True,
+                            metric='fraction_hit', pool_trials=True):
     if ax is None:
         ax = plt.subplot(111)
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
-        n_stim_arr), _ = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
+        n_stim_arr), (mean_mat_arr, ci_mat_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
                                              n_bins_covar=n_bins_covar, metric=metric)
+                                            #  zscore_covar=zscore_covar)
     
-    arr_diag_index = np.arange(-n_bins_covar + 1, n_bins_covar - 1)
-    mean_mat_arr = np.zeros(len(arr_diag_index))
-    ## The most negative number corresponds to the top left (ie 150, low VCR)
-    for i_diag_index, diag_index in enumerate(arr_diag_index):
-        mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)
-        mat_vals = mat_fraction[mat_inds]
-        mean_val = np.mean(mat_vals)
-        # return mean_val
-        mean_mat_arr[i_diag_index] = mean_val
+    diag_arr = np.linspace(0, 100, len(mean_mat_arr))
+    if pool_trials:
+        mean_mat_arr = mean_mat_arr[::-1]  # reverse for plotting
+        ci_mat_arr = ci_mat_arr[::-1]
+        ax.plot(diag_arr, mean_mat_arr, linewidth=3, 
+                color='k')
+        ax.fill_between(diag_arr, mean_mat_arr - ci_mat_arr, mean_mat_arr + ci_mat_arr, 
+                        facecolor='grey', alpha=0.2)
+        ax.set_xlabel('SNR axis (%)')
+    else:
+        arr_diag_index = np.arange(-n_bins_covar + 1, n_bins_covar - 1)
+        mean_mat_arr = np.zeros(len(arr_diag_index))
+        ## The most negative number corresponds to the top left (ie 150, low VCR)
+        for i_diag_index, diag_index in enumerate(arr_diag_index):
+            mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)
+            mat_vals = mat_fraction[mat_inds]
+            mean_val = np.mean(mat_vals)
+            # return mean_val
+            mean_mat_arr[i_diag_index] = mean_val
 
-    ax.plot(mean_mat_arr, color='k', linewidth=3, label='mean of means')
-    ax.set_xlabel('Diagonal element (top left to bottom right)')
+        ax.plot(diag_arr, mean_mat_arr, color='k', linewidth=3, label='mean of means')
+        ax.set_xlabel('Diagonal element (top left to bottom right)')
     ax.set_ylabel('Fraction hit')
     despine(ax)
-
+    ax.set_title('Diagonal of matrix')
 
 def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
     if ax is None:
@@ -2186,17 +2242,16 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     assert (super_covar_df_dict['s1']['n_cells_stimmed'] == super_covar_df_dict['s2']['n_cells_stimmed']).all()
 
     ax.plot(super_covar_df_dict['s1'][cov_name], super_covar_df_dict['s2'][cov_name],
-            '.')
+            '.', markersize=4, color='k')
     pearson_r, pearson_p = scipy.stats.pearsonr(super_covar_df_dict['s1'][cov_name], 
                                                 super_covar_df_dict['s2'][cov_name])
-    ax.annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, P < {two_digit_sci_not(pearson_p)}',
-                          xy=(0.05, 1), xycoords='axes fraction')
+    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
+                          xy=(0, 1.1), xycoords='axes fraction')
     
-
     despine(ax)
-    ax.set_xlabel(f'S1 {cov_name}')
-    ax.set_ylabel(f'S2 {cov_name}')
-    ax.set_title(f'S1 vs S2 {cov_name}\n')
+    ax.set_xlabel(f'{covar_labels[cov_name]} S1')
+    ax.set_ylabel(f'{covar_labels[cov_name]} S2')
+    # ax.set_title(f'S1 vs S2 {cov_name}\n')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=False, 
                     only_150_stim=False, i_col=0,
