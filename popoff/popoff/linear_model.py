@@ -1534,7 +1534,8 @@ class LinearModel():
 
         return results_dict, coefs
 
-    def single_covariate(self, region='s1', plot=True):
+    def single_covariate(self, region='s1', plot=True, 
+                        covs_keep=['mean_pre', 'corr_pre', 'variance_cell_rates']):
 
         n_comps_include = 5
         X, y = self.prepare_data(frames='pre', model='partial',
@@ -1543,24 +1544,6 @@ class LinearModel():
                                  n_comps_include=n_comps_include,
                                  remove_easy=False,
                                  return_matrix=False)
-
-        # for i in range(n_comps_include):
-            # X[f'PC{i}'] = X['PCs'][i, :]
-
-        covs_keep = ['mean_pre', 'corr_pre',
-                    'largest_PC_var', f'ts_{region}_pre', 'reward_history', 'trial_number',
-                    'n_cells_stimmed']  # 'PC1', 'PC2', 'PC3',
-
-        covs_keep = ['mean_pre', 'variance_pre', 'flat',
-                     f'ts_{region}_pre', 'reward_history', 'trial_number', 'n_cells_stimmed']
-
-
-        covs_keep = ['mean_pre', 'variance_cell_rates', 'largest_PC_var',
-                     'reward_history', 'trial_number', 'n_cells_stimmed',
-                     'largest_singular_value']
-
-        covs_keep = ['mean_pre', 'corr_pre', 'variance_cell_rates', 'largest_PC_var']
-
         X = {k: v for k, v in X.items() if k in covs_keep}
 
         penalty = 'l1'
@@ -1568,14 +1551,12 @@ class LinearModel():
         solver = 'saga'
 
         n_points = 0
-
         if plot:
             plt.figure(figsize=(12, 6))
 
         means_dict = {}
         stds_dict = {}
         for label, cov in X.items():
-
             cov = np.expand_dims(cov, axis=1)
             acc, std_acc, models = self.logistic_regression(cov, y, penalty=penalty, C=C,
                                                             solver=solver,
