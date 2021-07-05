@@ -2153,7 +2153,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s='**: p < ' + r"$10^{-5}$:", x=2.1, y=0.75)
+    ax.text(s='**: p < ' + r"$10^{-5}$:", x=2.1, y=0.8)
     ax.legend(bbox_to_anchor=(1.1, -0.1), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
