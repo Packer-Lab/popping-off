@@ -331,9 +331,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 # print('start', len(trial_inds))#, session.outcome[trial_inds])
                 dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                 if 'spont' not in list_tt_training:
-                    # min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
-                    min_n_trials = 10  # use to control for n_trials of spont
-                    print('only using 10 trials per trial type!!')
+                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    # min_n_trials = 10  # use to control for n_trials of spont
+                    # print('only using 10 trials per trial type!!')
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
@@ -364,7 +364,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
             ## Retrieve normalized data:
             (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, filter_150_stim=False)
+                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, end_time=6, filter_150_stim=False)
             assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape, len(trial_inds))
             ## Filter neurons
             data_use = data_use_mat_norm[neurons_include, :, :]
@@ -1690,13 +1690,17 @@ def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
     return super_df
 
 def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates', 
-                          include_150=True, n_bins_covar=10, zscore_covar=False,
+                          include_150=True, n_bins_covar=7, zscore_covar=False,
                           metric='fraction_hit'):
     n_stim_arr = [5, 10, 20, 30, 40, 50]
     if include_150:
         n_stim_arr = n_stim_arr + [150]
     assert (np.unique(super_covar_df['n_cells_stimmed']) == n_stim_arr).all()
     assert include_150 is True, 'not implemented'
+    if len(n_stim_arr) == n_bins_covar:   # if square matrix
+        compute_collapsed_density = True 
+    else:
+        compute_collapsed_density = False 
     n_stim_arr = np.array(n_stim_arr)
 
     all_cov_arr = np.sort(super_covar_df[cov_name])
@@ -1723,7 +1727,46 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
                 mat_fraction[i_nstim, i_cov_perc] = len(sub_df['y'])
             prev_perc = cov_perc
     assert total_n == len(super_covar_df), f'not all rows have been used: {total_n}/{len(super_covar_df)}'
-    return mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr
+  
+    if compute_collapsed_density and metric == 'fraction_hit':
+        arr_diag_index = np.arange(-n_bins_covar + 1, n_bins_covar - 1)
+        mean_mat_arr = np.zeros(len(arr_diag_index))
+        ci_mat_arr = np.zeros(len(arr_diag_index))
+        for i_diag_index, diag_index in enumerate(arr_diag_index):
+            mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)
+            tmp_n_stim_inds_arr, tmp_cov_perc_inds_arr = mat_inds 
+
+            cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), 
+                                                    cov_perc_arr))
+            collapsed_df = None
+            for i_el in range(len(tmp_n_stim_inds_arr)):
+                i_nstim = tmp_n_stim_inds_arr[i_el]
+                i_cov_perc = tmp_cov_perc_inds_arr[i_el]
+
+                n_stim = n_stim_arr[i_nstim]
+                lower_cov = cov_perc_arr_incl_min[i_cov_perc]
+                upper_cov = cov_perc_arr_incl_min[i_cov_perc + 1]
+
+                sub_df = super_covar_df.loc[(super_covar_df['n_cells_stimmed'] == n_stim) &
+                                            (super_covar_df[cov_name] > lower_cov) &
+                                            (super_covar_df[cov_name] <= upper_cov)]      
+                # print('part', np.mean(sub_df['y']), len(sub_df['y']))
+                if collapsed_df is None:
+                    collapsed_df = sub_df
+                else:
+                    collapsed_df = pd.concat([collapsed_df, sub_df], ignore_index=True)
+            if len(collapsed_df['y']) > 0:
+                fraction_hit_miss = np.sum(collapsed_df['y']) / len(collapsed_df['y'])
+                ci = 1.96 * np.sqrt(fraction_hit_miss * (1 - fraction_hit_miss)) / np.sqrt(len(collapsed_df))  # ci of bernoullie distr
+            else:
+                fraction_hit_miss = np.nan
+            # print('pool', fraction_hit_miss, len(collapsed_df['y']))
+            mean_mat_arr[i_diag_index] = fraction_hit_miss
+            ci_mat_arr[i_diag_index] = ci 
+    else:
+        mean_mat_arr, ci_mat_arr = None, None 
+
+    return (mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr), (mean_mat_arr, ci_mat_arr)
 
 def get_subset_dprime(session):
     assert session.trial_subsets.shape == session.outcome.shape
@@ -1785,43 +1828,47 @@ def log_reg_covars(covar_dict, list_x_var=['mean_pre', 'corr_pre', 'variance_cel
     for i_x_var, x_var in enumerate(list_x_var):
         for i_s in range(n_sessions):
 
-            x_var_array = copy.deepcopy(covar_dict[i_s][x_var])
+            x_var_array = -1* copy.deepcopy(covar_dict[i_s][x_var])
+
             y_array = copy.deepcopy(covar_dict[i_s]['y'])
+            
             if zscore_data:
                 x_var_array = scipy.stats.zscore(x_var_array)
-            # if x_var == 'variance_cell_rates':
-                # print('------')
-                # print(np.mean(x_var_array[y_array == 0]), np.mean(x_var_array[y_array == 1]))
             if hard_balance:
-                # print(len(y_array))
                 n_trials_per_tt = np.minimum(np.sum(y_array == 0), np.sum(y_array == 1))
                 trial_inds_0 = np.random.choice(a=np.where(y_array == 0)[0], size=n_trials_per_tt, replace=False)
                 trial_inds_1 = np.random.choice(a=np.where(y_array == 1)[0], size=n_trials_per_tt, replace=False)
                 subsample_trial_inds = np.concatenate((trial_inds_0, trial_inds_1))
                 x_var_array = x_var_array[subsample_trial_inds]
                 y_array = y_array[subsample_trial_inds]
-                # print(len(y_array), np.sum(y_array == 0), np.sum(y_array == 1))
-                # print('------')
+                
+            print(x_var, np.mean(x_var_array[y_array == 1]) > np.mean(x_var_array[y_array ==0]))
             pred_arr = np.zeros(len(y_array))
-            y_array[x_var_array < 0] = 0
-            y_array[x_var_array > 0] = 1
+            # y_array[x_var_array < 0] = 0
+            # y_array[x_var_array > 0] = 1
             kfolds = sklearn.model_selection.StratifiedKFold(n_splits=4)
-
-            for train_idx, test_idx in kfolds.split(x_var_array, y_array):
+            
+            for train_idx, test_idx in kfolds.split(np.zeros_like(x_var_array), y_array):
 
                 x_var_array_train, x_var_array_test = x_var_array[train_idx].reshape(-1, 1), x_var_array[test_idx].reshape(-1, 1)
                 y_array_train, y_array_test = y_array[train_idx], y_array[test_idx]
-                # if x_var == 'variance_cell_rates':
-                #     print(np.mean(x_var_array_train[y_array_train == 0]), np.mean(x_var_array_train[y_array_train == 1]))
-                model = sklearn.linear_model.LogisticRegression(penalty='l1', C=0.5, solver='saga',
-                                                                class_weight='balanced')
+                
+                # model = sklearn.linear_model.LogisticRegression(penalty='l1', C=0.5, solver='saga',
+                                                                # class_weight='balanced')
                 # model = sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis() 
-                model.fit(X=x_var_array_train, y=y_array_train)
-                # print(model.coef_, model.intercept_)
-                # print(model.predict_proba(x_var_array_train).shape, y_array_train.shape)
-                pred_arr[test_idx] = model.predict_proba(x_var_array_test)[:, 1]
-                print(pred_arr[test_idx])
-            mean_pred_dict[x_var][i_s] = np.mean(pred_arr)
-            var_pred_dict[x_var][i_s] = np.var(pred_arr)
+                # model.fit(X=x_var_array_train, y=y_array_train)
+                                # print(x_var, i_s, model.score(x_var_array_test, y=y_array_test))
+                # model_predictions = model.predict(x_var_array_test)
+                
+                if x_var == 'variance_cell_rates':
+                    x_var_hit_mean = np.mean(x_var_array_train[y_array_train == 1])
+                    x_var_miss_mean = np.mean(x_var_array_train[y_array_train == 0])
+
+                    # print(x_var_hit_mean > x_var_miss_mean)
+                    
+                
+            #     pred_arr[test_idx] = sklearn.metrics.accuracy_score(y_array_test, model_predictions)
+            # mean_pred_dict[x_var][i_s] = np.mean(pred_arr)
+            # var_pred_dict[x_var][i_s] = np.var(pred_arr)
             
     return mean_pred_dict, var_pred_dict

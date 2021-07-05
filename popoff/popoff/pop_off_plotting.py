@@ -1445,15 +1445,23 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
     if decoder_key == 'spont/cr':  
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
         top_yax_tt = 'Spont'
+        bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/cr':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
         top_yax_tt = 'Hit'
+        bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/cr 10 trials':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
         top_yax_tt = 'Hit'
+        bottom_yax_tt = 'CR'
     elif decoder_key == 'miss/cr':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}
         top_yax_tt = 'Miss'
+        bottom_yax_tt = 'CR'
+    elif decoder_key == 'hit/miss':
+        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
+        bottom_yax_tt = 'Miss'
         
     plot_dynamic_decoding_two_regions(ps_acc_split=plot_dict_split,
                                         time_array=time_array,
@@ -1464,6 +1472,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                         save_fig=False,
                                         fn_suffix='subsampled_SpontCr_10-sessions_ws2',
                                         top_yax_tt=top_yax_tt,
+                                        bottom_yax_tt=bottom_yax_tt,
                                         plot_indiv=plot_indiv,
                                         plot_legend=plot_legend,
                                         plot_std_area=True,
@@ -2107,7 +2116,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
                                 metric='fraction_hit'):
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
-        n_stim_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
+        n_stim_arr), _ = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
                                              n_bins_covar=n_bins_covar, metric=metric)
 
     if ax is None:
@@ -2139,7 +2148,7 @@ def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
     if ax is None:
         ax = plt.subplot(111)
     (mat_fraction, median_cov_perc_arr, cov_perc_arr, 
-        n_stim_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
+        n_stim_arr), _ = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df, 
                                              n_bins_covar=n_bins_covar, metric=metric)
     
     arr_diag_index = np.arange(-n_bins_covar + 1, n_bins_covar - 1)
@@ -2152,7 +2161,7 @@ def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
         # return mean_val
         mean_mat_arr[i_diag_index] = mean_val
 
-    ax.plot(mean_mat_arr, color='k', linewidth=3)
+    ax.plot(mean_mat_arr, color='k', linewidth=3, label='mean of means')
     ax.set_xlabel('Diagonal element (top left to bottom right)')
     ax.set_ylabel('Fraction hit')
     despine(ax)
