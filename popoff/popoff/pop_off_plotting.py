@@ -2438,6 +2438,60 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     despine(ax)
     # save_figure('Figure1PanelG', figure_path)
 
+def get_percentile_value(x_range, curve, p=0.5):
+    
+    y_point = min(curve) + ((max(curve) - min(curve)) * p)
+    x_point = x_range[np.argmin(np.abs(curve - y_point))]
+    return x_point, y_point
+
+def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
+    
+
+
+    x_axis = [5, 10, 20, 30, 40, 50, 150]
+    y = np.concatenate(subset_dprimes)
+    x = np.tile(x_axis, subset_dprimes.shape[0])
+
+    min_val = np.min(y)
+
+    y = y - min_val
+    popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
+
+    y = y + min_val
+    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
+
+    perr = np.sqrt(np.diag(pcov))  
+    ci_95 = perr * 1.96
+    # The midpoint should be lower for the upper bound and higher for the lower bound
+    ci_95[1] = ci_95[1] * -1
+
+    fig, ax = plt.subplots()
+
+    fit = pof.pf(x_range, *popt) + min_val
+    bound_upper = pof.pf(x_range, *(popt + ci_95)) + min_val
+    bound_lower = pof.pf(x_range, *(popt - ci_95)) + min_val
+
+    plt.plot(x_range, fit, 'black') 
+    plt.fill_between(x_range, bound_lower, bound_upper,
+                     color = 'grey', alpha = 0.5)
+
+    for curve, color in zip([bound_lower, fit, bound_upper], ['grey', 'red', 'grey']):
+        
+        n_cells_mid, dprime_mid = get_percentile_value(x_range, curve)
+        print(n_cells_mid)
+        ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color, ls='-')
+        ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color, ls='-')
+
+    plt.xscale('log')
+
+    ax.set_xscale('log')
+
+
+
+
+
+
+
 def lick_raster(lm):
     CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
