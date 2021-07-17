@@ -2446,8 +2446,6 @@ def get_percentile_value(x_range, curve, p=0.5):
 
 def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     
-
-
     x_axis = [5, 10, 20, 30, 40, 50, 150]
     y = np.concatenate(subset_dprimes)
     x = np.tile(x_axis, subset_dprimes.shape[0])
@@ -2485,11 +2483,6 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     plt.xscale('log')
 
     ax.set_xscale('log')
-
-
-
-
-
 
 
 def lick_raster(lm):
