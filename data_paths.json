@@ -13,5 +13,13 @@
       "pkl_path": "~/data/mice",
       "oasis_path": "~/repos/OASIS"
               }
+    },
+  "thijs": 
+    {"paths": {
+      "base_path": "~/data_jimmy",
+      "vape_path": "~/repos/Vape",
+      "pkl_path": "~/data_jimmy",
+      "oasis_path": "~/repos/OASIS"
+              }
     }
 } 

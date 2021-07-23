@@ -18,5 +18,4 @@ dependencies:
   - opencv
   - pathlib
   - statsmodels
-  - ptitprince
 prefix: /home/tplas/anaconda3/envs/pope

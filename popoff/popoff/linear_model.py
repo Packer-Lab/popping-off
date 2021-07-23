@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.decomposition import PCA, NMF, FactorAnalysis
-from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score, f1_score, balanced_accuracy_score
+from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score #, ConfusionMatrixDisplay
 from scipy import sparse
 from scipy import stats
 from average_traces import AverageTraces
@@ -292,7 +292,7 @@ def flattened_variance(flu, frames):
     return np.array(vars_)
 
 
-def variance_cell_rates(flu, frames): 
+def variance_cell_rates(flu, frames):
 
     vars_ = []
     for t in range(flu.shape[1]):
@@ -397,7 +397,7 @@ class LabelEncoder():
 
 class LinearModel():
 
-    def __init__(self, session, times_use, remove_targets=False, use_spks=False, 
+    def __init__(self, session, times_use, remove_targets=False, use_spks=False,
                  remove_toosoon=False):
         ''' Perform logistic regression on Session object
 
@@ -628,10 +628,10 @@ class LinearModel():
         covariates_dict['mean_post'] = np.mean(flu[:, :, self.post], (0, 2))
 
         # Mean trace correlation pre stim
-        covariates_dict['corr_pre'] = np.log((mean_cross_correlation(flu, 
+        covariates_dict['corr_pre'] = np.log((mean_cross_correlation(flu,
                                                     self.frames_map['pre'])))
         # Mean trace correlation post stim
-        covariates_dict['corr_post'] = np.log((mean_cross_correlation(flu, 
+        covariates_dict['corr_post'] = np.log((mean_cross_correlation(flu,
                                                      self.frames_map['post'])))
 
         covariates_dict['largest_singular_value'] = np.log(largest_singular_value(
@@ -846,9 +846,9 @@ class LinearModel():
         all_results = []
         for _ in range(n_repeats):
 
-            results, _ = self.logistic_regression(X, y, penalty, C, 
+            results, _ = self.logistic_regression(X, y, penalty, C,
                                                solver=solver, n_folds=n_folds,
-                                               digital_score=digital_score, 
+                                               digital_score=digital_score,
                                                compute_confusion=compute_confusion,
                                                random_state=random_state,
                                                return_results=True,
@@ -1218,12 +1218,12 @@ class LinearModel():
                                  n_comps_include=10,
                                  return_matrix=False)
 
-        # Pull just the covariate you're correlating out of the 
+        # Pull just the covariate you're correlating out of the
         # partial dictionary
         # X_partial = X_partial[covariate]
 
         # hit_cov = X[covariate][hit_idx]
-        
+
 
         # Just want to look at hit trials
         hit_idx = np.where(y==0)[0]
@@ -1240,17 +1240,17 @@ class LinearModel():
             # Indexes of test hit trials
             test_hit = np.intersect1d(hit_idx, test_idx)
             test_hit = np.intersect1d(test_hit, not_easy)
-            
+
             confidence = model.predict_proba(X[test_hit, :])
             hit_confidence.append(confidence[:, 0])
             hit_cov.append(X_partial[test_hit])
-            
+
         # hit_confidence = np.mean(np.array(hit_confidence), 0)
 
         hit_confidence = np.concatenate(hit_confidence)
         hit_cov = np.concatenate(hit_cov)
 
-        
+
         # assert len(hit_cov) == len(hit_idx)
 
 
@@ -1266,7 +1266,7 @@ class LinearModel():
             corr, p = stats.spearmanr(hit_cov, hit_confidence)
 
 
-            # plt.text((x_lims[0] + x_lims[1]) / 2, (y_lims[1] + y_lims[0])/2, 
+            # plt.text((x_lims[0] + x_lims[1]) / 2, (y_lims[1] + y_lims[0])/2,
                      # f'r^2 = {round(r_value**2, 2)}\ngradient = {round(slope, 4)}'
                      # f'\np={p_value:.2e}\nSR={stats.spearmanr(hit_cov, hit_confidence)}',
                      # fontsize=16)
@@ -1279,7 +1279,7 @@ class LinearModel():
         return hit_confidence, hit_cov
 
 
-    def project_model(self, frames='all', model='full', region='both', plot=False, 
+    def project_model(self, frames='all', model='full', region='both', plot=False,
                       digital_score=True):
         ''' Train a model to classify hit and miss and then test
             it on catch and prereward trials.
@@ -1534,7 +1534,7 @@ class LinearModel():
 
         return results_dict, coefs
 
-    def single_covariate(self, region='s1', plot=True, 
+    def single_covariate(self, region='s1', plot=True,
                         covs_keep=['mean_pre', 'corr_pre', 'variance_cell_rates']):
 
         n_comps_include = 5
@@ -1678,7 +1678,7 @@ class PoolAcrossSessions(AverageTraces):
         self.remove_toosoon = remove_toosoon
 
         idxs_remove = []
-        for idx, session in self.sessions.items():    
+        for idx, session in self.sessions.items():
 
             if session.n_cells < 200:
                 idxs_remove.append(idx)
@@ -1777,7 +1777,7 @@ class PoolAcrossSessions(AverageTraces):
         for linear_model in self.linear_models:
             try:
                 res = linear_model.project_model(frames=frames,
-                                           model=model, region='s2', 
+                                           model=model, region='s2',
                                            plot=False)
                 results.append(res)
             except ValueError:
@@ -1949,8 +1949,9 @@ class PoolAcrossSessions(AverageTraces):
             else:
                 self.confusion_matrix = np.dstack((self.confusion_matrix, C))
 
-        cmd = ConfusionMatrixDisplay(np.sum(self.confusion_matrix, 2),
-                  display_labels=linear_model.encoder.inverse_transform([0, 1, 2, 3]))
+        assert False, 'ConfusionMatrixDisplay is not imported in lines below '
+        # cmd = ConfusionMatrixDisplay(np.sum(self.confusion_matrix, 2),
+        #           display_labels=linear_model.encoder.inverse_transform([0, 1, 2, 3]))
 
         cmd.plot(cmap='Blues')
 
@@ -2041,7 +2042,7 @@ class PoolAcrossSessions(AverageTraces):
         plt.axhline(0.5, linestyle=':')
 
     def performance_covariate_correlation(self, covariate, frames='subbed'):
-        
+
         x = []
         y = []
         for linear_model in self.linear_models:
@@ -2063,13 +2064,13 @@ class PoolAcrossSessions(AverageTraces):
 
         plt.plot(x, y, '.')
         plt.plot(x, intercept + slope * x, '-', color='black')
-        plt.text(x_lims[1], (y_lims[1] + y_lims[0])/2, 
+        plt.text(x_lims[1], (y_lims[1] + y_lims[0])/2,
                  f'r^2 = {round(r_value**2, 2)}\ngradient = {round(slope, 4)}\np={p_value:.2e}',
                  fontsize=16)
-         
 
 
-        
+
+
 
     def summary_table(self):
 
@@ -2104,7 +2105,7 @@ class PoolAcrossSessions(AverageTraces):
         string = (f'Hello Adam\n'
                  f'Remove targets is {self.remove_targets}.\n'
                  f'Remove too soon is {self.remove_toosoon}\n'
-                 f'Here are the sessions in play:\n' 
+                 f'Here are the sessions in play:\n'
                  f'{[s.__str__() for s in self.sessions.values()]}\n'
                  f'pre-frames spans {round(np.min(lm.times_use[lm.pre]), 2)} to '
                  f'{round(np.max(lm.times_use[lm.pre]), 2)} inclusive\n'
@@ -2115,8 +2116,8 @@ class PoolAcrossSessions(AverageTraces):
         if additional_strings is not None:
             for s in additional_strings:
                 string = string + '\n' + s
-            
-                    
+
+
         if is_plot:
             xlims = plt.gca().get_xlim()
             ylims = plt.gca().get_ylim()
@@ -2153,7 +2154,7 @@ class MultiSessionModel(PoolAcrossSessions):
 
         self.remove_targets = remove_targets
         self.remove_toosoon = remove_toosoon
-        # Hijack functions from from one of the 
+        # Hijack functions from from one of the
         # LinearModel objects where the initialisation isn't important
         self.logistic_regression = self.linear_models[0].logistic_regression
         self.repeated_crossfold = self.linear_models[0].repeated_crossfold
@@ -2165,7 +2166,7 @@ class MultiSessionModel(PoolAcrossSessions):
 
     def across_session_covariates(self, region='s1', norm='zscore'):
 
-        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var', 
+        covs_keep = ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var',
                     'largest_factor_var', f'ts_{region}_pre', 'reward_history', 'trial_number',
                     'n_cells_stimmed', 'jonas_metric', 'variance_pre']
 
@@ -2177,7 +2178,7 @@ class MultiSessionModel(PoolAcrossSessions):
 
         to_norm =   ['mean_pre', 'corr_pre', 'largest_singular_value', 'largest_PC_var',
                      'largest_factor_var', 'variance_pre', ]
-                    
+
         all_X = None
         all_y = None
 
@@ -2280,7 +2281,7 @@ class MultiSessionModel(PoolAcrossSessions):
 
     def dropout(self, region='s1'):
 
-        
+
         X, y = self.across_session_covariates(region=region)
 
         n_points = 0
@@ -2300,7 +2301,7 @@ class MultiSessionModel(PoolAcrossSessions):
         labels = ['All covariate']
         n_points += 1
 
-        
+
         for label, cov in X.items():
 
             temp_dict = copy.deepcopy(X)
@@ -2332,9 +2333,9 @@ class MultiSessionModel(PoolAcrossSessions):
         string = (f'Hello Adam\n'
                  f'Remove targets is {self.remove_targets}.\n'
                  f'Remove too soon is {self.remove_toosoon}\n'
-                 f'Here are the sessions in play:\n' 
+                 f'Here are the sessions in play:\n'
                  f'{[s.__str__() for s in self.sessions.values()]}\n'
-                 f'Cells in region {region} are included' 
+                 f'Cells in region {region} are included'
                  f'pre-frames spans {round(np.min(lm.times_use[lm.pre]), 2)} to '
                  f'{round(np.max(lm.times_use[lm.pre]), 2)} inclusive\n'
                  f'post-frames spans {round(np.min(lm.times_use[lm.post]), 2)} to '
@@ -2344,7 +2345,7 @@ class MultiSessionModel(PoolAcrossSessions):
         if additional_strings is not None:
             for s in additional_strings:
                 string = string + '\n' + s
-            
+
         if is_plot:
             xlims = plt.gca().get_xlim()
             ylims = plt.gca().get_ylim()
