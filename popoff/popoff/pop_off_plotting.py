@@ -37,8 +37,8 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
-            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288',
-             'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
+            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 'reward\nonly': '#332288',
+            'pre_reward': '#332288', 'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
@@ -1931,17 +1931,17 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     z = 1.96  # 95% confidence interval value
     ci = z * (np.std(flu, 0) / np.sqrt(flu.shape[0]))
 
-    if outcome != 'pre_reward':
-        # Remove the artifact
-        if art_150_included:
-            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.83))
-        else:
-            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.35))
-        mean_flu[artifact_frames] = np.nan
-        x_axis[artifact_frames] = np.nan
-        label = outcome.capitalize()
+    # Remove the artifact
+    if art_150_included:
+        artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.9))
     else:
-        label = 'Spontaneous\nReward'
+        artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.35))
+    mean_flu[artifact_frames] = np.nan
+    x_axis[artifact_frames] = np.nan
+    label = outcome.capitalize()
+
+    if outcome == 'pre_reward':
+        label = 'Reward\nonly'
 
     ax.plot(x_axis, mean_flu, color=color_tt[outcome], label=label)
     ax.fill_between(x=x_axis, y1=mean_flu + ci, y2=mean_flu - ci, color=color_tt[outcome], alpha=0.2)
@@ -1981,18 +1981,31 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
     ax_list[1].set_yticklabels(['' for x in ax_list[1].get_yticks()])
 
     if plot_legend:
-        leg = ax_s2.legend(frameon=False, loc='upper right')
-        lines = leg.get_lines()
-        _ = [line.set_linewidth(4) for line in lines]
-        # ax_s1.text(s='Hit', x=3, y=0.052, fontdict={'color': color_tt['hit']})
-        # ax_s1.text(s='Miss', x=3, y=0.04, fontdict={'color': color_tt['miss']})
-        # ax_s1.text(s='Photostimulation', x=1, y=-0.05, fontdict={'color': color_tt['photostim']})
+        # leg = ax_s2.legend(frameon=False, loc='upper right')
+        # lines = leg.get_lines()
+        # _ = [line.set_linewidth(4) for line in lines]
+        start_y = 0.2
+        for idx, tt in enumerate(tts_plot):
+            tt_txt = tt if tt!= 'pre_reward' else 'reward only'
+
+            ax_s1.text(s=tt_txt, x=-1.9,
+                       y=start_y-idx*0.045, fontdict={'color': color_tt[tt]}, 
+                       fontsize=20)
+            
+        # ax_s1.text(s='Miss', x=-2.5, y=-0.36, fontdict={'color': color_tt['miss']}, fontsize=25)
+
     if zoom_inset:
         ax_zoom = {}
         for i_plot, reg in enumerate(['s1', 's2']):
             ## set box size, coords relative to fraction of axes
-            x_box_min, y_box_min = 0.6, 0.665
-            x_box_len, y_box_len = 0.5, 0.47
+            if 150 not in n_cells:
+                x_box_min, y_box_min = 0.6, 0.665
+                x_box_len, y_box_len = 0.5, 0.47
+            else:
+                print('hi')
+                x_box_min, y_box_min = 0.85, 0.665
+                x_box_len, y_box_len = 0.5, 0.47
+
             x_box_max, y_box_max = x_box_min + x_box_len, y_box_min + y_box_len
             ax_zoom[i_plot] = ax_list[i_plot].inset_axes([x_box_min, y_box_min, x_box_len, y_box_len])
             for tt in tts_plot:
