@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.decomposition import PCA, NMF, FactorAnalysis
-from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score, f1_score, balanced_accuracy_score
+from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score #, ConfusionMatrixDisplay
 from scipy import sparse
 from scipy import stats
 from average_traces import AverageTraces
@@ -1949,8 +1949,9 @@ class PoolAcrossSessions(AverageTraces):
             else:
                 self.confusion_matrix = np.dstack((self.confusion_matrix, C))
 
-        cmd = ConfusionMatrixDisplay(np.sum(self.confusion_matrix, 2),
-                  display_labels=linear_model.encoder.inverse_transform([0, 1, 2, 3]))
+        assert False, 'ConfusionMatrixDisplay is not imported in lines below '
+        # cmd = ConfusionMatrixDisplay(np.sum(self.confusion_matrix, 2),
+        #           display_labels=linear_model.encoder.inverse_transform([0, 1, 2, 3]))
 
         cmd.plot(cmap='Blues')
 
