@@ -38,7 +38,7 @@ colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in 
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288',
-             'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
+            'pre_reward': '#332288', 'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
@@ -1930,17 +1930,17 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     z = 1.96  # 95% confidence interval value
     ci = z * (np.std(flu, 0) / np.sqrt(flu.shape[0]))
 
-    if outcome != 'pre_reward':
-        # Remove the artifact
-        if art_150_included:
-            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.83))
-        else:
-            artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.35))
-        mean_flu[artifact_frames] = np.nan
-        x_axis[artifact_frames] = np.nan
-        label = outcome.capitalize()
+    # Remove the artifact
+    if art_150_included:
+        artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.9))
     else:
-        label = 'Spontaneous\nReward'
+        artifact_frames = np.where((x_axis >= -0.07) & (x_axis < 0.35))
+    mean_flu[artifact_frames] = np.nan
+    x_axis[artifact_frames] = np.nan
+    label = outcome.capitalize()
+
+    if outcome == 'pre_reward':
+        label = 'Reward\nonly'
 
     ax.plot(x_axis, mean_flu, color=color_tt[outcome], label=label)
     ax.fill_between(x=x_axis, y1=mean_flu + ci, y2=mean_flu - ci, color=color_tt[outcome], alpha=0.2)
