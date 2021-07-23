@@ -2136,7 +2136,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         slope, _, corr_coef, p_val, __ = result_lr
         label = ' '
         if slope < 0 and corr_coef < 0:
-            if p_val < 1e-5:
+            if (p_val * 2) < 1e-5:  # multiply by 2 for one-sided p val
                 label = '**'
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
