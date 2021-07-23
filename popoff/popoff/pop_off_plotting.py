@@ -42,7 +42,9 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
-                'corr_pre': 'Pop. correlation'}
+                'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
+                'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
+                'trial_number': 'Trial number', 'reward_history': 'Reward history'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -566,7 +568,7 @@ def plot_single_cell_all_trials(session, n=0, start_time=-4, stim_window=0.35,
         curr_ax.plot(time_arr, np.mean(cell_data, 0),
                           c=color_tt[tt], alpha=0.9, linewidth=3)
         curr_ax.set_xlabel('Time (s)')
-        curr_ax.set_ylabel("DF/F")
+        curr_ax.set_ylabel(r"$\DeltaF/F")
         curr_ax.set_title(f'{tt} trials, N={len(trial_inds)}')
         curr_ax.spines['top'].set_visible(False)
         curr_ax.spines['right'].set_visible(False)
@@ -735,12 +737,11 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
 
     if plot_cbar:
         if cax is None:
-            cbar =plt.colorbar(im, ax=ax).set_label('DF/F activity')# \nnormalised per neuron')
+            cbar =plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
         else:
             cbar = plt.colorbar(im, cax=cax, orientation='vertical',
-                                ticks=[-0.2, -0.1, 0, 0.1, 0.2]).set_label('DF/F activity')# \nnormalised per neuron')
-        # plt.colorbar(im, ax=ax).set_label('DF/F activity, zero-centered per neuron (row) on\n pre-stim actvitiy of each trial type separately')
-
+                                ticks=[-0.2, -0.1, 0, 0.1, 0.2]).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
+    
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation',
                       fontdict={'weight': 'bold'}, loc=('bottom' if n_stim is not None else 'center'))
@@ -832,7 +833,7 @@ def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=[
                                             llabel='spont', llinewidth=3, ccolor=color_tt['spont'])  # plot spont
 
             ax[i_ax][0].legend(frameon=False); ax[i_ax][0].set_title(f'Average over all {reg_names[i_ax]} neurons & trials');
-            ax[i_ax][0].set_xlabel('Time (s)'); ax[i_ax][0].set_ylabel('DF/F')
+            ax[i_ax][0].set_xlabel('Time (s)'); ax[i_ax][0].set_ylabel(r"$\Delta F/F$")
             ax[i_ax][0].set_ylim([-0.2, 0.25])
 
     ## Plot raster plots
@@ -2115,13 +2116,18 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
         all_hit = np.zeros(n_sessions)
         all_miss = np.zeros(n_sessions)
         for i_lm, cov_dict in cov_dicts.items():
-            data = scipy.stats.zscore(cov_dict[cov_name])
+            if len(np.unique(cov_dict[cov_name])) == 1:
+                data = np.zeros(len(cov_dict[cov_name]))
+            else:
+                data = scipy.stats.zscore(cov_dict[cov_name])
             metric_hits = data[cov_dict['y'] == 1]
             metrics_misses = data[cov_dict['y'] == 0]
             all_hit[i_lm] = np.mean(metric_hits)
             all_miss[i_lm] = np.mean(metrics_misses)
-
-        _, p_val = scipy.stats.wilcoxon(all_hit, all_miss)
+        if len(np.unique(cov_dict[cov_name])) == 1:
+            p_val = 1
+        else:
+            _, p_val = scipy.stats.wilcoxon(all_hit, all_miss)
         bool_sign = p_val < (5e-2 / len(cov_names)) # bonferoni correction
 
         if plot_type == 'scatter':

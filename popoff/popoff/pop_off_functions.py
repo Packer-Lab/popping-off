@@ -223,11 +223,14 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     for tt in list_tt_training:
         stim_response_list.append(dict_response_matrix[tt][0])
         dec_response_list.append(dict_response_matrix[tt][1])
+    list_test = ['dec', 'stim']
+    # print(stim_response_list, dec_response_list)
+    # print(list_test)
     if len(np.unique(stim_response_list)) < 2 and 'stim' in list_test:
         list_test.remove('stim')
     if len(np.unique(dec_response_list)) < 2 and 'dec' in list_test:
         list_test.remove('dec')
-    
+    # print(list_test)
     # if 'hit' in list_tt_training and 'spont' in list_tt_training and len(list_test) == 2:
     #     list_test = ['stim']  # remove dec because both are dec=1
     # elif 'hit' in list_tt_training and 'fp' in list_tt_training and len(list_test) == 2:
