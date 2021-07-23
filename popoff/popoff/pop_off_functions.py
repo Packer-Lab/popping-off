@@ -1030,16 +1030,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
 
                 if 'angle_decoders' in df_prediction_train[mouse].columns:
                     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
-
     return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
-
-## Create list with standard colors:
-color_dict_stand = {}
-for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
-    color_dict_stand[ii] = x['color']
-    if ii > 8:
-        break  # after 8 it repeats (for ever)
-
 
 
 def wilcoxon_test(acc_dict):

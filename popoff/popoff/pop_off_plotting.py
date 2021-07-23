@@ -85,6 +85,23 @@ def equal_xy_lims(ax, start_zero=False):
         ax.set_xlim([min_inner_lim, max_outer_lim])
         ax.set_ylim([min_inner_lim, max_outer_lim])
 
+def equal_lims_two_axs(ax1, ax2):
+
+    xlim_1 = ax1.get_xlim()
+    xlim_2 = ax2.get_xlim()
+    ylim_1 = ax1.get_ylim()
+    ylim_2 = ax2.get_ylim()
+     
+    new_x_min = np.minimum(xlim_1[0], xlim_2[0])
+    new_x_max = np.maximum(xlim_1[1], xlim_2[1])
+    new_y_min = np.minimum(ylim_1[0], ylim_2[0])
+    new_y_max = np.maximum(ylim_1[1], ylim_2[1])
+
+    ax1.set_xlim([new_x_min, new_x_max])
+    ax2.set_xlim([new_x_min, new_x_max])
+    ax1.set_ylim([new_y_min, new_y_max])
+    ax2.set_ylim([new_y_min, new_y_max])
+
 def two_digit_sci_not(x):
     sci_not_spars = np.format_float_scientific(x, precision=1)
     # print(sci_not_spars)
@@ -1734,6 +1751,7 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
         x_axis[~remove_photostim] = np.nan
 
     ## Plot:
+    ax.plot([-2.1, 4], [0, 0], linestyle=':', c='grey')
     if plot_indiv:
         for i_trial in range(arr.shape[0]): ## individual trials
             if smooth_traces:
@@ -1869,8 +1887,10 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
         despine(ax_dict[reg])
         equal_xy_lims(ax=ax_dict[reg], start_zero=True)
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
-        ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
-                          xy=(0.05,0.91), xycoords='axes fraction')
+        # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
+        #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
+        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',
+                          xy=(0.585, 0.045), xycoords='axes fraction')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.25, 0.77), xycoords='axes fraction')
         ax_dict['s2'].legend(frameon=False, loc='upper left', bbox_to_anchor=(1.15, 0.75))
@@ -1933,6 +1953,12 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     if region != 's2':
         ax.set_ylabel(r'$\Delta$F/F')
 
+def return_fraction_interval(min_lim=0, max_lim=1, frac=0.5):
+    len_int = max_lim - min_lim 
+    frac_relative = frac  * len_int 
+    frac_abs = frac_relative + min_lim 
+    return frac_abs
+
 def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, plot_legend=False,
                           tts_plot=['hit', 'miss'], frames='all', stack='all-trials',
                           main_ylims=(-0.2, 0.2), zoom_ylims=(-0.025, 0.055), zoom_inset=True):
@@ -1963,7 +1989,11 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
     if zoom_inset:
         ax_zoom = {}
         for i_plot, reg in enumerate(['s1', 's2']):
-            ax_zoom[i_plot] = ax_list[i_plot].inset_axes([0.7, 0.7, 0.4, 0.38])
+            ## set box size, coords relative to fraction of axes
+            x_box_min, y_box_min = 0.6, 0.665
+            x_box_len, y_box_len = 0.5, 0.47
+            x_box_max, y_box_max = x_box_min + x_box_len, y_box_min + y_box_len
+            ax_zoom[i_plot] = ax_list[i_plot].inset_axes([x_box_min, y_box_min, x_box_len, y_box_len])
             for tt in tts_plot:
                 plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
                                 stack=stack, ax=ax_zoom[i_plot], plot_ps_artefact=(tt == 'hit'),
@@ -1974,7 +2004,32 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
             ax_zoom[i_plot].set_xlabel('')
             ax_zoom[i_plot].set_ylabel('')
             ax_zoom[i_plot].set_xticks([])
+            ax_zoom[i_plot].set_yticks([])
 
+            ## get coords of inset box in real coords of main panel:
+            inset_x_min_coord = return_fraction_interval(min_lim=ax_list[i_plot].get_xlim()[0],
+                                                         max_lim=ax_list[i_plot].get_xlim()[1],
+                                                         frac=x_box_min)
+            inset_x_max_coord = return_fraction_interval(min_lim=ax_list[i_plot].get_xlim()[0],
+                                                         max_lim=ax_list[i_plot].get_xlim()[1],
+                                                         frac=x_box_max)
+            inset_y_min_coord = return_fraction_interval(min_lim=ax_list[i_plot].get_ylim()[0],
+                                                         max_lim=ax_list[i_plot].get_ylim()[1],
+                                                         frac=y_box_min)
+            inset_y_max_coord = return_fraction_interval(min_lim=ax_list[i_plot].get_ylim()[0],
+                                                         max_lim=ax_list[i_plot].get_ylim()[1],
+                                                         frac=y_box_max)
+            ## Plot box in main panel
+            lw_box = plt.rcParams['axes.linewidth']
+            ax_list[i_plot].plot([0, 2], [zoom_ylims[0], zoom_ylims[0]], c='k', linewidth=lw_box)
+            ax_list[i_plot].plot([0, 2], [zoom_ylims[1], zoom_ylims[1]], c='k', linewidth=lw_box)
+            ax_list[i_plot].plot([0, 0], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box)
+            ax_list[i_plot].plot([2, 2], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box)
+            ## Plot lines to box:
+            ax_list[i_plot].plot([0, inset_x_min_coord], [zoom_ylims[1], inset_y_max_coord],
+                                 c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([2, inset_x_max_coord], [zoom_ylims[0], inset_y_min_coord],
+                                 c='k', linewidth=lw_box, clip_on=False) 
 
     if save_fig:
         name_plot  = '-'.join(tts_plot)
