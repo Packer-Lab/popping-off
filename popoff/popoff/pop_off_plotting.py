@@ -1466,7 +1466,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               ax_acc_ps=None, time_array=None, smooth_traces=False,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
-                                              plot_artefact=True):
+                                              plot_artefact=True, plot_significance=True):
     ## Plot:
     if decoder_key == 'spont/cr':
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
@@ -1509,15 +1509,25 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
             if plot_artefact:
                 add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
             ax_acc_ps[reg].set_xlim(xlims)
-            ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', fontdict={'weight': 'bold'}, y=1.05)
+            ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', 
+                                     fontdict={'weight': 'bold'}, y=1.05)
+
+            if plot_significance:
+                print(reg)
+                for i_tt, tt in enumerate(plot_tt):
+                    _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
+                                                        time_array=time_array, tt=tt, region=reg)
+                    ax_acc_ps[reg].plot(time_array, [0.95 + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
+                                    linewidth=2, c=color_tt[tt], clip_on=False)
+
+
         if indicate_spont:
             ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.33,
                                 fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
-
-
+    
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
     fig = plt.figure(constrained_layout=False, figsize=(16, 7))

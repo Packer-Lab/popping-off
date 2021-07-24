@@ -1036,6 +1036,65 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
     return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
 
 
+def get_acc_array(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
+                  time_array=np.array([])):
+    '''extract dataframe with accuracy array of dictionary (that is returned by dyn dec analysis)'''
+    if decoder_name == 'NA':
+        sub_dict = {k: v for k, v in pred_dict[tt].items() if k[-2:] == region}
+    else:
+        sub_dict = {k: v for k, v in pred_dict[decoder_name][tt].items() if k[-2:] == region}
+
+    df_pred = {}
+    df_pred['time_array'] = time_array  ## add time array. should be real time (in seconds)
+    for name_session, mat in sub_dict.items():
+        df_pred[name_session] = mat[:, 0]  # extract mean accuracy trace of a session 
+        assert len(time_array) == mat.shape[0]
+    df_pred = pd.DataFrame(df_pred)
+
+    df_pred_collapsed = pd.melt(df_pred, id_vars='time_array',
+                                value_vars=list(sub_dict.keys()), var_name='session',
+                                value_name='accuracy')  # collapse into 3 columns (acc, time, session)
+    return df_pred, df_pred_collapsed
+
+def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
+                      time_array=np.array([]), frames_bin=2, th=0.05):
+    '''
+    time array with time in seconds, should be same size as accuracy arrays 
+    use nans to exclude (artefact) periods
+
+    '''
+    _, df_pred_collapsed = get_acc_array(pred_dict=pred_dict, time_array=time_array, 
+                                        decoder_name=decoder_name, tt=tt, region=region)
+    df_pred_collapsed['chance_level'] = 0.5  ## add column with chance level performance 
+
+    signif_array = np.zeros(len(time_array))
+    n_bins = int(np.floor(len(time_array) / frames_bin))
+    th_bonf = th / n_bins  # perform bonferroni correction for number of tests
+
+    for i_bin in range(n_bins):  # loop through bins
+        start_frame = int(i_bin * frames_bin)
+        end_frame = int((i_bin + 1) * frames_bin)
+        time_min = time_array[start_frame]
+        if end_frame >= len(time_array):
+            time_max = time_array[-1] + 0.1
+            end_frame = len(time_array) 
+        else:
+            time_max = time_array[end_frame]
+        
+        if np.sum(np.isnan(time_array[start_frame:end_frame + 1])) > 0:
+            continue  # skip bins that contains nans [during artefact]
+        else:
+            inds_rows = np.logical_and(df_pred_collapsed['time_array'] >= time_min, 
+                                    df_pred_collapsed['time_array'] < time_max)
+            sub_df = df_pred_collapsed[inds_rows]  # select df during this time bin
+
+            stat, pval = scipy.stats.wilcoxon(x=sub_df['accuracy'], y=sub_df['chance_level'], 
+                                            alternative='two-sided')
+            if pval < th_bonf:
+                signif_array[start_frame:end_frame] = 1  # indicate significance
+
+    return df_pred_collapsed, signif_array
+
 def wilcoxon_test(acc_dict):
     """Perform wilcoxon signed rank test for dictionoary of S1/S2 measurements. Each
     S1/S2 pair per mouse is a paired sample for the test. Perform test on each time point.
