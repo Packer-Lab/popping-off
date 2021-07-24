@@ -1865,7 +1865,7 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
     if plot_logscale:
         ax.set_xscale('log')
 
-def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', plot_legend=True):
+def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', plot_legend=True, verbose=0):
     if ax_s1 is None or ax_s2 is None:
         fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(8, 3), gridspec_kw={'wspace': 0.4})
 
@@ -1891,6 +1891,8 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
         despine(ax_dict[reg])
         equal_xy_lims(ax=ax_dict[reg], start_zero=True)
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
+        if verbose > 0:
+            print(reg, pearson_r, pearson_p)
         # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
         #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
         ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',

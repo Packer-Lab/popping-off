@@ -229,13 +229,11 @@ def largest_PC_var(flu, frames):
 def number_PCs_percentage(flu, frames, perc=90):
 
     n_pcs = []
-    print('new sess')
     for t in range(flu.shape[1]):
         trial = flu[:, t, :]
         trial = trial[:, frames]
         varexp, _, _ = do_pca(trial, trial.shape[1], plot=False)
         assert varexp[-1] <= 1.01, varexp
-        print(varexp)
         ## in case there are multiple pcs with cum var = 1, we want the first one (if this is closest to perc):
         after_first_conv = False
         for ii in range(len(varexp)):
