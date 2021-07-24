@@ -226,6 +226,27 @@ def largest_PC_var(flu, frames):
 
     return np.array(PC_vars)
 
+def number_PCs_percentage(flu, frames, perc=90):
+
+    n_pcs = []
+    print('new sess')
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        varexp, _, _ = do_pca(trial, trial.shape[1], plot=False)
+        assert varexp[-1] <= 1.01, varexp
+        print(varexp)
+        ## in case there are multiple pcs with cum var = 1, we want the first one (if this is closest to perc):
+        after_first_conv = False
+        for ii in range(len(varexp)):
+            if after_first_conv:  # if after first converged pc, add a bit. 
+                varexp[ii] += 0.1  # set to 1.1
+            if varexp[ii] == 1.0:  # if converged, set to True from now on 
+                after_first_conv = True 
+        result = np.argmin(np.abs(varexp - (perc / 100)))
+        n_pcs.append(result)
+
+    return np.array(n_pcs)
 
 def largest_factor_var(flu, frames):
 
@@ -237,7 +258,6 @@ def largest_factor_var(flu, frames):
         PC_vars.append(varexp[0])
 
     return np.array(PC_vars)
-
 
 def jonas_metric(flu, frames):
 
@@ -251,7 +271,6 @@ def jonas_metric(flu, frames):
         jm.append(np.std(meaned))
 
     return np.array(jm)
-
 
 def largest_PC_loading(flu, frames):
 
@@ -638,6 +657,9 @@ class LinearModel():
                                                            flu, self.pre))
 
         covariates_dict['largest_PC_var'] = np.log(largest_PC_var(flu, self.pre))
+
+        covariates_dict['n_PCs_90'] = number_PCs_percentage(flu, self.pre, perc=90)
+        covariates_dict['n_PCs_95'] = number_PCs_percentage(flu, self.pre, perc=95)
         # covariates_dict['largest_PC_var'] = largest_PC_var(flu, self.pre)
 
         covariates_dict['largest_factor_var'] = np.log(largest_factor_var(flu, self.pre))
