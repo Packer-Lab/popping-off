@@ -163,7 +163,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             n_split=4, include_autoreward=False, include_unrewardedhit=False,
                             neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different',
-                            concatenate_sessions_per_mouse=True):
+                            concatenate_sessions_per_mouse=True, hard_set_10_trials=False):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
     are folded n_split times (stratified over session.outcome), new decoders
@@ -334,9 +334,11 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 # print('start', len(trial_inds))#, session.outcome[trial_inds])
                 dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                 if 'spont' not in list_tt_training:
-                    min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
-                    # min_n_trials = 10  # use to control for n_trials of spont
-                    # print('only using 10 trials per trial type!!')
+                    if hard_set_10_trials is False:
+                        min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
+                    elif hard_set_10_trials:
+                        min_n_trials = 10  # use to control for n_trials of spont
+                        print('only using 10 trials per trial type!!')
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
@@ -900,7 +902,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                   region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False,
                                                   list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'],
                                                   tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont'],
-                                                  concatenate_sessions_per_mouse=True):
+                                                  concatenate_sessions_per_mouse=True, hard_set_10_trials=False):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
     Parameters
@@ -976,7 +978,8 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                                                         verbose=0, include_150=False, list_tt_training=list_tt_training,
                                                                                         include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                                                         train_projected=projected_data, return_decoder_weights=True,
-                                                                                        neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse)
+                                                                                        neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse,
+                                                                                        hard_set_10_trials=hard_set_10_trials)
             for xx in dec_w.keys():
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
@@ -1040,9 +1043,9 @@ def get_acc_array(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
                   time_array=np.array([])):
     '''extract dataframe with accuracy array of dictionary (that is returned by dyn dec analysis)'''
     if decoder_name == 'NA':
-        sub_dict = {k: v for k, v in pred_dict[tt].items() if k[-2:] == region}
+        sub_dict = {k[:-3]: v for k, v in pred_dict[tt].items() if k[-2:] == region}
     else:
-        sub_dict = {k: v for k, v in pred_dict[decoder_name][tt].items() if k[-2:] == region}
+        sub_dict = {k[:-3]: v for k, v in pred_dict[decoder_name][tt].items() if k[-2:] == region}
 
     df_pred = {}
     df_pred['time_array'] = time_array  ## add time array. should be real time (in seconds)
@@ -1094,6 +1097,58 @@ def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
                 signif_array[start_frame:end_frame] = 1  # indicate significance
 
     return df_pred_collapsed, signif_array
+
+def stat_test_dyn_dec_two_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1='hit', region_1='s1',
+                                 pred_dict_2={}, decoder_name_2='hit/cr', tt_2='hit', region_2='s1',
+                                 time_array=np.array([]), frames_bin=2, th=0.05, 
+                                 alternative='two-sided'):
+    '''
+    time array with time in seconds, should be same size as accuracy arrays 
+    use nans to exclude (artefact) periods
+
+    '''
+    _, df_pred_collapsed_1 = get_acc_array(pred_dict=pred_dict_1, time_array=time_array, 
+                                        decoder_name=decoder_name_1, tt=tt_1, region=region_1)
+    _, df_pred_collapsed_2 = get_acc_array(pred_dict=pred_dict_2, time_array=time_array, 
+                                        decoder_name=decoder_name_2, tt=tt_2, region=region_2)
+
+    inds_non_nan = ~np.isnan(df_pred_collapsed_1['time_array'])
+    df_pred_collapsed_1 = df_pred_collapsed_1[inds_non_nan]
+    df_pred_collapsed_2 = df_pred_collapsed_2[inds_non_nan]
+
+    signif_array = np.zeros(len(time_array))
+    n_bins = int(np.floor(len(time_array) / frames_bin))
+    th_bonf = th / n_bins  # perform bonferroni correction for number of tests
+
+    for i_bin in range(n_bins):  # loop through bins
+        start_frame = int(i_bin * frames_bin)
+        end_frame = int((i_bin + 1) * frames_bin)
+        time_min = time_array[start_frame]
+        if end_frame >= len(time_array):
+            time_max = time_array[-1] + 0.1
+            end_frame = len(time_array) 
+        else:
+            time_max = time_array[end_frame]
+        
+        if np.sum(np.isnan(time_array[start_frame:end_frame + 1])) > 0:
+            continue  # skip bins that contains nans [during artefact]
+        else:
+            inds_rows = np.logical_and(df_pred_collapsed_1['time_array'] >= time_min, 
+                                       df_pred_collapsed_1['time_array'] < time_max)
+            sub_df_1 = df_pred_collapsed_1[inds_rows]  # select df during this time bin
+            sub_df_2 = df_pred_collapsed_2[inds_rows]  # select df during this time bin
+
+            new_df = pd.merge(sub_df_1, sub_df_2,  how='left', left_on=['session','time_array'], 
+                              right_on = ['session','time_array'], suffixes=('_1', '_2'))
+
+            # stat, pval = scipy.stats.wilcoxon(x=sub_df_1['accuracy'], y=sub_df_2['accuracy'], 
+            #                                 alternative=alternative)
+            stat, pval = scipy.stats.wilcoxon(x=new_df['accuracy_1'], y=new_df['accuracy_2'], 
+                                            alternative=alternative)
+            if pval < th_bonf:
+                signif_array[start_frame:end_frame] = 1  # indicate significance
+
+    return df_pred_collapsed_1, df_pred_collapsed_2, signif_array
 
 def wilcoxon_test(acc_dict):
     """Perform wilcoxon signed rank test for dictionoary of S1/S2 measurements. Each

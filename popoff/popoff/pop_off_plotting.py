@@ -1466,7 +1466,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               ax_acc_ps=None, time_array=None, smooth_traces=False,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
-                                              plot_artefact=True, plot_significance=True):
+                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
     ## Plot:
     if decoder_key == 'spont/cr':
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
@@ -1513,11 +1513,10 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                      fontdict={'weight': 'bold'}, y=1.05)
 
             if plot_significance:
-                print(reg)
                 for i_tt, tt in enumerate(plot_tt):
                     _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
                                                         time_array=time_array, tt=tt, region=reg)
-                    ax_acc_ps[reg].plot(time_array, [0.95 + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
+                    ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
                                     linewidth=2, c=color_tt[tt], clip_on=False)
 
 
