@@ -24,7 +24,9 @@ import pop_off_functions as pof
 from utils.utils_funcs import d_prime
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
-
+plt.rcParams['axes.unicode_minus'] = True
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['Arial']
 ## Create list with standard colors:
 color_dict_stand = {}
 for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
@@ -396,9 +398,9 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
             count_means[reg] += 1
             if plot_indiv and mouse in individual_mouse_list and not plot_diff_s1s2:  # plot individual traces
                 ax.plot(time_1, plot_mean[:time_breakpoint],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, color=ccolor, label=None, alpha=0.2)
+                            markersize=12, color=ccolor, label=None, alpha=0.6)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
-                            markersize=12, alpha=0.8, label=mouse, color=ccolor)
+                            markersize=12, alpha=0.6, label=mouse, color=ccolor)
     for reg in region_list:
         assert count_means[reg] == all_means[reg].shape[0]
     for reg in average_mean.keys():
@@ -737,7 +739,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
 
     if plot_cbar:
         if cax is None:
-            cbar =plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
+            cbar = plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
         else:
             cbar = plt.colorbar(im, cax=cax, orientation='vertical',
                                 ticks=[-0.2, -0.1, 0, 0.1, 0.2]).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
@@ -766,7 +768,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
         ax.set_ylim(s2_lim)
 
     ## Target indicator
-    if plot_targets:
+    if plot_targets and tt in ['hit', 'miss']:
         if reg == 'S1':
             reg_bool = session.s1_bool
         elif reg == 'S2':
@@ -1099,7 +1101,7 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
     reg_names = ['S1' ,'S2']
     assert (time_ticks == [0, 60]).all() and time_tick_labels == ['-1.0', '1.0'], 'hard-coded time tick labels will be incorrect (lines below)'
     time_ticks = [0, 30, 60]
-    time_tick_labels = ['-1', '0', '1']
+    time_tick_labels = [x.replace("-", u"\u2212") for x in ['-1', '0', '1']]
     ## plot cell-averaged traces
     # if plot_averages:
     #     for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
@@ -1443,15 +1445,16 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
                             fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
         if title_lick_dec:
             ax_acc_ps[reg].set_title(f'Dynamic lick decoding in {reg.upper()}', fontdict={'weight': 'bold'})
-            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis')
-        else:
-            ax_acc_ps[reg].set_ylabel(f'{bottom_yax_tt}/{top_yax_tt} encoding axis')
+        ax_acc_ps[reg].set_ylabel(f'{top_yax_tt} vs {bottom_yax_tt} classification')
+
 
     if plot_legend:
         ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
     else:
-        ax_acc_ps['s1'].get_legend().remove()
-    ax_acc_ps['s2'].get_legend().remove()
+        if ax_acc_ps['s1'].get_legend() is not None:
+            ax_acc_ps['s1'].get_legend().remove()
+    if ax_acc_ps['s2'].get_legend() is not None:
+        ax_acc_ps['s2'].get_legend().remove()
     if save_fig:
         fn = f'dyn-dec_{int(len(ps_acc_split["hit"]) / 2)}-mice_{fn_suffix}'
         plt.savefig(f'/home/tplas/repos/popping-off/figures/dyn_decoding/{fn}.pdf', bbox_to_inches='tight')
@@ -1508,8 +1511,8 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
             ax_acc_ps[reg].set_xlim(xlims)
             ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', fontdict={'weight': 'bold'}, y=1.05)
         if indicate_spont:
-            ax_acc_ps['s1'].text(s='Spont', x=1.8, y=0.32,
-                                fontdict={'weight': 'bold', 'color': color_tt['spont']})
+            ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.33,
+                                fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
@@ -2035,10 +2038,10 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
                                                          frac=y_box_max)
             ## Plot box in main panel
             lw_box = plt.rcParams['axes.linewidth']
-            ax_list[i_plot].plot([0, 2], [zoom_ylims[0], zoom_ylims[0]], c='k', linewidth=lw_box)
-            ax_list[i_plot].plot([0, 2], [zoom_ylims[1], zoom_ylims[1]], c='k', linewidth=lw_box)
-            ax_list[i_plot].plot([0, 0], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box)
-            ax_list[i_plot].plot([2, 2], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box)
+            ax_list[i_plot].plot([0, 2], [zoom_ylims[0], zoom_ylims[0]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([0, 2], [zoom_ylims[1], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([0, 0], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([2, 2], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
             ## Plot lines to box:
             ax_list[i_plot].plot([0, inset_x_min_coord], [zoom_ylims[1], inset_y_max_coord],
                                  c='k', linewidth=lw_box, clip_on=False)
