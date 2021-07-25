@@ -23,6 +23,7 @@ import math, cmath
 from tqdm import tqdm
 import scipy.stats, scipy.spatial
 from statsmodels.stats import multitest
+import statsmodels.api as sm
 from Session import Session  # class that holds all data per session
 import pop_off_plotting as pop
 import utils  # from Vape
@@ -1150,6 +1151,80 @@ def stat_test_dyn_dec_two_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1='
 
     return df_pred_collapsed_1, df_pred_collapsed_2, signif_array
 
+
+def stat_test_dyn_dec_two_difference_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1_pos='hit', tt_1_neg='cr', region_1='s1',
+                                            pred_dict_2={}, decoder_name_2='hit/cr', tt_2_pos='hit', tt_2_neg='cr', region_2='s2',
+                                            time_array=np.array([]), frames_bin=2, th=0.05, 
+                                            alternative='two-sided'):
+    '''
+    time array with time in seconds, should be same size as accuracy arrays 
+    use nans to exclude (artefact) periods
+
+    '''
+    _, df_pred_collapsed_1_pos = get_acc_array(pred_dict=pred_dict_1, time_array=time_array, 
+                                        decoder_name=decoder_name_1, tt=tt_1_pos, region=region_1)
+    _, df_pred_collapsed_2_pos = get_acc_array(pred_dict=pred_dict_2, time_array=time_array, 
+                                        decoder_name=decoder_name_2, tt=tt_2_pos, region=region_2)
+
+    _, df_pred_collapsed_1_neg = get_acc_array(pred_dict=pred_dict_1, time_array=time_array, 
+                                        decoder_name=decoder_name_1, tt=tt_1_neg, region=region_1)
+    _, df_pred_collapsed_2_neg = get_acc_array(pred_dict=pred_dict_2, time_array=time_array, 
+                                        decoder_name=decoder_name_2, tt=tt_2_neg, region=region_2)
+    inds_non_nan = ~np.isnan(df_pred_collapsed_1_pos['time_array'])
+    df_pred_collapsed_1_pos = df_pred_collapsed_1_pos[inds_non_nan]
+    df_pred_collapsed_2_pos = df_pred_collapsed_2_pos[inds_non_nan]
+    df_pred_collapsed_1_neg = df_pred_collapsed_1_neg[inds_non_nan]
+    df_pred_collapsed_2_neg = df_pred_collapsed_2_neg[inds_non_nan]
+    
+    
+    signif_array = np.zeros(len(time_array))
+    n_bins = int(np.floor(len(time_array) / frames_bin))
+    th_bonf = th / n_bins  # perform bonferroni correction for number of tests
+
+    for i_bin in range(n_bins):  # loop through bins
+        start_frame = int(i_bin * frames_bin)
+        end_frame = int((i_bin + 1) * frames_bin)
+        time_min = time_array[start_frame]
+        if end_frame >= len(time_array):
+            time_max = time_array[-1] + 0.1
+            end_frame = len(time_array) 
+        else:
+            time_max = time_array[end_frame]
+        
+        if np.sum(np.isnan(time_array[start_frame:end_frame + 1])) > 0:
+            continue  # skip bins that contains nans [during artefact]
+        else:
+            inds_rows = np.logical_and(df_pred_collapsed_1_pos['time_array'] >= time_min, 
+                                       df_pred_collapsed_1_pos['time_array'] < time_max)
+            sub_df_1_pos = df_pred_collapsed_1_pos[inds_rows]  # select df during this time bin
+            sub_df_2_pos = df_pred_collapsed_2_pos[inds_rows]  # select df during this time bin
+            sub_df_1_neg = df_pred_collapsed_1_neg[inds_rows]  # select df during this time bin
+            sub_df_2_neg = df_pred_collapsed_2_neg[inds_rows]  # select df during this time bin
+
+            new_df_1 = pd.merge(sub_df_1_pos, sub_df_1_neg,  how='left', left_on=['session','time_array'], 
+                              right_on = ['session','time_array'], suffixes=('_pos', '_neg'))
+            new_df_1['accuracy_diff'] = new_df_1['accuracy_pos'] - new_df_1['accuracy_neg']
+
+            new_df_2 = pd.merge(sub_df_2_pos, sub_df_2_neg,  how='left', left_on=['session','time_array'], 
+                              right_on = ['session','time_array'], suffixes=('_pos', '_neg'))
+            new_df_2['accuracy_diff'] = new_df_2['accuracy_pos'] - new_df_1['accuracy_neg']
+
+            new_df_total = pd.merge(new_df_1, new_df_2,  how='left', left_on=['session','time_array'], 
+                              right_on = ['session','time_array'], suffixes=('_1', '_2'))
+
+            # stat, pval = scipy.stats.wilcoxon(x=sub_df_1['accuracy'], y=sub_df_2['accuracy'], 
+            #                                 alternative=alternative)
+            stat, pval = scipy.stats.wilcoxon(x=new_df_total['accuracy_diff_1'], y=new_df_total['accuracy_diff_2'], 
+                                            alternative=alternative)
+            if pval < th_bonf:
+                signif_array[start_frame:end_frame] = 1  # indicate significance
+
+            # print(i_bin, time_min, time_max, np.mean(new_df_1['accuracy_diff']), np.mean(new_df_2['accuracy_diff']),
+            #  pval, th_bonf)
+            # print(new_df_total)
+
+    return new_df_total, signif_array
+
 def wilcoxon_test(acc_dict):
     """Perform wilcoxon signed rank test for dictionoary of S1/S2 measurements. Each
     S1/S2 pair per mouse is a paired sample for the test. Perform test on each time point.
@@ -1811,6 +1886,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
         compute_collapsed_density = False 
     n_stim_arr = np.array(n_stim_arr)
 
+    ## Create arrays with percentiles (bins) and stuff
     all_cov_arr = np.sort(super_covar_df[cov_name])
     percentile_arr = np.linspace(100 / n_bins_covar, 100, n_bins_covar)
     cov_perc_arr = np.array([np.percentile(all_cov_arr, x) for x in percentile_arr])
@@ -1818,7 +1894,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
     mat_fraction = np.zeros((len(n_stim_arr), len(cov_perc_arr)))
     
     total_n = 0
-    for i_nstim, n_stim in enumerate(n_stim_arr):
+    for i_nstim, n_stim in enumerate(n_stim_arr):  # select bin and compute fraction hit
         prev_perc = np.min(all_cov_arr) - 10
         for i_cov_perc, cov_perc in enumerate(cov_perc_arr):
             sub_df = super_covar_df.loc[(super_covar_df['n_cells_stimmed'] == n_stim) &
@@ -1841,13 +1917,13 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
         mean_mat_arr = np.zeros(len(arr_diag_index))
         ci_mat_arr = np.zeros(len(arr_diag_index))
         for i_diag_index, diag_index in enumerate(arr_diag_index):
-            mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)
+            mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)  # inds of diagonal with 'same SNR'
             tmp_n_stim_inds_arr, tmp_cov_perc_inds_arr = mat_inds 
 
             cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), 
                                                     cov_perc_arr))
             collapsed_df = None
-            for i_el in range(len(tmp_n_stim_inds_arr)):
+            for i_el in range(len(tmp_n_stim_inds_arr)):  # loop through bins that are in this diagonal
                 i_nstim = tmp_n_stim_inds_arr[i_el]
                 i_cov_perc = tmp_cov_perc_inds_arr[i_el]
 
@@ -1859,11 +1935,12 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
                                             (super_covar_df[cov_name] > lower_cov) &
                                             (super_covar_df[cov_name] <= upper_cov)]      
                 # print('part', np.mean(sub_df['y']), len(sub_df['y']))
-                if collapsed_df is None:
+                if collapsed_df is None:  # concat bins into 1 df
                     collapsed_df = sub_df
                 else:
                     collapsed_df = pd.concat([collapsed_df, sub_df], ignore_index=True)
-            if len(collapsed_df['y']) > 0:
+                # print(len(sub_df), len(collapsed_df))
+            if len(collapsed_df['y']) > 0:  # compute fraction hit trials
                 fraction_hit_miss = np.sum(collapsed_df['y']) / len(collapsed_df['y'])
                 ci = 1.96 * np.sqrt(fraction_hit_miss * (1 - fraction_hit_miss)) / np.sqrt(len(collapsed_df))  # ci of bernoullie distr
             else:
@@ -1871,6 +1948,16 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
             # print('pool', fraction_hit_miss, len(collapsed_df['y']))
             mean_mat_arr[i_diag_index] = fraction_hit_miss
             ci_mat_arr[i_diag_index] = ci 
+            if i_diag_index == 0:
+                total_df = collapsed_df
+            else:
+                total_df = pd.concat([total_df, collapsed_df])
+        hit_label = total_df['y']
+        indep_var = total_df[cov_name]
+        model = sm.GLM(hit_label, sm.add_constant(indep_var), family=sm.families.Binomial())
+        results = model.fit() 
+        print(results.summary())
+        print(results.pvalues)
     else:
         mean_mat_arr, ci_mat_arr = None, None 
 
