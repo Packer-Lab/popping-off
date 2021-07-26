@@ -49,7 +49,9 @@ label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
                 'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
-                'trial_number': 'Trial number', 'reward_history': 'Reward history'}
+                'trial_number': 'Trial number', 
+                # 'reward_history': 'Reward history\n(% succes in last 5 trials)'
+                'reward_history': 'Reward history (% hits)'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -2134,7 +2136,7 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
 def gaussian(x, mu, sig):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
-def covar_sketch(ax=None):
+def covar_sketch(ax=None, plot_pc_var=True):
     if ax is None:
         ax = plt.subplot(111)
 
@@ -2210,15 +2212,16 @@ def covar_sketch(ax=None):
     ax.scatter(mat_scatter[:, 0] + left_scat + 0.2, mat_scatter[:, 1] + 0.3, c='k', s=5, clip_on=False)
 
 
-    ax.arrow(0.88, 0.5, 0.07, -0.07, head_width=0.04, head_length=0.02, linewidth=1.5,
+    ax.arrow(0.95, 0.43, -0.06, 0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
-    ax.arrow(0.88, 0.5, -0.07, 0.07, head_width=0.04, head_length=0.02, linewidth=1.5,
+    ax.arrow(0.81, 0.57, 0.06, -0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
     ax.text(s='Corr.', x=0.925, y=0.47, ha='center', rotation=-45)
     
-    ax.arrow(0.76, 0.21, 0.15, 0.15, head_width=0.04, head_length=0.02, linewidth=1.5,
-                            color='k', length_includes_head=True, clip_on=False)
-    ax.text(s='Var.\n1st PC', x=0.8, y=0.1, c='k', rotation=45)
+    if plot_pc_var:
+        ax.arrow(0.76, 0.21, 0.15, 0.15, head_width=0.04, head_length=0.02, linewidth=1.5,
+                                color='k', length_includes_head=True, clip_on=False)
+        ax.text(s='Var.\n1st PC', x=0.8, y=0.1, c='k', rotation=45)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
     naked(ax)
@@ -2268,7 +2271,7 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     ax.set_title(r"$\Delta F/F$" + ' activity', y=1.17)
  
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
-                            plot_type='scatter',
+                            plot_type='scatter', bonf_n_tests=None,
                     cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
     if ax_dict is None:
         fig, ax = plt.subplots(1, len(cov_names), figsize=(3 * len(cov_names), 2),
@@ -2296,7 +2299,9 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             p_val = 1
         else:
             _, p_val = scipy.stats.wilcoxon(all_hit, all_miss)
-        bool_sign = p_val < (5e-2 / len(cov_names)) # bonferoni correction
+        if bonf_n_tests is None:
+            bonf_n_tests = len(cov_names)
+        bool_sign = p_val < (5e-2 / bonf_n_tests) # bonferoni correction
 
         if plot_type == 'scatter':
             tmp_ax.scatter(all_hit, all_miss,
@@ -2346,8 +2351,12 @@ def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre',
         print(slope, corr_coef, p_val)
 
     if covar_1 == 'reward_history':
+        assert len(np.unique(arr_1)) == 6
         arr_1 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_1))
     elif covar_2 == 'reward_history':
+        assert len(np.unique(arr_2)) == 6
+        ax.set_yticks([0, 1, 2, 3, 4, 5])
+        ax.set_yticklabels(['0', '20', '40', '60', '80', '100'])
         arr_2 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_2))
     if ax is None:
         ax = plt.subplot(111)
