@@ -6,6 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1.colorbar import colorbar as mpl_colorbar
 from matplotlib.ticker import MultipleLocator
+# import matplotlib.gridspec as gridspec
+from matplotlib import gridspec
 import matplotlib.patches
 import seaborn as sns
 # import utils_funcs as utils
@@ -2614,7 +2616,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     if absolute_vals:
         ax.set_ylim([ -0.06, 0.15])
     else:
-        ax.set_ylim(-0.06, 0.15)
+        ax.set_ylim(-0.06, 0.25)
 
     # ax.set_xlim(-1,4)
     despine(ax)
@@ -2622,7 +2624,12 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
         if absolute_vals:
             legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
         else:
-            legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
+            start_y = 0.17
+            for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
+
+                ax.text(s=tt, x=2.8,
+                           y=start_y-idx*0.02, fontdict={'color': color_dict_stand[idx]})
+            # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
 
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
@@ -2663,9 +2670,13 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
 
     y = y + min_val
-    ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
-            color='red')
 
+    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
+    fit = pof.pf(x_range, *popt) + min_val
+    # ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
+            # color='red')
+
+    ax.plot(x_range, fit, color='red')
     # plt.tick_params(
     #     axis='x',
     #     which='both',
@@ -2686,16 +2697,22 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
 
     # Centre point of the rescaled sigmoid.
     # Assumes sigmoid min is 0. Which is approx true here
-    midpoint = (popt[0] + min_val) / 2
+    # midpoint = (popt[0] + min_val) / 2
 
-    # Empirically find the x-axis position matching the midpoint
-    x_range = np.arange(min_x, np.max(x_axis))
-    res = pof.pf(x_range, *popt) + min_val
-    n_cells_mid = x_range[np.argmin(np.abs(res - midpoint))]
+    # # Empirically find the x-axis position matching the midpoint
+    # x_range = np.arange(min_x, np.max(x_axis))
+    # res = pof.pf(x_range, *popt) + min_val
+    # n_cells_mid = x_range[np.argmin(np.abs(res - midpoint))]
 
-    # Line doesn't go far enough but just extend in illustrator
-    ax.vlines(x=n_cells_mid, ymin=0, ymax=midpoint, color='red', ls=':')
-    ax.hlines(y=midpoint, xmin=n_cells_mid, xmax=popt[1], color='red', ls=':')
+    # # Line doesn't go far enough but just extend in illustrator
+    # ax.vlines(x=n_cells_mid, ymin=0, ymax=midpoint, color='red', ls=':')
+    # ax.hlines(y=midpoint, xmin=n_cells_mid, xmax=popt[1], color='red', ls=':')
+    
+    color = 'red'
+    n_cells_mid, dprime_mid = get_percentile_value(x_range, fit)
+    print(n_cells_mid)
+    ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color, ls=':')
+    ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color, ls=':')
 
     ax.xaxis.set_minor_locator(MultipleLocator(10))
     ax.xaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10))
@@ -2703,6 +2720,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     ticks = [10, 100]
     ax.set_xticks(ticks, ticks)
     despine(ax)
+    plt.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
     # save_figure('Figure1PanelG', figure_path)
 
 def get_percentile_value(x_range, curve, p=0.5):
@@ -2752,7 +2770,7 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     ax.set_xscale('log')
 
 
-def lick_raster(lm):
+def lick_raster(lm, fig=None):
     CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
                   '#999999', '#e41a1c', '#dede00']
@@ -2767,8 +2785,11 @@ def lick_raster(lm):
     # Current putting too_soons back in as hits. You can also
     # remove them completely
     ## Its currently called 'too_' for some reason
-
     outcome[outcome=='too_'] = 'hit'
+
+    # Switch out thijs trial definitions for simlicity 
+    outcome[outcome=='urh'] = 'hit'
+    outcome[outcome=='arm'] = 'miss'
 
     # Sort variables by whether the number of cells stimmed
     trial_idxs = np.argsort(trial_subsets, kind='mergesort')
@@ -2790,10 +2811,14 @@ def lick_raster(lm):
         color_map[sub] = colors[i]
     subset_colors = [color_map[i] for i in sorted_subsets]
 
-    fig = plt.figure(figsize=(5,10))
-    gs = fig.add_gridspec(2, 2,  width_ratios=(4,1),
-                      left=0.1, right=0.9, bottom=0.1, top=0.9,
-                      wspace=0.05, hspace=0.05)
+    if fig is None:
+        fig = plt.figure(figsize=(5,10))
+    # gs = fig.add_gridspec(2, 2,  width_ratios=(4,1),
+                      # left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      # wspace=0.05, hspace=0.05)
+
+    gs = gridspec.GridSpecFromSubplotSpec(1, 2, fig, width_ratios=[4, 1], wspace=0) 
+
     ax0 = plt.subplot(gs[0])
     ax1 = plt.subplot(gs[1])
 
@@ -2856,6 +2881,8 @@ def lick_raster(lm):
     cols =  [color_dict_stand[0], color_dict_stand[1],
              CB_color_cycle[7], color_dict_stand[2]]
 
+    cols = [color_tt['cr'], color_tt['fp'], color_tt['miss'], color_tt['hit']]
+
     cm = matplotlib.colors.LinearSegmentedColormap.from_list('hit_miss', cols, N=4)
 
     # Build the colorbar
@@ -2866,9 +2893,11 @@ def lick_raster(lm):
     # This gives you the trial number on the axis
 #     ax1.set_yticklabels([('#'+str(t)) for t in np.flip(trial_scale)])
     ax1.set_yticklabels([])
+    for s in ['top', 'bottom', 'right', 'left']:
+        ax1.spines[s].set_visible(False)
 
-    fontsize = 18
-    plt.text(18, len(sorted_outcome)/3, 'Hit', color=cols[3], fontsize=fontsize)
-    plt.text(18, len(sorted_outcome)/1.7, 'Miss', color=cols[2], fontsize=fontsize)
-    plt.text(18, len(sorted_outcome)/1.22, 'Correct\nRejection', color=cols[0], fontsize=fontsize)
-    plt.text(18, len(sorted_outcome)/1.01, 'False\nPositive', color=cols[1], fontsize=fontsize)
+    # fontsize = 12
+    # plt.text(14, len(sorted_outcome)/3, 'Hit', color=cols[3], fontsize=fontsize)
+    # plt.text(14, len(sorted_outcome)/1.7, 'Miss', color=cols[2], fontsize=fontsize)
+    # plt.text(14, len(sorted_outcome)/1.22, 'Correct\nRejection', color=cols[0], fontsize=fontsize)
+    # plt.text(14, len(sorted_outcome)/1.01, 'False\nPositive', color=cols[1], fontsize=fontsize)
