@@ -2202,6 +2202,32 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             despine(tmp_ax)
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {two_digit_sci_not(p_val)}')
 
+def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
+                                        covar_2='corr_pre', region='s1', verbose=0):
+    arr_1, arr_2 = np.array([]), np.array([])
+    n_sessions = len(cov_dicts[region])
+    
+    for i_sess in range(n_sessions):
+        arr_1 = np.concatenate((arr_1, cov_dicts[region][i_sess][covar_1]))
+        arr_2 = np.concatenate((arr_2, cov_dicts[region][i_sess][covar_2]))
+    
+    result_lr = scipy.stats.linregress(x=arr_1, y=arr_2)
+    slope, _, corr_coef, p_val, __ = result_lr
+    if verbose > 0:
+        print(slope, corr_coef, p_val)
+
+    if covar_1 == 'reward_history':
+        arr_1 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_1))
+    elif covar_2 == 'reward_history':
+        arr_2 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_2))
+    if ax is None:
+        ax = plt.subplot(111)
+    ax.plot(arr_1, arr_2, '.', c='k', markersize=5)
+    ax.set_xlabel(covar_labels[covar_1])
+    ax.set_ylabel(covar_labels[covar_2])
+    ax.set_title(f'r={np.round(corr_coef, 2)}, p<{two_digit_sci_not(p_val)}')
+    despine(ax)
+    
 def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
                         one_sided_ws=20, ax=None, sessions=None, metric='fraction_hit',
                         verbose=0):
