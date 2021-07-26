@@ -2122,16 +2122,106 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
     # ax_miss.text(x=-50, y=0.2, s='DF/F meaned across\nframes pre-stim and\nacross trials',
     #          rotation=90)
 
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+def covar_sketch(ax=None):
+    if ax is None:
+        ax = plt.subplot(111)
+
+
+    x_arr_gauss = np.linspace(-0.2, 0.3, 100)
+    mid_x = 0.05
+    y_arr_gauss = gaussian(x=x_arr_gauss, mu=mid_x, sig=0.1) * 0.4 + 0.5
+
+    ax.plot(x_arr_gauss, y_arr_gauss, c='k', linewidth=1.5, clip_on=False)
+
+    ax.plot([-0.25, 0.35], [0.47, 0.47], c='k', linewidth=1.0, clip_on=False)
+    ax.text(s=r"$\Delta F/F$" + ' distr.', x=mid_x, y=0.37, ha='center')
+    ax.arrow(mid_x, 0.7, 0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.arrow(mid_x, 0.7, -0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.text(s='Pop var.', x=mid_x, y=0.55, ha='center')
+    
+    ax.arrow(mid_x + 0.1, 1, -0.08, -0.08, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.text(s='Pop mean', x=0.35, y=1, ha='center')
+    
+    n_scatter = 40
+    # mat_scatter = np.random.multivariate_normal(np.array([0, 0]), np.array([[1, 0.5], [0.5, 1]]), size=n_scatter) * 0.05
+    mat_scatter = np.array([[-0.10894625, -0.03707173],
+                            [ 0.04927918,  0.0558435 ],
+                            [ 0.07458346,  0.03630893],
+                            [ 0.0737646 ,  0.09700735],
+                            [ 0.02697377, -0.00113548],
+                            [-0.04998247,  0.04741769],
+                            [ 0.0752935 ,  0.0101812 ],
+                            [-0.07316041,  0.00448425],
+                            [ 0.02393236,  0.02762098],
+                            [-0.0541065 ,  0.01168037],
+                            [-0.0008373 , -0.02861629],
+                            [ 0.02036253, -0.00301528],
+                            [ 0.02301268, -0.00663146],
+                            [ 0.00729329,  0.08739137],
+                            [-0.06424448,  0.02205373],
+                            [-0.10345242, -0.04532926],
+                            [-0.04049523, -0.08862355],
+                            [-0.08370238, -0.08036568],
+                            [ 0.0944889 ,  0.11319315],
+                            [-0.01612632, -0.033244  ],
+                            [-0.03482069, -0.09758172],
+                            [-0.01408344, -0.01694928],
+                            [ 0.01295038,  0.05611397],
+                            [ 0.08962012,  0.03492652],
+                            [ 0.02143228,  0.06839815],
+                            [-0.00308122,  0.05854908],
+                            [-0.01016929, -0.0544294 ],
+                            [-0.07146149, -0.01729002],
+                            [ 0.01721404, -0.03629429],
+                            [ 0.0340228 ,  0.04326364],
+                            [-0.06413212, -0.0580089 ],
+                            [ 0.01786435,  0.0595894 ],
+                            [-0.00896541,  0.02284251],
+                            [-0.00737659,  0.00476788],
+                            [ 0.00955506, -0.0185146 ],
+                            [-0.06771121, -0.04626916],
+                            [-0.0375874 , -0.05779237],
+                            [-0.0850151 , -0.01057411],
+                            [-0.03711363, -0.02676278],
+                            [ 0.03556763,  0.08671738]])  # for reproduc. 
+    mat_scatter *= 1.3
+    # axes:
+    left_scat = 0.5
+    ax.plot([left_scat, left_scat + 0.34], [0.1, 0.1], c='k', clip_on=False)
+    ax.plot([left_scat, left_scat], [0.1, 0.5], c='k', clip_on=False)
+    ax.text(s='Neuron 1', x=left_scat + 0.0, y=0.02, c='k')
+    ax.text(s='Neuron 2', x=left_scat - 0.08, y=0.15, c='k', rotation=90)
+    
+    ax.scatter(mat_scatter[:, 0] + left_scat + 0.2, mat_scatter[:, 1] + 0.3, c='k', s=5, clip_on=False)
+
+
+    ax.arrow(0.88, 0.5, 0.07, -0.07, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.arrow(0.88, 0.5, -0.07, 0.07, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.text(s='Corr.', x=0.925, y=0.47, ha='center', rotation=-45)
+    
+    ax.arrow(0.76, 0.21, 0.15, 0.15, head_width=0.04, head_length=0.02, linewidth=1.5,
+                            color='k', length_includes_head=True, clip_on=False)
+    ax.text(s='Var.\n1st PC', x=0.8, y=0.1, c='k', rotation=45)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    naked(ax)
+    
+
 def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     if ax is None:
         ax = plt.subplot(111)
-    color_prestim = 'grey'
-    # ax.plot([x_min, x_max], [0, 0], color='grey', linestyle=':')
     time_axis = np.arange(x_min, x_max, 1/30)
     remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
     time_axis[remove_stim_art_inds] = np.nan
     add_ps_artefact(ax=ax, time_axis=time_axis)
-    # ax.set_ylim([-0.2, 0.2])
     
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, time_axis_norm) = normalise_raster_data(session=session, start_time=x_min, filter_150_stim=True,
@@ -2139,8 +2229,6 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
 
     inds_cells = np.array([123, 34, 54, 65, 76, 86, 102])
     ind_trial = 64
-
-
     # print({k: v for k, v in enumerate(outcome_arr)})
     # print(outcome_arr[ind_trial])
     assert len(time_axis) == len(time_axis_norm)# and time_axis[0] == time_axis_norm[0] and time_axis[-1] == time_axis_norm[-1]  # one contains nans at artefact and other one doesnt
@@ -2148,23 +2236,28 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     assert data_plot.ndim == 2
     n_cells = len(inds_cells)
     for i_cell, ind_cell in enumerate(inds_cells):
-
         ax.plot(time_axis, data_plot[i_cell, :] + 1.2 * i_cell - 5, c='k')
+
+    ## cosmetics:
     ax.set_ylim([-6, ax.get_ylim()[1]])
     naked(ax)
-    ax.axvspan(pre_stim_start, -0.07, alpha=0.2, color=color_prestim)
-
-    trap_x = [x_min, x_max, -0.07, pre_stim_start]
-    trap_y = [-9, -9, -6, -6]
+    right_edge = -0.07 # -0.0826
+    color_patch = (211 /256, 211 / 256, 211 / 256, 0.5)
+    color_patch_edge = (211 /256, 211 / 256, 211 / 256, 0.0)
+    ax.axvspan(pre_stim_start, right_edge, fc=color_patch, ec=color_patch_edge)
+    trap_x = [x_min, x_max, right_edge, pre_stim_start]
+    trap_y = [-9, -9, -6, -6] #-6.037, -6.039]
+    color_patch = (211 /256, 211 / 256, 211 / 256, 0.3)
+    color_patch_edge = (211 /256, 211 / 256, 211 / 256, 0.0)
     ax.add_patch(matplotlib.patches.Polygon(xy=list(zip(trap_x, trap_y)), fill=True, 
-                                            alpha=0.2, color='grey', clip_on=False))
-    ax.add_patch(matplotlib.patches.Rectangle(xy=(-1, -11), width=3, height=2, fill=True, 
-                                            alpha=0.2, color='grey', clip_on=False))
+                                            fc=color_patch, ec=color_patch_edge, clip_on=False))
+    ax.add_patch(matplotlib.patches.Rectangle(xy=(-1, -11.50), width=3, height=2.5, fill=True,   #11.04
+                                            fc=color_patch, ec=color_patch_edge, clip_on=False))
     
-    ax.text(s='Pre-stimulus\nactivity metrics', x=-0.7, y=-10.8, fontdict={'weight':'bold'})
+    ax.text(s='Pre-stimulus\nactivity metrics:', x=-0.7, y=-10.9, fontdict={'weight':'bold'})
     ax.set_ylabel('')
-    # ax.text(s='Pre-stimulus', x=-0.07, y=0.24, fontdict={'color': color_prestim, 'ha': 'right'})
-
+    ax.set_title(r"$\Delta F/F$" + ' activity', y=1.17)
+ 
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                             plot_type='scatter',
                     cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
