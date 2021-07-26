@@ -392,8 +392,8 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
             if running_average_smooth:
                 if time_breakpoint_postnan is not None and np.sum(np.isnan(time_array)) > 0:
                     ## filter data points for which time is nan when computing running average
-                    plot_mean[one_sided_window_size:time_breakpoint - one_sided_window_size] = np.convolve(plot_mean[:time_breakpoint], np.ones(window_size), mode='valid') / window_size
-                    plot_mean[time_breakpoint_postnan + one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean[time_breakpoint_postnan:], np.ones(window_size), mode='valid') / window_size
+                    plot_mean[:time_breakpoint] = smooth_trace(plot_mean[:time_breakpoint], one_sided_window_size=one_sided_window_size)
+                    plot_mean[time_breakpoint:] = smooth_trace(plot_mean[time_breakpoint:], one_sided_window_size=one_sided_window_size)
                 else:
                     plot_mean[one_sided_window_size:-one_sided_window_size] = np.convolve(plot_mean, np.ones(window_size), mode='valid') / window_size
             average_mean[reg] += plot_mean #/ len(mouse_list) * 2  # save mean (assumes that _s1 and _s2 in mouse_list so factor 2)
@@ -510,10 +510,16 @@ def plot_behaviour_accuracy_all_mice(sessions={}, metric='accuracy',
         plt.savefig(save_name, bbox_inches='tight')
     return ax_perf
 
-def smooth_trace(trace, one_sided_window_size=3):
+def smooth_trace(trace, one_sided_window_size=3, fix_ends=True):
 
     window_size = int(2 * one_sided_window_size + 1)
+    old_trace = copy.deepcopy(trace)
     trace[one_sided_window_size:-one_sided_window_size] = np.convolve(trace, np.ones(window_size), mode='valid') / window_size
+
+    if fix_ends:
+        for i_w in range(one_sided_window_size):
+            trace[i_w] = np.mean(old_trace[:(i_w + one_sided_window_size + 1)])
+            trace[-(i_w + 1)] = np.mean(old_trace[(-1 * (i_w + one_sided_window_size + 1)):])
     return trace
 
 def transform_reg_sorted_cell_number(session, n_reg_sorted, sort_dict, reg='S1'):
@@ -1358,7 +1364,7 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
 
 def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                 smooth_traces=False, one_sided_window_size=1,
-                                plot_indiv=False, plot_std_area=True):
+                                plot_indiv=False, plot_std_area=True, plot_mean=True):
     if ax is None:
         ax = plt.subplot(111)
 
@@ -1376,7 +1382,8 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
-                            ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_laser=False, #i_lick,
+                            ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_groupav=plot_mean,
+                             plot_laser=False, #i_lick,
                             plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
                             running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size,
                             time_breakpoint=time_breakpoint, time_breakpoint_postnan=time_breakpoint_postnan)
@@ -1407,7 +1414,7 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1, ax_acc_ps=None,
                                       plot_std_area=True, plot_indiv=False, title_lick_dec=False, plot_legend=True,
-                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit', xlims=[-3, 4]):
+                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit', xlims=[-3, 4], plot_mean=True):
 
     if ax_acc_ps is None:
         fig = plt.figure(constrained_layout=False, figsize=(12, 4))
@@ -1418,7 +1425,7 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split,
                                     reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces,
                                     one_sided_window_size=one_sided_window_size, plot_indiv=plot_indiv,
-                                    plot_std_area=plot_std_area)
+                                    plot_std_area=plot_std_area, plot_mean=plot_mean)
 
         if yaxis_type == 'accuracy':
             ax_acc_ps[reg].set_ylabel('Prediction accuracy')
@@ -1476,6 +1483,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               ax_acc_ps=None, time_array=None, smooth_traces=False,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
+                                              plot_ci=True, plot_mean=True,
                                               plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
     ## Plot:
     if decoder_key == 'spont/cr':
@@ -1511,8 +1519,9 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                         bottom_yax_tt=bottom_yax_tt,
                                         plot_indiv=plot_indiv,
                                         plot_legend=plot_legend,
-                                        plot_std_area=True,
-                                        xlims=xlims)
+                                        plot_std_area=plot_ci,
+                                        xlims=xlims,
+                                        plot_mean=plot_mean)
 
     if ax_acc_ps is not None:
         for reg in ['s1', 's2']:
@@ -2402,7 +2411,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s='10 sessions:\n**: p < ' + r"$10^{-3}$:", x=2.1, y=0.7)
+    ax.text(s='10 sessions:\n**: p < ' + r"$10^{-3}$", x=2.1, y=0.7)
     ax.legend(bbox_to_anchor=(1.1, -0.2), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
