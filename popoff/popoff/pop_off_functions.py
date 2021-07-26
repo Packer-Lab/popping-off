@@ -1874,7 +1874,7 @@ def create_df_from_cov_dicts(cov_dicts, zscore_list=[]):
 
 def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates', 
                           include_150=True, n_bins_covar=7, #zscore_covar=False,
-                          metric='fraction_hit'):
+                          metric='fraction_hit', verbose=0):
     n_stim_arr = [5, 10, 20, 30, 40, 50]
     if include_150:
         n_stim_arr = n_stim_arr + [150]
@@ -1956,8 +1956,9 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
         indep_var = total_df[cov_name]
         model = sm.GLM(hit_label, sm.add_constant(indep_var), family=sm.families.Binomial())
         results = model.fit() 
-        print(results.summary())
-        print(results.pvalues)
+        if verbose:
+            print(results.summary())
+            print(results.pvalues)
     else:
         mean_mat_arr, ci_mat_arr = None, None 
 

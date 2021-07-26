@@ -2109,7 +2109,7 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
     # ax_miss.text(x=-50, y=0.2, s='DF/F meaned across\nframes pre-stim and\nacross trials',
     #          rotation=90)
 
-def pre_stim_sketch(ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
+def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     if ax is None:
         ax = plt.subplot(111)
     color_prestim = 'grey'
@@ -2287,12 +2287,12 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
 def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                             covar_name='variance_cell_rates', #zscored_covar=True,
-                            metric='fraction_hit', pool_trials=True):
+                            metric='fraction_hit', pool_trials=True, verbose=0):
     if ax is None:
         ax = plt.subplot(111)
     (mat_fraction, median_cov_perc_arr, cov_perc_arr,
         n_stim_arr), (mean_mat_arr, ci_mat_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df,
-                                             n_bins_covar=n_bins_covar, metric=metric)
+                                             n_bins_covar=n_bins_covar, metric=metric, verbose=verbose)
                                             #  zscore_covar=zscore_covar)
 
     diag_arr = np.linspace(0, 100, len(mean_mat_arr))
