@@ -40,9 +40,11 @@ colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in 
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 'reward\nonly': '#332288',
-            'pre_reward': '#332288', 'hit&miss': 'k', 'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
+            'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
+            'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
-            'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only'}
+            'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
+            'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
                 'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
@@ -1449,7 +1451,10 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
                             fontdict={'weight': 'bold', 'va': 'center', 'color': color_tt[bottom_yax_tt.lower()]})
         if title_lick_dec:
             ax_acc_ps[reg].set_title(f'Dynamic lick decoding in {reg.upper()}', fontdict={'weight': 'bold'})
-        ax_acc_ps[reg].set_ylabel(f'{top_yax_tt} vs {bottom_yax_tt} classification')
+        if top_yax_tt == 'Rew. only':  # too long for 1 line
+            ax_acc_ps[reg].set_ylabel(f'{top_yax_tt} vs {bottom_yax_tt}\nclassification')
+        else:
+            ax_acc_ps[reg].set_ylabel(f'{top_yax_tt} vs {bottom_yax_tt} classification')
 
 
     if plot_legend:
@@ -1474,7 +1479,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
     ## Plot:
     if decoder_key == 'spont/cr':
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
-        top_yax_tt = 'Spont'
+        top_yax_tt = 'Rew. only'
         bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/cr':
         plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
