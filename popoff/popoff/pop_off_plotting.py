@@ -741,8 +741,12 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
         if cax is None:
             cbar = plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
         else:
-            cbar = plt.colorbar(im, cax=cax, orientation='vertical',
-                                ticks=[-0.2, -0.1, 0, 0.1, 0.2]).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
+            cbar = plt.colorbar(im, cax=cax, orientation='vertical', shrink=0.5, pad=1)
+            cbar.set_label(r"$\Delta F/F$", labelpad=-18)
+            cbar.set_ticks([-0.2, 0.2])
+            cbar.set_ticklabels(['- 0.2', '+ 0.2'])
+            # cbar.ax.tick_params(labelsize=15)
+            
     
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation',
@@ -1869,7 +1873,7 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
             print(f'p={p}')
             print('\n')
     if indicate_spont_ci:
-        ax.text(s='Spont 95% CI', x=60, y=3)
+        ax.text(s='R.O. 95% CI', x=72, y=3)
     despine(ax)
     if plot_logscale:
         ax.set_xscale('log')
@@ -1904,8 +1908,9 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
             print(reg, pearson_r, pearson_p)
         # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
         #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
+        xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
         ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',
-                          xy=(0.585, 0.045), xycoords='axes fraction')
+                          xy=xy, xycoords='axes fraction')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.25, 0.77), xycoords='axes fraction')
         ax_dict['s2'].legend(frameon=False, loc='upper left', bbox_to_anchor=(1.15, 0.75))
@@ -2003,22 +2008,23 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
             tt_txt = tt if tt!= 'pre_reward' else 'reward only'
 
             ax_s1.text(s=tt_txt, x=-1.9,
-                       y=start_y-idx*0.045, fontdict={'color': color_tt[tt]}, 
-                       fontsize=20)
-            
+                       y=start_y-idx*0.045, fontdict={'color': color_tt[tt]})
+
         # ax_s1.text(s='Miss', x=-2.5, y=-0.36, fontdict={'color': color_tt['miss']}, fontsize=25)
 
     if zoom_inset:
+        ## set box size, coords relative to fraction of axes
+        if 150 not in n_cells:
+            x_box_min, y_box_min = 0.6, 0.665
+            x_box_len, y_box_len = 0.5, 0.47
+            x_lims_box = [0,2]  # In data units
+        else:
+            x_box_min, y_box_min = 0.7, 0.665
+            x_box_len, y_box_len = 0.5, 0.47
+            x_lims_box = [0.5,2.5]  # In data units
+
         ax_zoom = {}
         for i_plot, reg in enumerate(['s1', 's2']):
-            ## set box size, coords relative to fraction of axes
-            if 150 not in n_cells:
-                x_box_min, y_box_min = 0.6, 0.665
-                x_box_len, y_box_len = 0.5, 0.47
-            else:
-                print('hi')
-                x_box_min, y_box_min = 0.85, 0.665
-                x_box_len, y_box_len = 0.5, 0.47
 
             x_box_max, y_box_max = x_box_min + x_box_len, y_box_min + y_box_len
             ax_zoom[i_plot] = ax_list[i_plot].inset_axes([x_box_min, y_box_min, x_box_len, y_box_len])
@@ -2028,7 +2034,8 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
                                 art_150_included=(150 in n_cells))
             # despine(ax_zoom[i_plot])
             ax_zoom[i_plot].set_ylim(zoom_ylims)
-            ax_zoom[i_plot].set_xlim([0, 2])
+
+            ax_zoom[i_plot].set_xlim(x_lims_box)
             ax_zoom[i_plot].set_xlabel('')
             ax_zoom[i_plot].set_ylabel('')
             ax_zoom[i_plot].set_xticks([])
@@ -2049,14 +2056,14 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
                                                          frac=y_box_max)
             ## Plot box in main panel
             lw_box = plt.rcParams['axes.linewidth']
-            ax_list[i_plot].plot([0, 2], [zoom_ylims[0], zoom_ylims[0]], c='k', linewidth=lw_box, clip_on=False)
-            ax_list[i_plot].plot([0, 2], [zoom_ylims[1], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
-            ax_list[i_plot].plot([0, 0], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
-            ax_list[i_plot].plot([2, 2], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot(x_lims_box, [zoom_ylims[0], zoom_ylims[0]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot(x_lims_box, [zoom_ylims[1], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([x_lims_box[0], x_lims_box[0]], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
+            ax_list[i_plot].plot([x_lims_box[1], x_lims_box[1]], [zoom_ylims[0], zoom_ylims[1]], c='k', linewidth=lw_box, clip_on=False)
             ## Plot lines to box:
-            ax_list[i_plot].plot([0, inset_x_min_coord], [zoom_ylims[1], inset_y_max_coord],
+            ax_list[i_plot].plot([x_lims_box[0], inset_x_min_coord], [zoom_ylims[1], inset_y_max_coord],
                                  c='k', linewidth=lw_box, clip_on=False)
-            ax_list[i_plot].plot([2, inset_x_max_coord], [zoom_ylims[0], inset_y_min_coord],
+            ax_list[i_plot].plot([x_lims_box[1], inset_x_max_coord], [zoom_ylims[0], inset_y_min_coord],
                                  c='k', linewidth=lw_box, clip_on=False) 
 
     if save_fig:
