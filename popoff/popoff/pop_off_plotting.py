@@ -1825,7 +1825,7 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
         x_coords_hm = ax.get_xlim()[0]
         ax.text(s='Hit', x=x_coords_hm, y=ylims[1] * 0.8, fontdict={'color': color_tt['hit']})
         ax.text(s='Miss', x=x_coords_hm, y=ylims[1] * 0.6, fontdict={'color': color_tt['miss']})
-        ax.text(s='Spont', x=x_coords_hm, y=ylims[1] * 0.4, fontdict={'color': color_tt['spont']})
+        ax.text(s='Reward\nonly', x=x_coords_hm, y=ylims[1] * 0.3, fontdict={'color': color_tt['spont']})
         ax.text(s='Photostimulation', x=0.5, y=ylims[0], fontdict={'color': color_tt['photostim']})
 
     naked(ax)
