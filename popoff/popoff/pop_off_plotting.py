@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1.colorbar import colorbar as mpl_colorbar
 from matplotlib.ticker import MultipleLocator
+import matplotlib.patches
 import seaborn as sns
 # import utils_funcs as utils
 # import run_functions as rf
@@ -2125,18 +2126,44 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     if ax is None:
         ax = plt.subplot(111)
     color_prestim = 'grey'
-    ax.plot([x_min, x_max], [0, 0], color='grey', linestyle=':')
+    # ax.plot([x_min, x_max], [0, 0], color='grey', linestyle=':')
     time_axis = np.arange(x_min, x_max, 1/30)
     remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
     time_axis[remove_stim_art_inds] = np.nan
     add_ps_artefact(ax=ax, time_axis=time_axis)
-    ax.set_ylim([-0.2, 0.2])
+    # ax.set_ylim([-0.2, 0.2])
+    
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+        time_ticks, time_tick_labels, time_axis_norm) = normalise_raster_data(session=session, start_time=x_min, filter_150_stim=True,
+                                        sort_neurons=True, end_time=x_max)
+
+    inds_cells = np.array([123, 34, 54, 65, 76, 86, 102])
+    ind_trial = 64
+
+
+    # print({k: v for k, v in enumerate(outcome_arr)})
+    # print(outcome_arr[ind_trial])
+    assert len(time_axis) == len(time_axis_norm)# and time_axis[0] == time_axis_norm[0] and time_axis[-1] == time_axis_norm[-1]  # one contains nans at artefact and other one doesnt
+    data_plot = data_use_mat_norm_s1[inds_cells, :, :][:, ind_trial, :]
+    assert data_plot.ndim == 2
+    n_cells = len(inds_cells)
+    for i_cell, ind_cell in enumerate(inds_cells):
+
+        ax.plot(time_axis, data_plot[i_cell, :] + 1.2 * i_cell - 5, c='k')
+    ax.set_ylim([-6, ax.get_ylim()[1]])
     naked(ax)
-    ax.spines['left'].set_visible(True)
-    ax.spines['bottom'].set_visible(True)
-    ax.set_xticks(np.arange(x_min, x_max, 1))
     ax.axvspan(pre_stim_start, -0.07, alpha=0.2, color=color_prestim)
-    ax.text(s='Pre-stimulus', x=-0.07, y=0.24, fontdict={'color': color_prestim, 'ha': 'right'})
+
+    trap_x = [x_min, x_max, -0.07, pre_stim_start]
+    trap_y = [-9, -9, -6, -6]
+    ax.add_patch(matplotlib.patches.Polygon(xy=list(zip(trap_x, trap_y)), fill=True, 
+                                            alpha=0.2, color='grey', clip_on=False))
+    ax.add_patch(matplotlib.patches.Rectangle(xy=(-1, -11), width=3, height=2, fill=True, 
+                                            alpha=0.2, color='grey', clip_on=False))
+    
+    ax.text(s='Pre-stimulus\nactivity metrics', x=-0.7, y=-10.8, fontdict={'weight':'bold'})
+    ax.set_ylabel('')
+    # ax.text(s='Pre-stimulus', x=-0.07, y=0.24, fontdict={'color': color_prestim, 'ha': 'right'})
 
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                             plot_type='scatter',
@@ -2276,14 +2303,14 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     else:
         assert cov_name == 'variance_cell_rates'
         ax.set_xlabel('Population variance')
-    ax.set_ylabel('Probability Hit')
+    ax.set_ylabel('Probability hit')
     # ax.set_ylim([0, 1])
     ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)', y=1.1)
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s='**: p < ' + r"$10^{-5}$:", x=2.1, y=0.8)
-    ax.legend(bbox_to_anchor=(1.1, -0.1), loc='lower left', frameon=False, ncol=2)
+    ax.text(s='10 sessions:\n**: p < ' + r"$10^{-3}$:", x=2.1, y=0.7)
+    ax.legend(bbox_to_anchor=(1.1, -0.2), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
@@ -2297,9 +2324,9 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
     if metric == 'fraction_hit':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
-                    cbar_kws={'label': 'Probability Hit'}, rasterized=False,
+                    cbar_kws={'label': 'Probability hit'}, rasterized=False,
                     cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
-        ax.set_title('P(Hit) as a function of pop. variance\n and number of cells stimulated')
+        ax.set_title('P(Hit) depends on pop. variance\n and number of cells stimulated', y=1.04)
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
@@ -2359,7 +2386,7 @@ def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
     despine(ax)
-    ax.set_title('Diagonal of matrix', y=1.1)
+    ax.set_title('Diagonal of matrix', y=1.14)
 
 def hist_covar(super_covar_df, ax=None, covar_name='variance_cell_rates'):
     if ax is None:
@@ -2383,8 +2410,8 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
             '.', markersize=4, color='k')
     pearson_r, pearson_p = scipy.stats.pearsonr(super_covar_df_dict['s1'][cov_name],
                                                 super_covar_df_dict['s2'][cov_name])
-    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
-                          xy=(0, 1.1), xycoords='axes fraction')
+    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',
+                          xy=(0, 1.15), xycoords='axes fraction')
 
     despine(ax)
     ax.set_xlabel(f'{covar_labels[cov_name]} S1')
