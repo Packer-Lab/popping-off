@@ -992,6 +992,8 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                 inds_training = np.where(df_prediction_test[mouse]['used_for_training'] == 1)[0]
                 lick = df_prediction_test[mouse]['true_dec_test'].copy()
                 ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
+                n_stim = df_prediction_test[mouse]['true_stim_test'].copy()
+
                 if 'pred_dec_test' in df_prediction_test[mouse].columns:
                     if projected_data is False:
                         pred_lick = df_prediction_test[mouse]['pred_dec_test'].copy()
@@ -1038,6 +1040,146 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                 if 'angle_decoders' in df_prediction_train[mouse].columns:
                     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
     return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
+
+## Main function to compute accuracy of decoders per time point
+def compute_prediction_time_array_average_per_mouse_split(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
+                                                        region_list=['s1', 's2'], regularizer=0.02, projected_data=False, 
+                                                        list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'],
+                                                        tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont'],
+                                                        concatenate_sessions_per_mouse=True, hard_set_10_trials=False):
+    """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
+
+    Parameters
+    ----------
+    sessions : dict of Session
+            data
+    time_array : np.array
+         array of time points to evaluate
+    average_fun : function
+        function that computes accuracy metric
+    reg_type : str, 'l2' or 'none'
+        type of regularisation
+    region_list : str, default=['s1', 's2']
+        list of regions to compute
+    regularizer : float
+        if reg_type == 'l2', this is the reg strength (C in scikit-learn)
+    projected_data : bool, default=False
+        if true, also compute test prediction on projected data (see train_test_all_sessions())
+
+    Returns
+    -------
+    tuple
+        (lick_acc,
+            lick accuracy of lick decoder per mouse/session
+        lick_acc_split,
+            lick accuracy split by trial type
+        ps_acc,
+            ps accuracy
+        ps_acc_split,
+            ps accuracy split by lick trial type
+        lick_half,
+            accuracy of naive fake data
+        angle_dec,
+            angle between decoders
+        decoder_weights)
+            weights of decoders
+
+    """
+    ## Prepare variables:
+    assert projected_data is False, 'see old function for template of how to implement if True'
+    if concatenate_sessions_per_mouse:
+        mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
+    else:
+        mouse_list = [ss.signature for ss in sessions.values()]   
+    stim_list = [0, 5, 10, 20, 30, 40, 50]  # hard coded!
+    dec_list = [0, 1]  # hard_coded!!
+    mouse_s_list = []
+    for mouse in mouse_list:
+        for reg in region_list:
+            mouse_s_list.append(mouse + '_' + reg)
+    n_timepoints = len(time_array)
+    signature_list = [session.signature for _, session in sessions.items()]
+
+    ## Accuracy & prediction split by trial type
+    ps_pred_split_tt = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}
+    lick_pred_split_tt = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
+
+    nstim_name_dict = {'n0': np.array([0]), 'n1': np.array([5, 10]), 
+                       'n2': np.array([20, 30]), 'n3': np.array([40, 50])}
+    ps_pred_split_tt_nstim, lick_pred_split_tt_nstim = {}, {}
+    nstim_selection_dict, tt_selection_dict = {}, {}
+    for nstim_name, nstim_list in nstim_name_dict.items():
+        for tt in tt_list:
+            key_name = tt + '_' + nstim_name
+            nstim_selection_dict[key_name] = nstim_list.copy()
+            tt_selection_dict[key_name] = tt 
+            ps_pred_split_tt_nstim[key_name] = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
+            lick_pred_split_tt_nstim[key_name] = {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list}
+
+
+    # angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
+    # decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+    #                    's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
+    #                    's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
+    #                    's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
+
+    ## Train decoders & extract relevant results:
+    for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
+        for reg in region_list:
+            df_prediction_train, df_prediction_test, dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+                                                                                        verbose=0, include_150=False, list_tt_training=list_tt_training,
+                                                                                        include_autoreward=False, C_value=regularizer, reg_type=reg_type,
+                                                                                        train_projected=projected_data, return_decoder_weights=True,
+                                                                                        neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse,
+                                                                                        hard_set_10_trials=hard_set_10_trials)  # train decoders
+            # for xx in dec_w.keys():  # extract decoder weights
+            #     for signat in signature_list:
+            #         decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
+
+            for mouse in df_prediction_train.keys():  # extract decoder predictions per mouse
+                assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['unrewarded_hit_test'].sum() == 0
+                assert df_prediction_test[mouse][df_prediction_test[mouse]['used_for_training'] == 1]['autorewarded_miss_test'].sum() == 0
+
+                inds_training = np.where(df_prediction_test[mouse]['used_for_training'] == 1)[0]  # this excludes stuff like arm and urh
+                lick = df_prediction_test[mouse]['true_dec_test'].copy()
+                ps = (df_prediction_test[mouse]['true_stim_test'] > 0).astype('int').copy()
+                n_stim = df_prediction_test[mouse]['true_stim_test'].copy()
+                
+                ## 1 or 2 classifiers could be have trained (decision & stimulus):
+                if 'pred_dec_test' in df_prediction_test[mouse].columns:
+                    pred_lick = df_prediction_test[mouse]['pred_dec_test'].copy()
+                    ## Prediction split by trial type:
+                    for x, arr in lick_pred_split_tt.items():
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), 
+                                                           np.std(pred_lick[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
+
+                    ## Prediction split by trial type AND n cells stimulated:
+                    for x, arr in lick_pred_split_tt_nstim.items():
+                        trial_selection = np.where(np.logical_and(df_prediction_test[mouse]['outcome_test'] == tt_selection_dict[x],
+                                                                  np.isin(df_prediction_test[mouse]['true_stim_test'], nstim_selection_dict[x])))[0]
+                        # print(x, trial_selection)
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_lick[trial_selection]), 
+                                                           np.std(pred_lick[trial_selection])]
+                        # print(arr[mouse + '_' + reg][i_tp, :] )
+                if 'pred_stim_test' in df_prediction_test[mouse].columns:
+                    pred_ps = df_prediction_test[mouse]['pred_stim_test'].copy()
+                    ## Prediction split by trial types: 
+                    for x, arr in ps_pred_split_tt.items():
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]]), 
+                                                           np.std(pred_ps[np.where(df_prediction_test[mouse]['outcome_test'] == x)[0]])]
+
+                                                                ## Prediction split by trial type AND n cells stimulated:
+                    for x, arr in ps_pred_split_tt_nstim.items():
+                        trial_selection = np.where(np.logical_and(df_prediction_test[mouse]['outcome_test'] == tt_selection_dict[x],
+                                                                  np.isin(df_prediction_test[mouse]['true_stim_test'], nstim_selection_dict[x])))[0]
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_lick[trial_selection]), 
+                                                           np.std(pred_lick[trial_selection])]
+
+
+                # if 'angle_decoders' in df_prediction_train[mouse].columns:
+                #     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
+    angle_dec, decoder_weights = None, None
+    return (lick_pred_split_tt, lick_pred_split_tt_nstim, ps_pred_split_tt, ps_pred_split_tt_nstim)
 
 
 def get_acc_array(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',

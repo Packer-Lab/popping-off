@@ -1540,7 +1540,6 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                     ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
                                     linewidth=2, c=color_tt[tt], clip_on=False)
 
-
         if indicate_spont:
             ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.33,
                                 fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
