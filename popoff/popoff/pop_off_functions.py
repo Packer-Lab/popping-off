@@ -1172,8 +1172,8 @@ def compute_prediction_time_array_average_per_mouse_split(sessions, time_array, 
                     for x, arr in ps_pred_split_tt_nstim.items():
                         trial_selection = np.where(np.logical_and(df_prediction_test[mouse]['outcome_test'] == tt_selection_dict[x],
                                                                   np.isin(df_prediction_test[mouse]['true_stim_test'], nstim_selection_dict[x])))[0]
-                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_lick[trial_selection]), 
-                                                           np.std(pred_lick[trial_selection])]
+                        arr[mouse + '_' + reg][i_tp, :] = [np.mean(pred_ps[trial_selection]), 
+                                                           np.std(pred_ps[trial_selection])]
 
 
                 # if 'angle_decoders' in df_prediction_train[mouse].columns:

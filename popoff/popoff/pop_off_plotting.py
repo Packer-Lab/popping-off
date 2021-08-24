@@ -44,8 +44,13 @@ colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 'reward\nonly': '#332288',
             'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
-            'fp&cr': 'k', 'photostim': sns.color_palette()[6]}  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
+            'fp&cr': 'k', 'photostim': sns.color_palette()[6],
+            'hit_n1': '#D5F622', 'hit_n2': '#7ED41E', 'hit_n3': '#117733',
+            'miss_n1': '#23A5FC', 'miss_n2': '#E422F2', 'miss_n3': '#882255'
+            }  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
+            'hit_n1': 'Hit 5-10', 'hit_n2': 'Hit 20-30', 'hit_n3': 'Hit 40-50',
+            'miss_n1': 'Miss 5-10', 'miss_n2': 'Miss 20-30', 'miss_n3': 'Miss 40-50',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
             'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
@@ -408,8 +413,8 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                             markersize=12, color=ccolor, label=None, alpha=0.6)
                 ax.plot(time_2, plot_mean[time_breakpoint:],  linewidth=2, linestyle=linest[reg],
                             markersize=12, alpha=0.6, label=mouse, color=ccolor)
-    for reg in region_list:
-        assert count_means[reg] == all_means[reg].shape[0]
+    # for reg in region_list:
+    #     assert count_means[reg] == all_means[reg].shape[0]
     for reg in average_mean.keys():
         average_mean[reg] = average_mean[reg] / count_means[reg]
 
@@ -1385,6 +1390,7 @@ def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                     plot_array=np.zeros_like(time_array) + 0.5,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
+        # print(i_lick)
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
                             ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_groupav=plot_mean,
                              plot_laser=False, #i_lick,
@@ -1470,7 +1476,8 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
 
 
     if plot_legend:
-        ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(0.11, 0.98), frameon=False)
+        ax_acc_ps['s1'].legend(loc='upper left', bbox_to_anchor=(1.1, 0.98), 
+                                frameon=False)
     else:
         if ax_acc_ps['s1'].get_legend() is not None:
             ax_acc_ps['s1'].get_legend().remove()
@@ -1548,7 +1555,75 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
-    
+
+def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_split, decoder_key='hit/cr',
+                                              plot_tt=['hit_n1', 'hit_n2', 'hit_n3', 
+                                                       'miss_n1', 'miss_n2', 'miss_n3'],
+                                              ax_acc_ps=None, time_array=None, smooth_traces=False,
+                                              one_sided_window_size=2, plot_indiv=False, plot_legend=True,
+                                              indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
+                                              plot_ci=True, plot_mean=True,
+                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
+    ## Plot:
+    if decoder_key == 'spont/cr':
+        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
+        top_yax_tt = 'Rew. only'
+        bottom_yax_tt = 'CR'
+    elif decoder_key == 'hit/cr':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
+        bottom_yax_tt = 'CR'
+    elif decoder_key == 'hit/cr 10 trials':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
+        bottom_yax_tt = 'CR'
+    elif decoder_key == 'miss/cr':
+        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}
+        top_yax_tt = 'Miss'
+        bottom_yax_tt = 'CR'
+    elif decoder_key == 'hit/miss':
+        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        top_yax_tt = 'Hit'
+        bottom_yax_tt = 'Miss'
+
+    plot_dynamic_decoding_two_regions(ps_acc_split=plot_dict_split,
+                                        time_array=time_array,
+                                        yaxis_type='prediction',
+                                        smooth_traces=smooth_traces,
+                                        ax_acc_ps=ax_acc_ps,
+                                        one_sided_window_size=one_sided_window_size,
+                                        save_fig=False,
+                                        fn_suffix='subsampled_SpontCr_10-sessions_ws2',
+                                        top_yax_tt=top_yax_tt,
+                                        bottom_yax_tt=bottom_yax_tt,
+                                        plot_indiv=plot_indiv,
+                                        plot_legend=plot_legend,
+                                        plot_std_area=plot_ci,
+                                        xlims=xlims,
+                                        plot_mean=plot_mean)
+
+    if ax_acc_ps is not None:
+        for reg in ['s1', 's2']:
+            if plot_artefact:
+                add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
+            ax_acc_ps[reg].set_xlim(xlims)
+            ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', 
+                                     fontdict={'weight': 'bold'}, y=1.05)
+
+            if plot_significance:
+                for i_tt, tt in enumerate(plot_tt):
+                    _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
+                                                        time_array=time_array, tt=tt, region=reg)
+                    ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
+                                    linewidth=2, c=color_tt[tt], clip_on=False)
+
+        if indicate_spont:
+            ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.33,
+                                fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
+        if indicate_fp:
+            ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
+                                fontdict={'weight': 'bold', 'color': color_tt['fp']})
+
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
     fig = plt.figure(constrained_layout=False, figsize=(16, 7))
