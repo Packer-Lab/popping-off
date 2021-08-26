@@ -447,7 +447,7 @@ class LinearModel():
             self.remove_targets_from_data()
 
         # Init encoder with required sort order
-        self.encoder = LabelEncoder(['miss', 'hit', 'cr', 'fp'])
+        self.encoder = LabelEncoder(['miss', 'hit', 'cr', 'fp', 'arm', 'urh', 'too_'])  # add all to avoid error
 
         self.session.outcome = self.nan_removal(self.session.outcome)
         self.session.trial_subsets = self.nan_removal(
@@ -670,20 +670,29 @@ class LinearModel():
         # covariates_dict['ts_both_pre'] = (np.abs(self.session.tau_dict['all_pre'][trial_bool]))
 
         covariates_dict['trial_number'] = np.arange(*covariates_dict['mean_pre'].shape)
+        if prereward is False:
+            covariates_dict['trial_number_original'] = np.where(trial_bool)[0]
+        else:
+            covariates_dict['trial_number_original'] = np.arange(*covariates_dict['mean_pre'].shape)
+        assert len(covariates_dict['trial_number']) == len(covariates_dict['trial_number_original']), f'trial number lengths do not match: {len(covariates_dict["trial_number"])}, {len(covariates_dict["trial_number_original"])}'
 
         covariates_dict['flattened_variance'] = flattened_variance(flu, self.pre)
         covariates_dict['variance_pop_mean'] = variance_pop_mean(flu, self.pre)
         covariates_dict['variance_cell_rates'] = np.log(variance_cell_rates(flu, self.pre))
         covariates_dict['mean_cell_variance'] = mean_cell_variance(flu, self.pre)
 
-
-        covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
-
-        covariates_dict['n_cells_stimmed'] = self.session.trial_subsets[trial_bool]
-
-        covariates_dict['lick'] = self.session.decision[trial_bool]
-        covariates_dict['reward'] = (self.session.outcome == 'hit')\
+        if prereward is False:
+            covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
+            covariates_dict['n_cells_stimmed'] = self.session.trial_subsets[trial_bool]
+            covariates_dict['lick'] = self.session.decision[trial_bool]
+            covariates_dict['reward'] = (self.session.outcome == 'hit')\
                                      .astype('int')[trial_bool]
+        else:
+            covariates_dict['reward_history'] = np.zeros(len(trial_bool)) + np.nan
+            covariates_dict['n_cells_stimmed'] = np.zeros(len(trial_bool)) + np.nan
+            covariates_dict['lick'] = np.ones(len(trial_bool))
+            covariates_dict['reward'] = np.ones(len(trial_bool))
+        
 
         covariates_dict['jonas_metric'] = jonas_metric(flu, self.pre)
 

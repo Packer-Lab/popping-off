@@ -46,11 +46,15 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
             'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
             'fp&cr': 'k', 'photostim': sns.color_palette()[6],
             'hit_n1': '#D5F622', 'hit_n2': '#7ED41E', 'hit_n3': '#117733',
-            'miss_n1': '#23A5FC', 'miss_n2': '#E422F2', 'miss_n3': '#882255'
+            'miss_n1': '#23A5FC', 'miss_n2': '#E422F2', 'miss_n3': '#882255',
+            'hit_c1': '#D5F622', 'hit_c2': '#7ED41E', 'hit_c3': '#117733',
+            'miss_c1': '#23A5FC', 'miss_c2': '#E422F2', 'miss_c3': '#882255'
             }  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'hit_n1': 'Hit 5-10', 'hit_n2': 'Hit 20-30', 'hit_n3': 'Hit 40-50',
             'miss_n1': 'Miss 5-10', 'miss_n2': 'Miss 20-30', 'miss_n3': 'Miss 40-50',
+            'hit_c1': 'Hit low pop var', 'hit_c2': 'Hit mid pop var', 'hit_c3': 'Hit high pop var',
+            'miss_c1': 'Miss low pop var', 'miss_c2': 'Miss mid pop var', 'miss_c3': 'Miss high pop var',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
             'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
@@ -1557,8 +1561,11 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
 
 def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_split, decoder_key='hit/cr',
-                                              plot_tt=['hit_n1', 'hit_n2', 'hit_n3', 
-                                                       'miss_n1', 'miss_n2', 'miss_n3'],
+                                            #   plot_tt=['hit_n1', 'hit_n2', 'hit_n3', 
+                                            #            'miss_n1', 'miss_n2', 'miss_n3'],
+                                              plot_tt=['hit_c1', 'hit_c2', 'hit_c3', 
+                                                       'miss_c1', 'miss_c2', 'miss_c3'],
+                                              name_cov='variance_cell_rates_s1',
                                               ax_acc_ps=None, time_array=None, smooth_traces=False,
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
@@ -1566,26 +1573,29 @@ def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_spl
                                               plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
     ## Plot:
     if decoder_key == 'spont/cr':
-        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
+        tmp_dict = lick_pred_split[decoder_key]
         top_yax_tt = 'Rew. only'
         bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/cr':
-        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        tmp_dict = ps_pred_split[decoder_key]   # separated by ps condition
         top_yax_tt = 'Hit'
         bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/cr 10 trials':
-        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        tmp_dict = ps_pred_split[decoder_key]   # separated by ps condition
         top_yax_tt = 'Hit'
         bottom_yax_tt = 'CR'
     elif decoder_key == 'miss/cr':
-        plot_dict_split = {x: ps_pred_split[decoder_key][x] for x in plot_tt}
+        tmp_dict = ps_pred_split[decoder_key]
         top_yax_tt = 'Miss'
         bottom_yax_tt = 'CR'
     elif decoder_key == 'hit/miss':
-        plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt}   # separated by ps condition
+        tmp_dict = lick_pred_split[decoder_key]   # separated by ps condition
         top_yax_tt = 'Hit'
         bottom_yax_tt = 'Miss'
-
+    if name_cov is not None:
+        tmp_dict = tmp_dict[name_cov]
+    plot_dict_split = {x: tmp_dict[x] for x in plot_tt} # separated by lick condition
+       
     plot_dynamic_decoding_two_regions(ps_acc_split=plot_dict_split,
                                         time_array=time_array,
                                         yaxis_type='prediction',
