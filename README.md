@@ -42,5 +42,5 @@ and follow their python installation instructions.
 ------------
 
 To use demixing PCA, one must install their package. To do so, clone this repo: https://github.com/machenslab/dPCA/tree/master/python/
-and follow their python installation instructions. 
+and follow their python installation instructions..
 
