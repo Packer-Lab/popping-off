@@ -1499,7 +1499,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
                                               plot_ci=True, plot_mean=True,
-                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
+                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=1):
     ## Plot:
     if decoder_key == 'spont/cr':
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
@@ -1544,7 +1544,7 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                 add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
             ax_acc_ps[reg].set_xlim(xlims)
             ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', 
-                                     fontdict={'weight': 'bold'}, y=1.05)
+                                     fontdict={'weight': 'bold'}, y=1.15)
 
             if plot_significance:
                 for i_tt, tt in enumerate(plot_tt):
@@ -1570,7 +1570,7 @@ def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_spl
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
                                               plot_ci=True, plot_mean=True,
-                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=0.95):
+                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=1):
     ## Plot:
     if decoder_key == 'spont/cr':
         tmp_dict = lick_pred_split[decoder_key]
