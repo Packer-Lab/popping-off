@@ -1634,6 +1634,40 @@ def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_spl
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
 
+def plot_regularisation_optimisation(all_data_dict, time_array_plot=None, decoder_key='hit/cr', 
+                                     tt_pos='hit', tt_neg='cr', reg='s1', ax=None, c='k'):
+    reg_arr = np.array(list(all_data_dict.keys()))
+    plot_reg_arr = 1 / reg_arr
+    if time_array_plot is not None:
+        tp_min = np.where(np.isnan(time_array_plot))[0][-1] + 1
+    else:
+        tp_min = 0
+
+    mean_diff_arr = np.zeros(len(reg_arr))
+    ci_diff_arr = np.zeros(len(reg_arr))
+    for i_reg, reg_strength in enumerate(reg_arr):
+        dict_pos = all_data_dict[reg_strength][decoder_key][tt_pos]
+        dict_neg = all_data_dict[reg_strength][decoder_key][tt_neg]
+        mouse_list = [x for x in dict_pos.keys() if x[-2:] == reg]
+        mat_diff = np.zeros((len(mouse_list), dict_pos[mouse_list[0]].shape[0] - tp_min))
+        for i_m, mouse in enumerate(mouse_list):
+            mean_pos = dict_pos[mouse][tp_min:, 0]
+            mean_neg = dict_neg[mouse][tp_min:, 0]
+            mat_diff[i_m, :] = mean_pos - mean_neg
+        time_av_diff = np.mean(mat_diff, 1)
+        mean_diff_arr[i_reg] = np.mean(time_av_diff)
+        ci_diff_arr[i_reg] = np.std(time_av_diff) / np.sqrt(len(time_av_diff)) * 1.96  # 95% ci
+
+    if ax is None:
+        ax = plt.subplot(111)
+    ax.plot(plot_reg_arr, mean_diff_arr, linewidth=3, c=c, label=decoder_key + ' ' + reg.upper())
+    ax.fill_between(plot_reg_arr, mean_diff_arr - ci_diff_arr, mean_diff_arr + ci_diff_arr, facecolor=c, alpha=0.2)
+    ax.set_xscale('log')
+    ax.set_xlabel('L2 regularisation strength')
+    ax.set_ylabel('Classification performance\n(= difference in predictions)')
+    ax.legend(loc='best', frameon=False)
+    despine(ax)
+
 def plot_dyn_stim_decoding_compiled_summary_figure(ps_acc_split, violin_df_test, time_array, save_fig=False):
     ## PS decoding figure
     fig = plt.figure(constrained_layout=False, figsize=(16, 7))
