@@ -1276,7 +1276,7 @@ def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
                                         decoder_name=decoder_name, tt=tt, region=region)
     df_pred_collapsed['chance_level'] = 0.5  ## add column with chance level performance 
     signif_array = np.zeros(len(time_array))
-    n_bins = int(np.floor(len(time_array) / frames_bin))
+    n_bins = int(np.floor(np.sum(~np.isnan(time_array)) / frames_bin))  # exclude artefact in test
     th_bonf = th / n_bins  # perform bonferroni correction for number of tests
 
     for i_bin in range(n_bins):  # loop through bins
