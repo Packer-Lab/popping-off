@@ -974,7 +974,7 @@ def plot_raster_plots_number_stim_one_session(session, c_lim=0.2, sort_tt_list=[
                         s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1, filter_150_artefact=filter_150_stim,
                         ol_neurons_s2=ol_neurons_s2, plot_xlabel=(False if i_x == 0 else True), plot_yticks=(True if i_stim == 0 else False), n_stim=n_stim)
 
-    ax[0][1].annotate(s=f'{str(session)}, Hit & Miss trials split by number of cells stimulated. Sorted by {sorting_method} using {imshow_interpolation} interpolation',
+    ax[0][1].annotate(s=f'{str(session)}, hit & Miss trials split by number of cells stimulated. Sorted by {sorting_method} using {imshow_interpolation} interpolation',
                       xy=(0.4, 1.15), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
@@ -2376,7 +2376,7 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     right_edge = -0.07 # -0.0826
     color_patch = (211 /256, 211 / 256, 211 / 256, 0.5)
     color_patch_edge = (211 /256, 211 / 256, 211 / 256, 0.0)
-    ax.axvspan(pre_stim_start, right_edge, fc=color_patch, ec=color_patch_edge)
+    ax.axvspan(pre_stim_start, right_edge, fc=color_patch, ec=color_patch_edge, alpha=0.3)
     trap_x = [x_min, x_max, right_edge, pre_stim_start]
     trap_y = [-9, -9, -6, -6] #-6.037, -6.039]
     color_patch = (211 /256, 211 / 256, 211 / 256, 0.3)
@@ -2435,8 +2435,8 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                 equal_xy_lims(tmp_ax)
                 lims = tmp_ax.get_xlim()
             tmp_ax.plot(lims, lims, linestyle=(0, (5, 10)), color='grey')
-            tmp_ax.set_xlabel('Hit Trials (z-score)')
-            tmp_ax.set_ylabel('Miss Trials (z-score)')
+            tmp_ax.set_xlabel('Hit trials (z-score)')
+            tmp_ax.set_ylabel('Miss trials (z-score)')
         elif plot_type == 'pointplot':
             tmp_df = pd.DataFrame({'zscore': np.concatenate((all_miss, all_hit)),
                                    'trial_type': ['miss'] * len(all_miss) + ['hit'] * len(all_hit)})
@@ -2536,7 +2536,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         ax.set_xlabel('Population variance')
     ax.set_ylabel('Probability hit')
     # ax.set_ylim([0, 1])
-    ax.set_title(f'P(Hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)', y=1.1)
+    ax.set_title(f'P(hit) as function of VCR per session\n({int(2 * one_sided_ws)}-trial running mean used.)', y=1.1)
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
@@ -2556,8 +2556,8 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
     if metric == 'fraction_hit':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
                     cbar_kws={'label': 'Probability hit'}, rasterized=False,
-                    cmap=sns.diverging_palette(h_neg=140, h_pos=350, s=85, l=23, sep=10, n=10, center='light'))
-        ax.set_title('P(Hit) depends on pop. variance\n and number of cells stimulated', y=1.04)
+                    cmap=sns.diverging_palette(h_neg=350, h_pos=140, s=85, l=23, sep=10, n=10, center='light'))
+        ax.set_title('P(hit) depends on pop. variance\n and number of cells stimulated', y=1.04)
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
@@ -2566,9 +2566,9 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
     ax.invert_yaxis()
     ax.set_yticklabels(n_stim_arr, rotation=0)
-    ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr]);
+    ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr], rotation=45);
     if zscored_covar:
-        ax.set_xlabel(f'Binned z-scored {covar_labels[covar_name]}')
+        ax.set_xlabel(f'Binned z-scored {covar_labels[covar_name].lower()}\n(median of bin)')
     else:
         ax.set_xlabel(f'Binned {covar_labels[covar_name]}')
     ax.set_ylabel('Number of cells stimulated')

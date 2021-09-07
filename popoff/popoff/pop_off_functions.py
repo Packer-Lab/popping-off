@@ -2039,10 +2039,10 @@ def select_cells_and_frames(lm, region='s1', frames='pre'):
     flu = flu[:, :, lm.frames_map[frames]]
     return flu
 
-def get_covariates(lm, region, match_tnums=False, prereward=False):
+def get_covariates(lm, region, match_tnums=False, prereward=False, hitmiss_only=False):
     
     covariate_dict, y = lm.prepare_data(frames='all', model='partial', n_comps_include=0,
-                                        outcomes=np.unique(lm.session.outcome), 
+                                        outcomes=(['hit', 'miss'] if hitmiss_only else np.unique(lm.session.outcome)), 
                                         prereward=prereward,
                                         region=region, return_matrix=False,
                                         remove_easy=False)
