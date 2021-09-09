@@ -2650,18 +2650,20 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     # ax.set_title(f'S1 vs S2 {cov_name}\n')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=False,
-                    only_150_stim=False, i_col=0,
+                    only_150_stim=False, i_col=0, color_dict=None,
                     absolute_vals=False, plot_artefact=False, plot_legend=False):
 
     if ax is None:
         ax = plt.subplot(111)
+    if color_dict is None:
+        color_dict = color_dict_stand
     if targets:
         mask = ~lm.session.is_target
     else:
         mask = lm.session.is_target
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-        time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session, start_time=-1,
+        time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session, #start_time=-1,
                                     filter_150_stim=False, # start_baseline_time=-2.1,
                                     sort_neurons=False, end_time=6)
 
@@ -2707,9 +2709,9 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     if absolute_vals:
         mean_arr -= np.mean(mean_arr[:pre_stim_frame])
     # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
-    ax.plot(time_axis, mean_arr, color=color_dict_stand[i_col], label=label)
+    ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label)
     ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr,
-                     color=color_dict_stand[i_col], alpha=0.2)
+                     color=color_dict[i_col], alpha=0.2)
 
     if plot_artefact:
         add_ps_artefact(ax=ax, time_axis=time_axis)
@@ -2721,7 +2723,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     #     df = pd.DataFrame(data).melt()
     #     df['Time (s)'] = np.repeat(x_axis[idx_frames], data.shape[0])
 
-    #     sns.lineplot(x='Time (s)', y='value', data=df, color=color_dict_stand[i_col],
+    #     sns.lineplot(x='Time (s)', y='value', data=df, color=color_dict[i_col],
     #                 label=label, ci=95)
     #     label = None
     # add_ps_artefact()
@@ -2730,7 +2732,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     else:
         ax.set_ylabel(r'$\Delta$F/F')
     ax.set_xlabel('Time (s)')
-
+    ax.set_xticks([-2, 0, 2, 4, 6])
     if absolute_vals:
         ax.set_ylim([ -0.06, 0.15])
     else:
@@ -2742,11 +2744,11 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
         if absolute_vals:
             legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
         else:
-            start_y = 0.17
+            start_y = 0.25
             for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
 
-                ax.text(s=tt, x=2.8,
-                           y=start_y-idx*0.02, fontdict={'color': color_dict_stand[idx]})
+                ax.text(s=tt, x=1.95, va='top',
+                           y=start_y-idx*0.02, fontdict={'color': color_dict[idx]})
             # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
 
 
@@ -2776,7 +2778,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
         ax.plot(x_axis, dp, '.', color='grey', alpha=0.2)
 
         ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
-                color='grey', alpha=0.3)
+                color='grey', alpha=0.3, label='Individual sessions')
         ax.set_xscale('log')
 
     y = np.concatenate(all_dp)
@@ -2794,7 +2796,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     # ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
             # color='red')
 
-    ax.plot(x_range, fit, color='red')
+    ax.plot(x_range, fit, color='red', label='Average across sessions', linewidth=2)
     # plt.tick_params(
     #     axis='x',
     #     which='both',
@@ -2805,12 +2807,12 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
 
     # ax = plt.gca()
 
-    ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(10))
+    # ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(10))
 
 
     ax.set_xscale('log')
-    ax.set_ylabel('d\'')
-    ax.set_xlabel('number of cells stimulated')
+    ax.set_ylabel('Behavioral accuracy (d\')')
+    ax.set_xlabel('Number of cells stimulated')
 
 
     # Centre point of the rescaled sigmoid.
@@ -2832,13 +2834,22 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color, ls=':')
     ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color, ls=':')
 
-    ax.xaxis.set_minor_locator(MultipleLocator(10))
-    ax.xaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10))
+    # ax.xaxis.set_minor_locator(MultipleLocator(10))
+    # ax.xaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10))
 
-    ticks = [10, 100]
-    ax.set_xticks(ticks, ticks)
+    # ticks = [10, 100]
+    # ticks = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
+    # ax.set_xticks(ticks, ticks)
+    ax.set_xticks([5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
+    ax.set_xticklabels(['', '', '', '', '', '10', '', '', '', '', '', '', '', '', '100','', '', '', '', '', ])
+    ax.tick_params(axis='both', which='major', direction='out', length=3, width=1,
+                    colors='k', zorder=10, pad=1, bottom=True)
+    # ax.legend()
+    # ax.xaxis.display_minor_ticks(True)
     despine(ax)
-    plt.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
+    ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
+    ax.text(x=4.5, y=2.7, s='Individual sessions', color='grey', alpha=1)
+    ax.text(x=4.5, y=2.4, s='Average across sessions', color='red')
     # save_figure('Figure1PanelG', figure_path)
 
 def get_percentile_value(x_range, curve, p=0.5):
@@ -2979,7 +2990,7 @@ def lick_raster(lm, fig=None):
     ax0.set_ylim((0, len(sorted_licks)+1))
     ax0.set_yticks(subset_centre)
     ax0.set_yticklabels(np.flip(subsets))
-    ax0.set_ylabel('Number of Cells Stimulated')
+    ax0.set_ylabel('Number of cells stimulated')
     despine(ax0)
     despine(ax1)
 
