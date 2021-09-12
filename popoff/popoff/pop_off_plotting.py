@@ -2715,22 +2715,11 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
 
     if plot_artefact:
         add_ps_artefact(ax=ax, time_axis=time_axis)
-    # # Need to plot pre and post as two separate lines cos seaborn is uncooperative
-    # for idx_frames in [lm.pre, lm.post]:
-
-    #     data = flu[:, idx_frames]
-
-    #     df = pd.DataFrame(data).melt()
-    #     df['Time (s)'] = np.repeat(x_axis[idx_frames], data.shape[0])
-
-    #     sns.lineplot(x='Time (s)', y='value', data=df, color=color_dict[i_col],
-    #                 label=label, ci=95)
-    #     label = None
-    # add_ps_artefact()
+        ax.text(s='Photostimulation', x=-0.07, y=0.255, color=color_tt['photostim'], alpha=1)
     if absolute_vals:
         ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
     else:
-        ax.set_ylabel(r'$\Delta$F/F')
+        ax.set_ylabel('Cell-averaged ' + r'$\Delta$F/F' + ' activity')
     ax.set_xlabel('Time (s)')
     ax.set_xticks([-2, 0, 2, 4, 6])
     if absolute_vals:
@@ -2744,10 +2733,10 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
         if absolute_vals:
             legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
         else:
-            start_y = 0.25
+            start_y = 0.23
             for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
 
-                ax.text(s=tt, x=1.95, va='top',
+                ax.text(s=tt, x=2.15, va='top',
                            y=start_y-idx*0.02, fontdict={'color': color_dict[idx]})
             # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
 
@@ -3025,8 +3014,24 @@ def lick_raster(lm, fig=None):
     for s in ['top', 'bottom', 'right', 'left']:
         ax1.spines[s].set_visible(False)
 
-    # fontsize = 12
-    # plt.text(14, len(sorted_outcome)/3, 'Hit', color=cols[3], fontsize=fontsize)
-    # plt.text(14, len(sorted_outcome)/1.7, 'Miss', color=cols[2], fontsize=fontsize)
-    # plt.text(14, len(sorted_outcome)/1.22, 'Correct\nRejection', color=cols[0], fontsize=fontsize)
-    # plt.text(14, len(sorted_outcome)/1.01, 'False\nPositive', color=cols[1], fontsize=fontsize)
+    ## Matrix with outcomes:
+    ax0.plot([2.4, 3.6], [50, 50], c='grey', linestyle=':', clip_on=False, zorder=1)
+    ax0.plot([2.75, 2.75], [0, 70], c='grey', linestyle=':', clip_on=False, zorder=1)
+    ax0.text(s='Go', x=2.7, y=30, ha='right')
+    ax0.text(s='Catch', x=2.7, y=10, ha='right')
+    ax0.text(s='Hit', x=2.8, y=30, c=color_tt['hit'])
+    ax0.text(s='Miss', x=3.15, y=30, c=color_tt['miss'])
+    ax0.text(s='FP', x=2.8, y=10, c=color_tt['fp'])
+    ax0.text(s='CR', x=3.15, y=10, c=color_tt['cr'])
+    ax0.text(s='Lick', x=2.8, y=55)
+    ax0.text(s='No lick', x=3.15, y=55)
+
+    ## Legend dots:
+    ax0.plot(2.42, 199, marker='.', clip_on=False, zorder=1,
+            fillstyle='full', c='k', markersize=8.5)
+    ax0.plot(2.42, 149, marker='.', clip_on=False, zorder=1,
+            fillstyle='none', c='k', markersize=8.5)
+    ax0.text(s=': Lick inside\nresponse window', x=2.5, y=205, va='top')
+    ax0.text(s=': Lick outside\nresponse window', x=2.5, y=155, va='top')
+
+
