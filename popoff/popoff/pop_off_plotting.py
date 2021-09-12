@@ -3031,7 +3031,7 @@ def lick_raster(lm, fig=None):
             fillstyle='full', c='k', markersize=8.5)
     ax0.plot(2.42, 149, marker='.', clip_on=False, zorder=1,
             fillstyle='none', c='k', markersize=8.5)
-    ax0.text(s=': Lick inside\nresponse window', x=2.5, y=205, va='top')
-    ax0.text(s=': Lick outside\nresponse window', x=2.5, y=155, va='top')
+    ax0.text(s=' Lick inside\nresponse window', x=2.5, y=205, va='top')
+    ax0.text(s=' Lick outside\nresponse window', x=2.5, y=155, va='top')
 
 
