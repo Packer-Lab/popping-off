@@ -45,16 +45,16 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 'reward\nonly': '#332288',
             'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
             'fp&cr': 'k', 'photostim': sns.color_palette()[6],
-            'hit_n1': '#D5F622', 'hit_n2': '#7ED41E', 'hit_n3': '#117733',
-            'miss_n1': '#23A5FC', 'miss_n2': '#E422F2', 'miss_n3': '#882255',
-            'hit_c1': '#D5F622', 'hit_c2': '#7ED41E', 'hit_c3': '#117733',
-            'miss_c1': '#23A5FC', 'miss_c2': '#E422F2', 'miss_c3': '#882255'
+            'hit_n1': '#b0eac9', 'hit_n2': '#5ab17f', 'hit_n3': '#117733',
+            'miss_n1': '#a69098', 'miss_n2': '#985d76', 'miss_n3': '#882255',
+            'hit_c1': '#b0eac9', 'hit_c2': '#5ab17f', 'hit_c3': '#117733',
+            'miss_c1': '#a69098', 'miss_c2': '#985d76', 'miss_c3': '#882255'
             }  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
             'hit_n1': 'Hit 5-10', 'hit_n2': 'Hit 20-30', 'hit_n3': 'Hit 40-50',
             'miss_n1': 'Miss 5-10', 'miss_n2': 'Miss 20-30', 'miss_n3': 'Miss 40-50',
-            'hit_c1': 'Hit low pop var', 'hit_c2': 'Hit mid pop var', 'hit_c3': 'Hit high pop var',
-            'miss_c1': 'Miss low pop var', 'miss_c2': 'Miss mid pop var', 'miss_c3': 'Miss high pop var',
+            'hit_c1': 'Hit low pop. var.', 'hit_c2': 'Hit mid pop. var.', 'hit_c3': 'Hit high pop. var.',
+            'miss_c1': 'Miss low pop. var.', 'miss_c2': 'Miss mid pop. var.', 'miss_c3': 'Miss high pop. var.',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
             'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
