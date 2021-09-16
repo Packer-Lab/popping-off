@@ -642,7 +642,7 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
 def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, end_time=4,
                           pre_stim_window=-0.07, post_stim_window=None, filter_150_stim=False,
                           sorting_method='euclidean', sort_tt_list=['hit', 'miss', 'spont'],
-                          sort_neurons=True):
+                          sort_neurons=True, baseline_by_prestim=True):
     '''overrides session.outcome with ARM and URH types!!'''
     if post_stim_window is None:
         if filter_150_stim:
@@ -668,9 +668,15 @@ def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, en
         data_use_mat = session.behaviour_trials
     data_spont_mat = session.pre_rew_trials
 
-    data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
-    # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
-    data_spont_mat_norm = data_spont_mat - np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+    if baseline_by_prestim:
+        data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
+        # data_use_mat_norm = data_use_mat - np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], (0, 2))[None, :, None]  # normalize by pre-stim activity averaged across neurons
+        data_spont_mat_norm = data_spont_mat - np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+    else:
+        print('WARNING: not normalized')
+        data_use_mat_norm = data_use_mat #- np.mean(data_use_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]  # normalize by pre-stim activity per neuron
+        data_spont_mat_norm = data_spont_mat #- np.mean(data_spont_mat[:, :, start_baseline_frame:pre_stim_frame], 2)[:, :, None]
+
 
     data_use_mat_norm = data_use_mat_norm[:, :, start_frame:end_frame]  # discarded pre -4 seconds
     data_spont_mat_norm = data_spont_mat_norm[:, :, start_frame:end_frame]
@@ -2650,7 +2656,9 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     # ax.set_title(f'S1 vs S2 {cov_name}\n')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=False,
-                    only_150_stim=False, i_col=0, color_dict=None,
+                    only_150_stim=False, i_col=0, color_dict=None, 
+                    tt_list=['hit', 'miss', 'too_', 'urh', 'arm'],
+                    verbose=0, baseline_by_prestim=True,
                     absolute_vals=False, plot_artefact=False, plot_legend=False):
 
     if ax is None:
@@ -2665,7 +2673,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
         time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session, #start_time=-1,
                                     filter_150_stim=False, # start_baseline_time=-2.1,
-                                    sort_neurons=False, end_time=6)
+                                    sort_neurons=False, end_time=6, baseline_by_prestim=baseline_by_prestim)
 
     mask = mask[lm.region_map[region], :, :]
     if region == 's1':
@@ -2675,12 +2683,15 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
 
     # Take out catch trials
     if filter_150_stim:
-        stim_idx = lm.session.photostim == 1
+        n_stim_bool = lm.session.photostim == 1
     elif only_150_stim:
-        stim_idx = lm.session.photostim == 2
+        n_stim_bool = lm.session.photostim == 2
     else:
-        stim_idx = lm.session.photostim != 0
+        n_stim_bool = lm.session.photostim != 0
 
+    stim_idx = np.logical_and(n_stim_bool, np.isin(lm.session.outcome, tt_list))
+    if verbose > 0:
+        print(lm.session.outcome[stim_idx])
     flu = flu[:, stim_idx, :]
     mask = mask[:, stim_idx, :]
 
