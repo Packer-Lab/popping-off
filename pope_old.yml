@@ -1,0 +1,21 @@
+name: pope
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - scipy
+  - pandas
+  - numpy
+  - seaborn
+  - h5py
+  - scikit-learn
+  - tqdm
+  - jupyter
+  - cython
+  - numexpr
+  - xarray
+  - tifffile
+  - opencv
+  - pathlib
+  - statsmodels
+prefix: /home/tplas/anaconda3/envs/pope
