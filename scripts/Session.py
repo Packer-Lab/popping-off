@@ -6,7 +6,7 @@ from popoff import loadpaths
 
 print(loadpaths.__file__)
 
-USER_PATHS_DICT = loadpaths.loadpaths()
+USER_PATHS_DICT = loadpaths.loadpaths(username='jrowland')  # automatically use current PC user name 
 
 path_to_vape = USER_PATHS_DICT['vape_path']
 print(path_to_vape)
@@ -738,7 +738,7 @@ if __name__ == '__main__':
     
     'J064': [10,11,14],
     'RL070': [28,29],
-    'RL117': [29,30],
+    'RL117': [26, 29,30],
     'RL123': [22],
     'RL116': [32,33],
     

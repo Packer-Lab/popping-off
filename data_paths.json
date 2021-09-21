@@ -1,9 +1,9 @@
 { "jrowland": 
     {"paths": {
-      "base_path": "~/Documents/code",
-      "vape_path": "~/Documents/code/Vape",
-      "pkl_path": "~/mnt/qnap/run_pkls",
-      "oasis_path": "~/Documents/code/OASIS"
+      "base_path": "home/jrowland/Documents/code",
+      "vape_path": "home/jrowland/Documents/code/Vape",
+      "pkl_path": "home/jrowland/mnt/qnap/run_pkls",
+      "oasis_path": "home/jrowland/Documents/code/OASIS"
               }
     },
   "tplas": 
