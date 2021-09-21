@@ -2666,7 +2666,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     if color_dict is None:
         color_dict = color_dict_stand
     if targets:
-        mask = ~lm.session.is_target
+        mask = ~lm.session.is_target  # flip bool (with ~) because np.ma.array later only saves False, and masks True
     else:
         mask = lm.session.is_target
 
