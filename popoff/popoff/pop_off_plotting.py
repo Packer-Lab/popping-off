@@ -133,6 +133,32 @@ def two_digit_sci_not(x):
         assert False
     return sci_not_spars
 
+def readable_p(p_val):
+    if type(p_val) != str:
+        p_val = two_digit_sci_not(x=p_val)
+
+    if len(p_val) == 6:
+        assert p_val[:4] == '10e-', p_val
+        tmp_exp = int(p_val[-2:])
+        p_val = f'1e-{str(tmp_exp - 1).zfill(2)}'
+
+    assert len(p_val) == 5, f'p_val format not recognised. maybe exp < -99? p val is {p_val}'
+    assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
+
+    if p_val[-3:] == '-01':
+        read_p = f'0.{p_val[0]}'
+    elif p_val[-3:] == '-02':
+        read_p = f'0.0{p_val[0]}'
+    elif p_val[-3:] == '-03':
+        read_p = f'0.00{p_val[0]}'
+    else:
+        if int(p_val[-2:]) < 10:
+            exponent = p_val[-1]
+        else:
+            exponent = p_val[-2:]
+        read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+    return read_p
+
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
                   type_scatter='strip', ccolor='grey', aalpha=1, ax=None):
     """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
@@ -2049,10 +2075,10 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
         if verbose > 0:
             print(reg, pearson_r, pearson_p)
-        # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {two_digit_sci_not(pearson_p)}',
+        # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
         #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
         xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
-        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',
+        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
                           xy=xy, xycoords='axes fraction')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.25, 0.77), xycoords='axes fraction')
@@ -2460,7 +2486,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             tmp_ax.set_xlabel('')
             tmp_ax.set_ylim([-0.55 , 0.75])
             despine(tmp_ax)
-        tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {two_digit_sci_not(p_val)}')
+        tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
 
 def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
                                         covar_2='corr_pre', region='s1', verbose=0):
@@ -2489,7 +2515,7 @@ def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre',
     ax.plot(arr_1, arr_2, '.', c='k', markersize=5)
     ax.set_xlabel(covar_labels[covar_1])
     ax.set_ylabel(covar_labels[covar_2])
-    ax.set_title(f'r={np.round(corr_coef, 2)}, p<{two_digit_sci_not(p_val)}')
+    ax.set_title(f'r={np.round(corr_coef, 2)}, p < {readable_p(p_val)}')
     despine(ax)
     
 def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
@@ -2529,7 +2555,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         slope, _, corr_coef, p_val, __ = result_lr
         label = ' '
         if slope < 0 and corr_coef < 0:
-            if (p_val * 2) < 1e-5:  # multiply by 2 for one-sided p val
+            if (p_val * 2 * n_sessions) < 1e-3:  # multiply by 2 for one-sided p val & bonferroni
                 label = '**'
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
@@ -2546,7 +2572,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s='10 sessions:\n**: p < ' + r"$10^{-3}$", x=2.1, y=0.7)
+    ax.text(s=f'{n_sessions} sessions:\n**: p < 0.001', x=2.1, y=0.81)
     ax.legend(bbox_to_anchor=(1.1, -0.2), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
@@ -2647,7 +2673,7 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
             '.', markersize=4, color='k')
     pearson_r, pearson_p = scipy.stats.pearsonr(super_covar_df_dict['s1'][cov_name],
                                                 super_covar_df_dict['s2'][cov_name])
-    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p<{two_digit_sci_not(pearson_p)}',
+    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
                           xy=(0, 1.15), xycoords='axes fraction')
 
     despine(ax)
