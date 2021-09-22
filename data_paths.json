@@ -10,7 +10,7 @@
     {"paths": {
       "base_path": "~/data/mice",
       "vape_path": "~/repos/Vape",
-      "pkl_path": "~/data/mice",
+      "pkl_path":  "/home/jrowland/mnt/qnap/run_pkls",
       "oasis_path": "~/repos/OASIS"
               }
     },
