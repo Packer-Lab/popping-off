@@ -6,6 +6,7 @@ Code for analysis of neural data obtained in Packer lab, Oxford.
 
 - Clone repository
 - To install the correct Python packages, please build a conda environment from the `pope.yml` file.
+- Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
 - Change `data_paths.json` to your local paths
 - Please set the data path configuration file to 'assume unchanged' in get settings, such its changes are not suggested as commit. Use: `git update-index --assume-unchanged data_paths.json` 
 - Install pop-off by going to /popping-off/popoff/ and running `python setup.py develop`
