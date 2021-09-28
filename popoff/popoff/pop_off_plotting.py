@@ -44,7 +44,9 @@ colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [
 colors_reg = {reg: 0.5 * (colors_plot[reg][0] + colors_plot[reg][1]) for reg in ['s1', 's2']}
 
 color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77',
-            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 'reward\nonly': '#332288',
+            'Hit': '#117733', 'Miss': '#882255', 'FP': '#88CCEE', 'CR': '#DDCC77',
+            'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 
+            'reward\nonly': '#332288', 'Reward\nonly': '#332288',
             'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
             'fp&cr': 'k', 'photostim': sns.color_palette()[6],
             'hit_n1': '#b0eac9', 'hit_n2': '#5ab17f', 'hit_n3': '#117733',
@@ -52,13 +54,15 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
             'hit_c1': '#b0eac9', 'hit_c2': '#5ab17f', 'hit_c3': '#117733',
             'miss_c1': '#a69098', 'miss_c2': '#985d76', 'miss_c3': '#882255'
             }  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
-label_tt = {'hit': 'Hit', 'miss': 'Miss', 'fp': 'FP', 'cr': 'CR',
+label_tt = {'hit': 'Hit', 'Hit': 'Hit', 'miss': 'Miss', 'Miss': 'Miss',
+            'FP': 'FP', 'fp': 'FP', 'cr': 'CR', 'CR': 'CR',
             'hit_n1': 'Hit 5-10', 'hit_n2': 'Hit 20-30', 'hit_n3': 'Hit 40-50',
             'miss_n1': 'Miss 5-10', 'miss_n2': 'Miss 20-30', 'miss_n3': 'Miss 40-50',
             'hit_c1': 'Hit low pop. var.', 'hit_c2': 'Hit mid pop. var.', 'hit_c3': 'Hit high pop. var.',
             'miss_c1': 'Miss low pop. var.', 'miss_c2': 'Miss mid pop. var.', 'miss_c3': 'Miss high pop. var.',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
-            'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only'}
+            'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only',
+            'reward_only': 'Reward only', 'Reward\nonly': 'Reward\nonly'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
                 'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
@@ -84,6 +88,17 @@ def naked(ax):
     ax.set_yticks([])
     ax.set_xlabel('')
     ax.set_ylabel('')
+
+def set_fontsize(font_size=12):
+    plt.rcParams['font.size'] = font_size
+    plt.rcParams['axes.autolimit_mode'] = 'data' # default: 'data'
+    params = {'legend.fontsize': font_size,
+            'axes.labelsize': font_size,
+            'axes.titlesize': font_size,
+            'xtick.labelsize': font_size,
+            'ytick.labelsize': font_size}
+    plt.rcParams.update(params)
+    print(f'Font size is set to {font_size}')
 
 def add_ps_artefact(ax, time_axis):
     ## plot box over artefact
@@ -2191,9 +2206,9 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         # _ = [line.set_linewidth(4) for line in lines]
         start_y = 0.2
         for idx, tt in enumerate(tts_plot):
-            tt_txt = tt if tt!= 'pre_reward' else 'reward only'
+            # tt_txt = tt if tt!= 'pre_reward' else 'reward only'
 
-            ax_s1.text(s=tt_txt, x=-1.9,
+            ax_s1.text(s=label_tt[tt_txt], x=-1.9,
                        y=start_y-idx*0.045, fontdict={'color': color_tt[tt]})
 
         # ax_s1.text(s='Miss', x=-2.5, y=-0.36, fontdict={'color': color_tt['miss']}, fontsize=25)
@@ -3090,4 +3105,48 @@ def lick_raster(lm, fig=None):
     ax0.text(s=' Lick inside\nresponse window', x=2.5, y=205, va='top')
     ax0.text(s=' Lick outside\nresponse window', x=2.5, y=155, va='top')
 
+def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.0125):
+    
+    if axes is None:
+        _, axes = plt.subplots(1,2)
+    
+    for idx, (region, ax) in enumerate(zip(['s1', 's2'], axes)):
 
+        data_dict = pof.get_data_dict(region=region, lm_list=lm_list)
+        data_df = pd.DataFrame.from_dict(data_dict)
+
+        boxprops = {'facecolor':'none', "zorder":10}
+        sns.boxplot(data=data_df, color='black', width=0.35, boxprops=boxprops, ax=ax)
+        sns.stripplot(data=data_df, palette=color_tt, ax=ax)
+
+        if region == 's1':
+            ax.set_ylabel('Fraction excited\nor inhibited (%)')
+            ax.set_ylim(0, 27)        
+            y_coord_tt = 26 
+        else:
+            ax.set_ylim(0, 12)
+            ax.set_yticks([0,10], [0,10])
+            y_coord_tt = 11.3
+        
+        alpha = 0.05 / (len(data_dict) - 1)
+        if verbose > 0:
+            print('\n')
+            print(region)
+        x_coord_tt = 1
+
+        for tt_against in data_dict.keys():
+
+            if tt_against == 'Hit':
+                continue
+
+            _, p = scipy.stats.wilcoxon(data_dict['Hit'], data_dict[tt_against])
+
+            s = f'Hit vs {tt_against}, p = {p}, significant = {p < alpha}'
+            if verbose > 0:
+                print(s)
+            if p < p_val_significant:
+                ax.text(s='**', x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
+            else:
+                ax.text(s='n.s.', x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
+
+            x_coord_tt += 1

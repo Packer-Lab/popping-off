@@ -1954,6 +1954,43 @@ def get_percent_cells_responding(session, region='s1', direction='positive', pre
     assert len(magnitude) == flu.shape[1]
     return percent_cells_responding
 
+def get_data_dict(lm_list, region, tt_plot=['hit', 'miss', 'cr', 'fp', 'spont']):
+    ''' Gets the percent cells responding across all trials for individual sessions
+        Hit and miss trials, only when n_cells_stimmed > 20 (50% behaviour 
+        sigmoid threshold)
+    '''
+    data_dict = {k:[] for k in tt_plot}
+
+    for session_idx in range(len(lm_list)):
+        session = lm_list[session_idx].session
+
+        n_responders =  get_percent_cells_responding(session, region, direction='positive')\
+                        + get_percent_cells_responding(session, region, direction='negative')
+
+        for tt in tt_plot:
+            if tt == 'spont':
+                continue
+
+            tt_idx = session.outcome == tt
+#             if tt in ['hit', 'miss']:
+#                 tt_idx = np.logical_and(tt_idx, session.trial_subsets>20)
+            data_dict[tt].append(np.mean(n_responders[tt_idx]))
+
+        n_responders =  get_percent_cells_responding(session, region, direction='positive', prereward=True)\
+                        + get_percent_cells_responding(session, region, direction='negative', prereward=True)
+
+        data_dict['spont'].append(np.mean(n_responders))
+    
+    data_dict['Hit'] = data_dict.pop('hit')
+    data_dict['Miss'] = data_dict.pop('miss')
+    data_dict['CR'] = data_dict.pop('cr')
+    data_dict['FP'] = data_dict.pop('fp')
+    data_dict['Reward\nonly'] = data_dict.pop('spont')
+    
+    return {k:np.array(v) for k, v in data_dict.items()}
+    
+    
+
 def transfer_dict(msm, region, direction='positive'):
     '''For each session, compute how many responding cells [in direction] there are 
     for both hit and miss trials. '''
