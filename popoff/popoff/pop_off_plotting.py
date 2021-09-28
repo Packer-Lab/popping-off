@@ -36,6 +36,8 @@ for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
     color_dict_stand[ii] = x['color']
     if ii > 8:
         break  # after 8 it repeats (for ever)
+color_dict_stand[10] = '#994F00'
+color_dict_stand[11] = '#4B0092'
 
 colors_plot = {'s1': {lick: 0.6 * np.array(color_dict_stand[lick]) for lick in [0, 1]},
                's2': {lick: 1.1 * np.array(color_dict_stand[lick]) for lick in [0, 1]}}
@@ -2576,7 +2578,7 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
                 label = '**'
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
-        ax.plot(av_vcr_arr, av_y_arr, label=label, linewidth=3, alpha=0.7)
+        ax.plot(av_vcr_arr, av_y_arr, label=label, linewidth=3, alpha=0.7, c=color_dict_stand[i_ss])
     if zscore_covar:
         assert cov_name == 'variance_cell_rates'
         ax.set_xlabel('Z-scored population variance')
