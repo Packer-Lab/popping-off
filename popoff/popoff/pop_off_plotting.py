@@ -803,10 +803,8 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
             cbar = plt.colorbar(im, cax=cax, orientation='vertical', shrink=0.5, pad=cbar_pad)
             cbar.set_label(r"$\Delta F/F$", labelpad=3)
             cbar.set_ticks([])
-            # cbar.set_ticklabels(['- 0.2', '+ 0.2'])
-            # cbar.set_ticklabels(['- 0.2', ''])
-            cbar.ax.text(0.5, -0.01, '- 0.2', transform=cbar.ax.transAxes, va='top', ha='center')
-            cbar.ax.text(0.5, 1.0, '+ 0.2', transform=cbar.ax.transAxes, va='bottom', ha='center')       
+            cbar.ax.text(0.5, -0.01, '-0.2'.replace("-", u"\u2212"), transform=cbar.ax.transAxes, va='top', ha='center')
+            cbar.ax.text(0.5, 1.0, '+0.2', transform=cbar.ax.transAxes, va='bottom', ha='center')       
     
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation',
@@ -1996,7 +1994,7 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
         x_coords_hm = ax.get_xlim()[0]
         ax.text(s='Hit', x=x_coords_hm, y=ylims[1] * 0.8, fontdict={'color': color_tt['hit']})
         ax.text(s='Miss', x=x_coords_hm, y=ylims[1] * 0.6, fontdict={'color': color_tt['miss']})
-        ax.text(s='Reward\nonly', x=x_coords_hm, y=ylims[1] * 0.3, fontdict={'color': color_tt['spont']})
+        ax.text(s='Reward\nonly', x=x_coords_hm, y=ylims[1] * 0.2, fontdict={'color': color_tt['spont']})
         ax.text(s='Photostimulation', x=0.5, y=ylims[0], fontdict={'color': color_tt['photostim']})
 
     naked(ax)
