@@ -143,20 +143,24 @@ def readable_p(p_val):
         p_val = f'1e-{str(tmp_exp - 1).zfill(2)}'
 
     assert len(p_val) == 5, f'p_val format not recognised. maybe exp < -99? p val is {p_val}'
-    assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
 
-    if p_val[-3:] == '-01':
-        read_p = f'0.{p_val[0]}'
-    elif p_val[-3:] == '-02':
-        read_p = f'0.0{p_val[0]}'
-    elif p_val[-3:] == '-03':
-        read_p = f'0.00{p_val[0]}'
+    if p_val == '1e+00':
+        read_p = '1.0'
     else:
-        if int(p_val[-2:]) < 10:
-            exponent = p_val[-1]
+        assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
+
+        if p_val[-3:] == '-01':
+            read_p = f'0.{p_val[0]}'
+        elif p_val[-3:] == '-02':
+            read_p = f'0.0{p_val[0]}'
+        elif p_val[-3:] == '-03':
+            read_p = f'0.00{p_val[0]}'
         else:
-            exponent = p_val[-2:]
-        read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+            if int(p_val[-2:]) < 10:
+                exponent = p_val[-1]
+            else:
+                exponent = p_val[-2:]
+            read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     return read_p
 
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
@@ -765,7 +769,8 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
                             sort_tt_list='NA', n_trials=None, time_ticks=[], time_tick_labels=[],
                             s1_lim=None, s2_lim=None, plot_targets=True, spec_target_trial=None,
                             ol_neurons_s1=None, ol_neurons_s2=None, plot_yticks=True, transparent_art=False,
-                            plot_xlabel=True, n_stim=None, time_axis=None, filter_150_artefact=True):
+                            plot_xlabel=True, n_stim=None, time_axis=None, filter_150_artefact=True,
+                            cbar_pad=1.02):
 
     if ax is None:
         ax = plt.subplot(111)
@@ -795,12 +800,13 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
         if cax is None:
             cbar = plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
         else:
-            cbar = plt.colorbar(im, cax=cax, orientation='vertical', shrink=0.5, pad=1)
-            cbar.set_label(r"$\Delta F/F$", labelpad=-18)
-            cbar.set_ticks([-0.2, 0.2])
-            cbar.set_ticklabels(['- 0.2', '+ 0.2'])
-            # cbar.ax.tick_params(labelsize=15)
-            
+            cbar = plt.colorbar(im, cax=cax, orientation='vertical', shrink=0.5, pad=cbar_pad)
+            cbar.set_label(r"$\Delta F/F$", labelpad=3)
+            cbar.set_ticks([])
+            # cbar.set_ticklabels(['- 0.2', '+ 0.2'])
+            # cbar.set_ticklabels(['- 0.2', ''])
+            cbar.ax.text(0.5, -0.01, '- 0.2', transform=cbar.ax.transAxes, va='top', ha='center')
+            cbar.ax.text(0.5, 1.0, '+ 0.2', transform=cbar.ax.transAxes, va='bottom', ha='center')       
     
     if print_ylabel:
         ax.set_ylabel(f'Neuron ID sorted by {reg}-{sort_tt_list}\npost-stim trial correlation',
@@ -1149,7 +1155,7 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                                               plot_averages=False, post_stim_window=0.35, cax=None, bool_cb=True,
                                               start_time=-1.1, end_time=2, filter_150_stim=False,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
-                                              sorting_method='euclidean',
+                                              sorting_method='euclidean', cbar_pad=1.02,
                                               s1_lim=None, s2_lim=None):
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
@@ -1202,7 +1208,7 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                 if reg == 's1':
                     data_mat = np.mean(data_spont_mat_norm[session.s1_bool, :, :], 1)  # Spont S1
                     plot_single_raster_plot(data_mat=data_mat[ol_neurons_s1, :], session=session, ax=ax, reg='S1', tt='spont', c_lim=c_lim,
-                                    imshow_interpolation=imshow_interpolation, plot_cbar=bool_cb, cax=cax, print_ylabel=False,
+                                    imshow_interpolation=imshow_interpolation, plot_cbar=bool_cb, cbar_pad=cbar_pad, cax=cax, print_ylabel=False,
                                     sort_tt_list=sort_tt_list, n_trials=data_spont_mat_norm.shape[1], time_ticks=time_ticks, time_tick_labels=time_tick_labels,
                                     s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1,
                                     ol_neurons_s2=ol_neurons_s2, time_axis=time_axis, filter_150_artefact=filter_150_stim)
@@ -1215,10 +1221,21 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                                     ol_neurons_s2=ol_neurons_s2, time_axis=time_axis, filter_150_artefact=filter_150_stim)
             ax.set_ylabel(f'Sorted {reg.upper()} neurons', fontdict={'weight': 'normal'})
             ax.set_title(f'{label_tt[xx]} {reg.upper()}', fontdict={'color': color_tt[xx]})
+
+            tmp_n_neurons = np.shape(data_mat)[0]
+            if tmp_n_neurons > 400:
+                multiplier = 100
+            elif tmp_n_neurons > 50:
+                multiplier = 50
+            elif tmp_n_neurons > 25:
+                multiplier = 25
+            else:
+                multiplier = 10
+                
             if reg == 's1':
-                ax.set_yticks(np.arange(int(np.floor(np.sum(session.s1_bool) / 50))) * 50)
+                ax.set_yticks(np.arange(int(np.ceil(np.sum(session.s1_bool) / multiplier))) * multiplier)
             elif reg == 's2':
-                ax.set_yticks(np.arange(int(np.floor(np.sum(session.s2_bool) / 50))) * 50)
+                ax.set_yticks(np.arange(int(np.ceil(np.sum(session.s2_bool) / multiplier))) * multiplier)
         # ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
         #                 xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
