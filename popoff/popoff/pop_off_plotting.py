@@ -792,7 +792,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
                             s1_lim=None, s2_lim=None, plot_targets=True, spec_target_trial=None,
                             ol_neurons_s1=None, ol_neurons_s2=None, plot_yticks=True, transparent_art=False,
                             plot_xlabel=True, n_stim=None, time_axis=None, filter_150_artefact=True,
-                            cbar_pad=1.02):
+                            cbar_pad=1.02, target_tt_specific=False):
 
     if ax is None:
         ax = plt.subplot(111)
@@ -800,6 +800,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
     ## Plot artefact
     if tt in ['hit', 'miss']:
         if time_axis is None:
+            print('no time axis given to raster')
             zero_tick = 120
             ax.axvspan(zero_tick-2, zero_tick+30*0.5, alpha=1, color=color_tt['photostim'])
         else:
@@ -812,7 +813,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
             if not transparent_art:
                 data_mat = copy.deepcopy(data_mat)
                 data_mat[:, start_art_frame:end_art_frame] = np.nan
-            ax.axvspan(start_art_frame - 1, end_art_frame - 1, alpha=0.3, color=color_tt['photostim'])
+            ax.axvspan(start_art_frame - 0.5, end_art_frame - 0.5, alpha=0.3, color=color_tt['photostim'])
 
     ## Plot raster plots
     im = ax.imshow(data_mat, aspect='auto', vmin=-c_lim, vmax=c_lim,
@@ -820,8 +821,10 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
 
     if plot_cbar:
         if cax is None:
+            print('cax is none')
             cbar = plt.colorbar(im, ax=ax).set_label(r"$\Delta F/F$" + ' activity')# \nnormalised per neuron')
         else:
+            ## pretty sure shrink & cbar_pad dont work because cax is already defined.
             cbar = plt.colorbar(im, cax=cax, orientation='vertical', shrink=0.5, pad=cbar_pad)
             cbar.set_label(r"$\Delta F/F$", labelpad=3)
             cbar.set_ticks([])
@@ -862,7 +865,13 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
             target_mat = session.is_target[:, session.photostim < 2, :]
         else:
             target_mat = session.is_target
-        if spec_target_trial is None:
+        if spec_target_trial is None: 
+            if target_tt_specific:  # get hit/miss specific targets
+                if filter_150_artefact:
+                    tt_spec_arr = session.outcome[session.photostim < 2] == tt
+                else:
+                    tt_spec_arr = session.outcome == tt
+                target_mat = target_mat[:, tt_spec_arr, :]
             neuron_targ = np.mean(target_mat, (1, 2))
         else:
             neuron_targ = np.mean(target_mat, 2)
@@ -1258,17 +1267,6 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                 ax.set_yticks(np.arange(int(np.ceil(np.sum(session.s2_bool) / multiplier))) * multiplier)
         # ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
         #                 xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
-
-    # ## save & return
-    # if save_fig:
-    #     if save_name is None:
-    #         save_name = f'Rasters_{session.signature}_{imshow_interpolation}.pdf'
-    #     plt.savefig(os.path.join(save_folder, save_name), bbox_inches='tight')
-
-    # if show_plot is False:
-    #     plt.close()
-    # return sorted_neurons_dict
-
 
 def plot_mean_traces_per_session(sessions):
     n_cols = 4
@@ -2005,7 +2003,7 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
 
     if 'prereward' not in tt and plot_artefact:
         add_ps_artefact(ax=ax, time_axis=x_axis)
-    ax.set_xlim(-2.1, 4)
+    ax.set_xlim(-2, 4)
     ax.set_ylim(ylims)
     if plot_title:
         ax.set_title(f'{tt[0]} Trials', fontdict={'color': color_tt[tt[0]]})
@@ -2223,11 +2221,11 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         if 150 not in n_cells:
             x_box_min, y_box_min = 0.6, 0.665
             x_box_len, y_box_len = 0.5, 0.47
-            x_lims_box = [0,2]  # In data units
+            x_lims_box = [0, 2]  # In data units
         else:
             x_box_min, y_box_min = 0.7, 0.665
             x_box_len, y_box_len = 0.5, 0.47
-            x_lims_box = [0.5,2.5]  # In data units
+            x_lims_box = [0.5, 2.5]  # In data units
 
         ax_zoom = {}
         for i_plot, reg in enumerate(['s1', 's2']):
