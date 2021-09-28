@@ -154,30 +154,35 @@ def readable_p(p_val):
     if type(p_val) != str:
         p_val = two_digit_sci_not(x=p_val)
 
-    if len(p_val) == 6:
+    if p_val[2] == 'e':
         assert p_val[:4] == '10e-', p_val
         tmp_exp = int(p_val[-2:])
         p_val = f'1e-{str(tmp_exp - 1).zfill(2)}'
 
-    assert len(p_val) == 5, f'p_val format not recognised. maybe exp < -99? p val is {p_val}'
-
-    if p_val == '1e+00':
-        read_p = '1.0'
+    # assert len(p_val) == 5, f'p_val format not recognised. maybe exp < -99? p val is {p_val}'
+    if len(p_val) > 5:
+        assert len(p_val) == 6 and p_val[1:3] == 'e-', p_val 
+        exponent = p_val[-3:]
+        read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+    
     else:
-        assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
-
-        if p_val[-3:] == '-01':
-            read_p = f'0.{p_val[0]}'
-        elif p_val[-3:] == '-02':
-            read_p = f'0.0{p_val[0]}'
-        elif p_val[-3:] == '-03':
-            read_p = f'0.00{p_val[0]}'
+        if p_val == '1e+00':
+            read_p = '1.0'
         else:
-            if int(p_val[-2:]) < 10:
-                exponent = p_val[-1]
+            assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
+
+            if p_val[-3:] == '-01':
+                read_p = f'0.{p_val[0]}'
+            elif p_val[-3:] == '-02':
+                read_p = f'0.0{p_val[0]}'
+            elif p_val[-3:] == '-03':
+                read_p = f'0.00{p_val[0]}'
             else:
-                exponent = p_val[-2:]
-            read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+                if int(p_val[-2:]) < 10:
+                    exponent = p_val[-1]
+                else:
+                    exponent = p_val[-2:]
+                read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     return read_p
 
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,

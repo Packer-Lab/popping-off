@@ -415,7 +415,7 @@ class LabelEncoder():
 class LinearModel():
 
     def __init__(self, session, times_use, remove_targets=False, use_spks=False,
-                 remove_toosoon=False):
+                 remove_toosoon=False, pre_start=-0.51):
         ''' Perform logistic regression on Session object
 
         Attributes
@@ -436,8 +436,9 @@ class LinearModel():
         # not need to load every session
         self.times_use = times_use
         self.remove_targets = remove_targets
+        self.pre_start = pre_start
 
-        self.setup_flu()
+        self.setup_flu(pre_start=pre_start)
         self.target_info()
 
         if use_spks:
@@ -479,7 +480,7 @@ class LinearModel():
             if self.session.outcome[trial] == 'hit' and lick < 250:
                 self.session.outcome[trial] = 'too_soon' #NB: datatype of outcome currently is U4, so only 4 chars are saved ('too_')
 
-    def setup_flu(self):
+    def setup_flu(self, pre_start=-0.51, pre_end=-0.07):
         ''' Setup self.flu data array [n_cells x n_trials x [n_frames]
             for use in subsequent functions.
 
@@ -498,7 +499,8 @@ class LinearModel():
         # times_use inherited from AverageTraces
 
         # 2 seconds pre-stimulus with a buffer to the artifact just in case
-        self.pre = np.logical_and(self.times_use < -0.07, self.times_use >= -0.51)
+
+        self.pre = np.logical_and(self.times_use < pre_end, self.times_use >= pre_start)
 
         long_post = True
         if long_post:
@@ -1672,7 +1674,7 @@ class LinearModel():
 class PoolAcrossSessions(AverageTraces):
 
     def __init__(self, save_PCA=False, remove_targets=False, subsample_sessions=True, remove_toosoon=False,
-                 remove_too_few_cells=True):
+                 remove_too_few_cells=True, pre_start=-0.51):
         ''' Build object to pool across multiple LinearModel objects
 
         Allows you to build the useful attributes and make the plots
@@ -1705,7 +1707,7 @@ class PoolAcrossSessions(AverageTraces):
 
         self.remove_targets = remove_targets
         self.remove_toosoon = remove_toosoon
-
+        self.pre_start = pre_start
         idxs_remove = []
         for idx, session in self.sessions.items():
 
@@ -1717,7 +1719,8 @@ class PoolAcrossSessions(AverageTraces):
 
         self.linear_models = [LinearModel(session, self.times_use,
                                           remove_targets=remove_targets,
-                                          remove_toosoon=remove_toosoon)
+                                          remove_toosoon=remove_toosoon,
+                                          pre_start=self.pre_start)
                               for session in self.sessions.values()]
 
         # Add PCA attributes to session if they are not already saved
@@ -1795,7 +1798,8 @@ class PoolAcrossSessions(AverageTraces):
         # # This is a shitty fix redefining this variable but it allows for caching
         # # of the pca_dict variable
         self.linear_models = [LinearModel(session, self.times_use,
-                                          remove_targets=remove_targets)
+                                          remove_targets=remove_targets,
+                                          pre_start=self.pre_start)
                               for session in self.sessions.values()]
 
     def project_model(self, frames='all', model='full'):
@@ -1847,8 +1851,9 @@ class PoolAcrossSessions(AverageTraces):
             '''
 
         for linear_model in self.linear_models:
-
-            linear_model.setup_flu()  # Should we call this is __init__?
+            assert False, 'see code for explanation. TvdP has commented out line below. Double check to ensure nothing is broken'
+            ## commented out below because 1) we shouldnt build flu twice and 2) not sure if to pass pre_start arg.
+            # linear_model.setup_flu()  # Should we call this is __init__?
             linear_model.model_params_plot()
 
     def plot_betas(self, frames, model, n_comps_in_partial=10, multiclass=False,
