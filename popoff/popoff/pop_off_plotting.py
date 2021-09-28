@@ -688,7 +688,7 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
         sorting = np.argsort(max_val_arr)[::-1]
     elif sorting_method == 'sum':
         sum_data = np.sum(data, 1)
-        sorting = np.argsort(sum_data)
+        sorting = np.argsort(sum_data)[::-1]
     return sorting
 
 def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, end_time=4,
@@ -792,7 +792,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
                             s1_lim=None, s2_lim=None, plot_targets=True, spec_target_trial=None,
                             ol_neurons_s1=None, ol_neurons_s2=None, plot_yticks=True, transparent_art=False,
                             plot_xlabel=True, n_stim=None, time_axis=None, filter_150_artefact=True,
-                            cbar_pad=1.02, target_tt_specific=False):
+                            cbar_pad=1.02, target_tt_specific=True):
 
     if ax is None:
         ax = plt.subplot(111)
@@ -813,7 +813,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
             if not transparent_art:
                 data_mat = copy.deepcopy(data_mat)
                 data_mat[:, start_art_frame:end_art_frame] = np.nan
-            ax.axvspan(start_art_frame - 0.5, end_art_frame - 0.5, alpha=0.3, color=color_tt['photostim'])
+            ax.axvspan(start_art_frame - 0.25, end_art_frame - 0.25, alpha=0.3, color=color_tt['photostim'])
 
     ## Plot raster plots
     im = ax.imshow(data_mat, aspect='auto', vmin=-c_lim, vmax=c_lim,
