@@ -2506,6 +2506,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
 
 def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
+                                        n_bonferoni=3,
                                         covar_2='corr_pre', region='s1', verbose=0):
     arr_1, arr_2 = np.array([]), np.array([])
     n_sessions = len(cov_dicts[region])
@@ -2529,7 +2530,8 @@ def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre',
         arr_2 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_2))
     if ax is None:
         ax = plt.subplot(111)
-    ax.plot(arr_1, arr_2, '.', c='k', markersize=5)
+    c_dots = ('k' if p_val < (0.05 / n_bonferoni) else 'grey')
+    ax.plot(arr_1, arr_2, '.', c=c_dots, markersize=5)
     ax.set_xlabel(covar_labels[covar_1])
     ax.set_ylabel(covar_labels[covar_2])
     ax.set_title(f'r={np.round(corr_coef, 2)}, p < {readable_p(p_val)}')
@@ -2627,7 +2629,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                             color='k', length_includes_head=True, clip_on=False)
         assert n_bins_covar == 7
         ax.text(s='SNR axis', x=3, y=2.5, rotation=-45, fontdict={'weight': 'bold'})
-        ax.text(s='0%', x=6, y=0.75, rotation=-45, fontdict={'weight': 'bold'})
+        ax.text(s='0%', x=5.75, y=1.00, rotation=-45, fontdict={'weight': 'bold'})
         ax.text(s='100%', x=1.0, y=5.2, rotation=-45, fontdict={'weight': 'bold'})
 
 def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
