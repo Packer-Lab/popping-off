@@ -48,14 +48,14 @@ color_tt = {'hit': '#117733', 'miss': '#882255', 'fp': '#88CCEE', 'cr': '#DDCC77
             'urh': '#44AA99', 'arm': '#AA4499', 'spont': '#332288', 'prereward': '#332288', 
             'reward\nonly': '#332288', 'Reward\nonly': '#332288',
             'pre_reward': '#332288', 'Reward': '#332288', 'reward only': '#332288', 'rew. only': '#332288', 'hit&miss': 'k', 
-            'fp&cr': 'k', 'photostim': sns.color_palette()[6],
+            'fp&cr': 'k', 'photostim': sns.color_palette()[6], 'too_': 'grey',
             'hit_n1': '#b0eac9', 'hit_n2': '#5ab17f', 'hit_n3': '#117733',
             'miss_n1': '#a69098', 'miss_n2': '#985d76', 'miss_n3': '#882255',
             'hit_c1': '#b0eac9', 'hit_c2': '#5ab17f', 'hit_c3': '#117733',
             'miss_c1': '#a69098', 'miss_c2': '#985d76', 'miss_c3': '#882255'
             }  # Tol colorblind colormap https://davidmathlogic.com/colorblind/#%23332288-%23117733-%2300FFD5-%2388CCEE-%23DDCC77-%23CC6677-%23AA4499-%23882255
 label_tt = {'hit': 'Hit', 'Hit': 'Hit', 'miss': 'Miss', 'Miss': 'Miss',
-            'FP': 'FP', 'fp': 'FP', 'cr': 'CR', 'CR': 'CR',
+            'FP': 'FP', 'fp': 'FP', 'cr': 'CR', 'CR': 'CR', 'too_':  'Too early',
             'hit_n1': 'Hit 5-10', 'hit_n2': 'Hit 20-30', 'hit_n3': 'Hit 40-50',
             'miss_n1': 'Miss 5-10', 'miss_n2': 'Miss 20-30', 'miss_n3': 'Miss 40-50',
             'hit_c1': 'Hit low pop. var.', 'hit_c2': 'Hit mid pop. var.', 'hit_c3': 'Hit high pop. var.',
@@ -66,7 +66,8 @@ label_tt = {'hit': 'Hit', 'Hit': 'Hit', 'miss': 'Miss', 'Miss': 'Miss',
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
                 'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
-                'trial_number': 'Trial number', 
+                'trial_number': 'Trial number', 'mean_cell_variance': 'Temp. variance',
+                'var_cell_variance': 'Meta-variability',
                 # 'reward_history': 'Reward history\n(% succes in last 5 trials)'
                 'reward_history': 'Reward history (% hits)'}
 linest_reg = {'s1': '-', 's2': '-'}
@@ -2718,11 +2719,14 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     ax.set_ylabel(f'{covar_labels[cov_name]} S2')
     # ax.set_title(f'S1 vs S2 {cov_name}\n')
 
-def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=False,
-                    only_150_stim=False, i_col=0, color_dict=None, 
+def get_plot_trace(lm, ax=None, targets=False, region='s1', 
+                    filter_150_stim=False, only_150_stim=False, 
+                    n_stim_list=[5, 10, 20, 30, 40, 50],
+                    i_col=0, color_dict=None, plot_ci=True, lw_mean=1,
                     tt_list=['hit', 'miss', 'too_', 'urh', 'arm'],
                     verbose=0, baseline_by_prestim=True,
-                    absolute_vals=False, plot_artefact=False, plot_legend=False):
+                    absolute_vals=False, plot_artefact=False, plot_legend=False,
+                    type_plot='trace'):
 
     if ax is None:
         ax = plt.subplot(111)
@@ -2744,14 +2748,14 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     elif region == 's2':
         flu = data_use_mat_norm_s2
 
-    # Take out catch trials
-    if filter_150_stim:
-        n_stim_bool = lm.session.photostim == 1
-    elif only_150_stim:
-        n_stim_bool = lm.session.photostim == 2
-    else:
-        n_stim_bool = lm.session.photostim != 0
-
+    ## Take out catch trials
+    # if filter_150_stim:
+    #     n_stim_bool = lm.session.photostim == 1
+    # elif only_150_stim:
+    #     n_stim_bool = lm.session.photostim == 2
+    # else:
+    #     n_stim_bool = lm.session.photostim != 0
+    n_stim_bool = np.isin(lm.session.trial_subsets, n_stim_list)
     stim_idx = np.logical_and(n_stim_bool, np.isin(lm.session.outcome, tt_list))
     if verbose > 0:
         print(lm.session.outcome[stim_idx])
@@ -2772,8 +2776,9 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
     if absolute_vals:
         flu = np.abs(flu)
     mean_arr = np.mean(flu, (0, 1))
-    std_arr = np.std(flu, (0, 1))
-    ci_arr = std_arr * 1.96 / np.sqrt(flu.shape[0] * flu.shape[1])
+    if plot_ci:
+        std_arr = np.std(flu, (0, 1))
+        ci_arr = std_arr * 1.96 / np.sqrt(flu.shape[0] * flu.shape[1])
 
     remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
     time_axis = copy.deepcopy(time_axis)
@@ -2782,38 +2787,47 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1', filter_150_stim=Fals
 
     if absolute_vals:
         mean_arr -= np.mean(mean_arr[:pre_stim_frame])
-    # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
-    ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label)
-    ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr,
-                     color=color_dict[i_col], alpha=0.2)
 
-    if plot_artefact:
-        add_ps_artefact(ax=ax, time_axis=time_axis)
-        ax.text(s='Photostimulation', x=-0.07, y=0.255, color=color_tt['photostim'], alpha=1)
-    if absolute_vals:
-        ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
-    else:
-        ax.set_ylabel('Cell-averaged ' + r'$\Delta$F/F' + ' activity')
-    ax.set_xlabel('Time (s)')
-    ax.set_xticks([-2, 0, 2, 4, 6])
-    if absolute_vals:
-        ax.set_ylim([ -0.06, 0.15])
-    else:
-        ax.set_ylim(-0.06, 0.25)
+    if type_plot == 'trace':
+        # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
+        ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label, linewidth=lw_mean)
+        if plot_ci:
+            ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr,
+                            color=color_dict[i_col], alpha=0.2)
 
-    # ax.set_xlim(-1,4)
-    despine(ax)
-    if plot_legend:
+        if plot_artefact:
+            add_ps_artefact(ax=ax, time_axis=time_axis)
+            ax.text(s='Photostimulation', x=-0.07, y=0.255, color=color_tt['photostim'], alpha=1)
         if absolute_vals:
-            legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
+            ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
         else:
-            start_y = 0.23
-            for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
+            ax.set_ylabel('Cell-averaged ' + r'$\Delta$F/F' + ' activity')
+        ax.set_xlabel('Time (s)')
+        ax.set_xticks([-2, 0, 2, 4, 6])
+        if absolute_vals:
+            ax.set_ylim([ -0.06, 0.15])
+        else:
+            ax.set_ylim(-0.06, 0.25)
+        if plot_legend:
+            if absolute_vals:
+                legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
+            else:
+                start_y = 0.23
+                for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
 
-                ax.text(s=tt, x=2.15, va='top',
-                           y=start_y-idx*0.02, fontdict={'color': color_dict[idx]})
-            # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
+                    ax.text(s=tt, x=2.15, va='top',
+                            y=start_y-idx*0.02, fontdict={'color': color_dict[idx]})
+                # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
+    elif type_plot == 'return_mean':
+        return (time_axis, mean_arr)  
+    elif type_plot == 'return_bar':
+        post_stim_sum = np.sum(mean_arr[np.max(np.where(np.isnan(time_axis))[0]):])  # sum from last nan value of time axis onwards
+        return post_stim_sum
 
+    else:
+        assert False, 'plot type not recognised'
+    despine(ax)
+ 
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     np.seterr(divide='ignore')  # Ugly division by 0 error
@@ -2961,6 +2975,54 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
 
+def lick_hist_all_sessions(lms, ax=None):
+    arr_first_lick_total = np.array([])
+    arr_outcome_total = np.array([])
+    arr_session_total = np.array([])
+
+    for i_lm, lm in enumerate(lms):
+        session = lm.session
+        binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]
+        trial_subsets = session.trial_subsets
+        outcome = session.outcome
+        assert len(binned_licks) == len(outcome)
+        assert len(binned_licks) == len(trial_subsets)
+        for tt in np.unique(outcome):
+            inds_tt = np.where(outcome == tt)[0]
+            arr_tt = binned_licks[inds_tt]
+            arr_first_lick = np.array([(x[0] if len(x) > 0 else np.nan) for x in arr_tt])
+            arr_outcome = outcome[inds_tt]
+            arr_session = [session.name] * len(arr_outcome)
+
+            arr_first_lick_total = np.concatenate((arr_first_lick_total, arr_first_lick))
+            arr_outcome_total = np.concatenate((arr_outcome_total, arr_outcome))
+            arr_session_total = np.concatenate((arr_session_total, arr_session))
+            # print(tt, arr_first_lick, arr_outcome, arr_session)
+        # print([((x[0] if len(x) > 0 else 'None'), outcome[ii]) for ii, x in enumerate(binned_licks)])
+
+    df = pd.DataFrame({'session': arr_session_total,
+                       'first_lick': arr_first_lick_total,
+                       'outcome': arr_outcome_total})    
+        
+    if ax is None:
+        ax = plt.subplot(111)
+    
+    plot_bins = np.arange(0, 2000, 50)
+    tt_plot_list = ['hit', 'miss', 'fp', 'cr', 'too_', 'urh']
+    n, bins, patches= ax.hist([df[df['outcome'] == tt]['first_lick'] for tt in tt_plot_list], 
+            bins=plot_bins, stacked=True)
+    for i_tt, tt in enumerate(tt_plot_list):
+        for patch in patches[i_tt]:
+            patch.set_facecolor(color_tt[tt])
+        ax.annotate(s=label_tt[tt], xy=(0.8, 0.9 - 0.08 * i_tt),
+                    xycoords='axes fraction', color=color_tt[tt],
+                    weight='bold')
+
+    despine(ax)
+    ax.set_xlabel('Response time (ms)')
+    ax.set_ylabel('Frequency')
+    ax.set_title('Lick response times of all sessions', weight='bold')
+    return df
 
 def lick_raster(lm, fig=None):
     CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',

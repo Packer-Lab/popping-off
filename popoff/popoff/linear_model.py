@@ -330,6 +330,16 @@ def mean_cell_variance(flu, frames):
 
     return np.array(vars_)
 
+def var_cell_variance(flu, frames):
+
+    vars_ = []
+    for t in range(flu.shape[1]):
+        trial = flu[:, t, :]
+        trial = trial[:, frames]
+        vars_.append(np.var(np.var(trial, axis=1)))
+
+    return np.array(vars_)
+
 def variance_pop_mean(flu, frames):
 
     vars_ = []
@@ -682,6 +692,7 @@ class LinearModel():
         covariates_dict['variance_pop_mean'] = variance_pop_mean(flu, self.pre)
         covariates_dict['variance_cell_rates'] = np.log(variance_cell_rates(flu, self.pre))
         covariates_dict['mean_cell_variance'] = mean_cell_variance(flu, self.pre)
+        covariates_dict['var_cell_variance'] = var_cell_variance(flu, self.pre)
 
         if prereward is False:
             covariates_dict['reward_history'] = reward_history(self.session)[trial_bool]
