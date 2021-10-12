@@ -2764,13 +2764,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
     elif region == 's2':
         flu = data_use_mat_norm_s2
 
-    ## Take out catch trials
-    # if filter_150_stim:
-    #     n_stim_bool = lm.session.photostim == 1
-    # elif only_150_stim:
-    #     n_stim_bool = lm.session.photostim == 2
-    # else:
-    #     n_stim_bool = lm.session.photostim != 0
+    ## Take out catch trials & filter trial outcome
     n_stim_bool = np.isin(lm.session.trial_subsets, n_stim_list)
     stim_idx = np.logical_and(n_stim_bool, np.isin(lm.session.outcome, tt_list))
     if verbose > 0:
@@ -2783,10 +2777,8 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
 
     # Fluoresence averaged across cells with (non)targets filtered
     flu = np.ma.array(flu, mask=mask)
-    # flu = pof.baseline_subtraction(flu, lm)
-
-    # x axis in seconds aligned to stim
-    x_axis = time_axis  # (np.arange(flu.shape[1]) - max(np.where(lm.pre)[0])) / 30
+    
+    x_axis = time_axis 
     label = 'Targets S1' if targets else f'Non Targets {region.upper()}'
 
     if absolute_vals:
