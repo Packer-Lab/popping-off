@@ -2236,7 +2236,7 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         ax_list[i_plot].set_ylim(main_ylims)
         ax_list[i_plot].set_xlabel('Time (s)')
         despine(ax_list[i_plot])
-    ax_list[0].set_ylabel(r'$\Delta$F/F')
+    ax_list[0].set_ylabel('Average ' + r'$\Delta$F/F')
     ax_list[1].set_yticklabels(['' for x in ax_list[1].get_yticks()])
 
     if plot_legend:
@@ -3244,3 +3244,4 @@ def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.01
                 ax.text(s='n.s.', x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
 
             x_coord_tt += 1
+        ax.tick_params(bottom=False)

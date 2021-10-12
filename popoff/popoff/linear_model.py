@@ -468,13 +468,13 @@ class LinearModel():
             self.too_soon_threshold = too_soon_threshold
             self.too_sooner(too_soon_threshold=too_soon_threshold)
         else:
+            print('WARNING: not removing too-soon trials!!')
             self.too_soon_threshold = None
 
     def nan_removal(self, arr):
         ''' Sometimes nans are not removed from e.g. self.session.outcome
             like they should be in Session
             '''
-
         try:
             arr = arr[self.session.nonnan_trials]
         except IndexError:  # Already been non-nanned
@@ -484,12 +484,9 @@ class LinearModel():
     def too_sooner(self, too_soon_threshold=150):
 
         for trial in range(self.session.n_trials):
-
             lick = self.session.first_lick[trial]
-
             if lick is None:
                 continue
-
             if self.session.outcome[trial] == 'hit' and lick < too_soon_threshold:
                 self.session.outcome[trial] = 'too_soon' #NB: datatype of outcome currently is U4, so only 4 chars are saved ('too_')
 
@@ -1813,6 +1810,7 @@ class PoolAcrossSessions(AverageTraces):
         # # of the pca_dict variable
         self.linear_models = [LinearModel(session, self.times_use,
                                           remove_targets=remove_targets,
+                                          remove_toosoon=remove_toosoon,
                                           pre_start=self.pre_start)
                               for session in self.sessions.values()]
 
