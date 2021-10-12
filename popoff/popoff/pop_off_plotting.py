@@ -1229,28 +1229,9 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
     sorted_neurons_dict = {'s1': ol_neurons_s1, 's2': ol_neurons_s2}
     reg_names = ['S1' ,'S2']
     assert (time_ticks == [0, 60]).all() and time_tick_labels == ['-1.0', '1.0'], 'hard-coded time tick labels will be incorrect (lines below)'
-    time_ticks = [0, 30, 60]
-    time_tick_labels = [x.replace("-", u"\u2212") for x in ['-1', '0', '1']]
-    ## plot cell-averaged traces
-    # if plot_averages:
-    #     for i_x, xx in enumerate(['hit', 'miss', 'fp', 'cr']):
-    #         mean_trace = np.mean(data_use_mat_norm_s1[:, outcome_arr == xx, :], (0, 1))  # S1
-    #         plot_interrupted_trace_simple(ax[0][0], time_axis, smooth_trace(mean_trace),
-    #                                         llabel=xx, llinewidth=3, ccolor=color_tt[xx])  # plot all except spont
-
-    #         mean_trace = np.mean(data_use_mat_norm_s2[:, outcome_arr == xx, :], (0, 1))  # S2
-    #         plot_interrupted_trace_simple(ax[1][0], time_axis, smooth_trace(mean_trace),
-    #                                         llabel=xx, llinewidth=3, ccolor=color_tt[xx])
-
-    #     for i_ax, reg_bool in enumerate([session.s1_bool, session.s2_bool]):
-    #         mean_trace = np.mean(data_spont_mat_norm[reg_bool, :, :], (0, 1))  # spontaneous
-    #         plot_interrupted_trace_simple(ax[i_ax][0], time_axis, smooth_trace(mean_trace),
-    #                                         llabel='spont', llinewidth=3, ccolor=color_tt['spont'])  # plot spont
-
-    #         ax[i_ax][0].legend(frameon=False); ax[i_ax][0].set_title(f'Average over all {reg_names[i_ax]} neurons & trials');
-    #         ax[i_ax][0].set_xlabel('Time (s)'); ax[i_ax][0].set_ylabel('DF/F')
-    #         ax[i_ax][0].set_ylim([-0.2, 0.25])
-
+    time_ticks = [0, 30, 60, 90]
+    time_tick_labels = [x.replace("-", u"\u2212") for x in ['-1', '0', '1', '2']]
+    
     ## Plot raster plots
     for reg, tt_dict in ax_dict.items():
         for xx, ax in tt_dict.items():
@@ -1301,6 +1282,16 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
                 ax.set_yticks(np.arange(int(np.ceil(np.sum(session.s1_bool) / multiplier))) * multiplier)
             elif reg == 's2':
                 ax.set_yticks(np.arange(int(np.ceil(np.sum(session.s2_bool) / multiplier))) * multiplier)
+
+            ax.tick_params(which='minor', left=False)
+            if xx != 'hit':  ## assuming hit is the first one 
+                assert list(tt_dict.keys())[0] == 'hit'
+                ax.tick_params(labelleft=False)
+            if reg != 's2': ## assuming s2 is the last 
+                assert list(ax_dict.keys())[-1] == 's2'
+                ax.tick_params(labelbottom=False)
+
+
         # ax[0][2].annotate(s=f'{str(session)}, sorted by {sorting_method} using {imshow_interpolation} interpolation',
         #                 xy=(0.8, 1.1), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
@@ -2033,7 +2024,7 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
             ax.plot(x_axis, plot_trace, alpha=alpha_arr[i_n_cells],
                     color=color_tt[tt[0]], linewidth=2, label=(int(n_cells) if tt[0] == 'hit' else None))
         if plot_legend_n_cells:
-            ax.annotate(s='Cells\nstimulated:', xy=(1.2, 0.9), xycoords='axes fraction')
+            ax.annotate(s='Cells\ntargeted:', xy=(1.2, 0.9), xycoords='axes fraction')
             ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(1.15, 0.88))
 
 
@@ -2117,6 +2108,7 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
     despine(ax)
     if plot_logscale:
         ax.set_xscale('log')
+    ax.set_xlabel('Number of cells targeted')
 
 def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', plot_legend=True, verbose=0):
     if ax_s1 is None or ax_s2 is None:
@@ -2148,11 +2140,12 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
             print(reg, pearson_r, pearson_p)
         # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
         #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
-        xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
-        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
-                          xy=xy, xycoords='axes fraction')
+        # xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
+        xy = (1.1, 0.045)
+        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}\np < {readable_p(pearson_p)}',
+                          xy=xy, xycoords='axes fraction', ha='right')
     if plot_legend:
-        ax_dict['s2'].annotate(s='Cells\nstimulated:', xy=(1.25, 0.77), xycoords='axes fraction')
+        ax_dict['s2'].annotate(s='Cells\ntargeted:', xy=(1.25, 0.77), xycoords='axes fraction')
         ax_dict['s2'].legend(frameon=False, loc='upper left', bbox_to_anchor=(1.15, 0.75))
 
 def plot_spont(msm, region='s1', direction='positive', ax=None):
