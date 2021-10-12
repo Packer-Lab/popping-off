@@ -2950,7 +2950,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     ax.set_xticks([5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
     ax.set_xticklabels(['', '', '', '', '', '10', '', '', '', '', '', '', '', '', '100','', '', '', '', '', ])
     ax.tick_params(axis='both', which='major', direction='out', length=3, width=1,
-                    colors='k', zorder=10, pad=1, bottom=True
+                    colors='k', zorder=10, pad=1, bottom=True)
     despine(ax)
     ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
     ax.text(x=4.5, y=3.2, s='Individual sessions', color='grey', alpha=1)
