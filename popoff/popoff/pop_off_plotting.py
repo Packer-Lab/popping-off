@@ -199,6 +199,28 @@ def readable_p(p_val):
                 read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     return read_p
 
+def translate_session(session_name, number_only=False, capitalize=True):
+    session_name = str(session_name)
+    dict_translations = {'Mouse J064, run 10': 'Session 1',
+                         'Mouse J064, run 11': 'Session 2',
+                         'Mouse J064, run 14': 'Session 3',
+                         'Mouse RL070, run 28': 'Session 4',
+                         'Mouse RL070, run 29': 'Session 5',
+                         'Mouse RL117, run 26': 'Session 6',
+                         'Mouse RL117, run 29': 'Session 7',
+                         'Mouse RL117, run 30': 'Session 8',
+                         'Mouse RL123, run 22': 'Session 9',
+                         'Mouse RL116, run 32': 'Session 10',
+                         'Mouse RL116, run 33': 'Session 11'}
+
+    assert session_name in dict_translations.keys(), f'session name "{session_name}" not recognised!!'
+    translation = dict_translations[session_name]
+    if capitalize is False:
+        translation = translation[0].lower() + translation[1:]
+    if number_only:
+        translation = translation.split(' ')[-1]
+    return translation
+
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
                   type_scatter='strip', ccolor='grey', aalpha=1, ax=None):
     """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
@@ -2735,7 +2757,6 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     # ax.set_title(f'S1 vs S2 {cov_name}\n')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', 
-                    filter_150_stim=False, only_150_stim=False, 
                     n_stim_list=[5, 10, 20, 30, 40, 50],
                     i_col=0, color_dict=None, plot_ci=True, lw_mean=1,
                     tt_list=['hit', 'miss', 'too_', 'urh', 'arm'],
@@ -2823,16 +2844,16 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         if absolute_vals:
             ax.set_ylim([ -0.06, 0.15])
         else:
-            ax.set_ylim(-0.06, 0.25)
+            ax.set_ylim(-0.06, 0.2)
+            ax.set_yticks([0, 0.1, 0.2])
         if plot_legend:
             if absolute_vals:
                 legend = ax.legend(bbox_to_anchor=(1, 0), frameon=False, loc='lower right')
             else:
-                start_y = 0.23
+                start_y = 0.18
                 for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
-
                     ax.text(s=tt, x=2.15, va='top',
-                            y=start_y-idx*0.02, fontdict={'color': color_dict[idx]})
+                            y=start_y - idx*0.025, fontdict={'color': color_dict[idx]})
                 # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
     elif type_plot == 'return_mean':
         return (time_axis, mean_arr)  
@@ -2904,7 +2925,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
     ax.set_ylabel('Behavioral accuracy (d\')')
-    ax.set_xlabel('Number of cells stimulated')
+    ax.set_xlabel('Number of cells targeted')
 
 
     # Centre point of the rescaled sigmoid.
@@ -2926,24 +2947,15 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color, ls=':')
     ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color, ls=':')
 
-    # ax.xaxis.set_minor_locator(MultipleLocator(10))
-    # ax.xaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10))
-
-    # ticks = [10, 100]
-    # ticks = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
-    # ax.set_xticks(ticks, ticks)
     ax.set_xticks([5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
     ax.set_xticklabels(['', '', '', '', '', '10', '', '', '', '', '', '', '', '', '100','', '', '', '', '', ])
     ax.tick_params(axis='both', which='major', direction='out', length=3, width=1,
-                    colors='k', zorder=10, pad=1, bottom=True)
-    # ax.legend()
-    # ax.xaxis.display_minor_ticks(True)
+                    colors='k', zorder=10, pad=1, bottom=True
     despine(ax)
     ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
-    ax.text(x=4.5, y=2.7, s='Individual sessions', color='grey', alpha=1)
-    ax.text(x=4.5, y=2.4, s='Average across sessions', color='red')
-    # save_figure('Figure1PanelG', figure_path)
-
+    ax.text(x=4.5, y=3.2, s='Individual sessions', color='grey', alpha=1)
+    ax.text(x=4.5, y=2.9, s='Average across sessions', color='red')
+    
 def get_percentile_value(x_range, curve, p=0.5):
 
     y_point = min(curve) + ((max(curve) - min(curve)) * p)
@@ -3130,7 +3142,9 @@ def lick_raster(lm, fig=None):
     ax0.set_ylim((0, len(sorted_licks)+1))
     ax0.set_yticks(subset_centre)
     ax0.set_yticklabels(np.flip(subsets))
-    ax0.set_ylabel('Number of cells stimulated')
+    ax0.tick_params(left=False)
+    ax1.tick_params(left=False)# cbar y
+    ax0.set_ylabel('Number of cells targeted')
     despine(ax0)
     despine(ax1)
 
