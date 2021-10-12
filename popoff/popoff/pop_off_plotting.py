@@ -1077,7 +1077,7 @@ def plot_raster_plots_number_stim_one_session(session, c_lim=0.2, sort_tt_list=[
                         s1_lim=s1_lim, s2_lim=s2_lim, plot_targets=True, ol_neurons_s1=ol_neurons_s1, filter_150_artefact=filter_150_stim,
                         ol_neurons_s2=ol_neurons_s2, plot_xlabel=(False if i_x == 0 else True), plot_yticks=(True if i_stim == 0 else False), n_stim=n_stim)
 
-    ax[0][1].annotate(s=f'{str(session)}, hit & Miss trials split by number of cells stimulated. Sorted by {sorting_method} using {imshow_interpolation} interpolation',
+    ax[0][1].annotate(s=f'{str(session)}, hit & Miss trials split by number of cells targeted. Sorted by {sorting_method} using {imshow_interpolation} interpolation',
                       xy=(0.4, 1.15), xycoords='axes fraction', weight= 'bold', fontsize=14)
 
     ## save & return
@@ -2061,7 +2061,7 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
         wls_weights = []
     color = color_tt[label]
     for key, val in dict_activ.items():  # key = n_ps, val = data point per session
-        x = np.repeat(key, len(val))  # number of cells stimulated
+        x = np.repeat(key, len(val))  # number of cells targeted
         y = np.array(val)
         if weighted_regression:
             var_y = np.array([1 / tmp_var if tmp_var != 0 else 0.25 for tmp_var in dict_var[key]])  # inverse variance
@@ -2352,11 +2352,11 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
 def gaussian(x, mu, sig):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
-def covar_sketch(ax=None, plot_pc_var=True):
+def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True):
     if ax is None:
         ax = plt.subplot(111)
 
-
+    ## Pop mean and var:
     x_arr_gauss = np.linspace(-0.2, 0.3, 100)
     mid_x = 0.05
     y_arr_gauss = gaussian(x=x_arr_gauss, mu=mid_x, sig=0.1) * 0.4 + 0.5
@@ -2375,69 +2375,72 @@ def covar_sketch(ax=None, plot_pc_var=True):
                             color='k', length_includes_head=True, clip_on=False)
     ax.text(s='Pop mean', x=0.35, y=1, ha='center')
     
-    n_scatter = 40
-    # mat_scatter = np.random.multivariate_normal(np.array([0, 0]), np.array([[1, 0.5], [0.5, 1]]), size=n_scatter) * 0.05
-    mat_scatter = np.array([[-0.10894625, -0.03707173],
-                            [ 0.04927918,  0.0558435 ],
-                            [ 0.07458346,  0.03630893],
-                            [ 0.0737646 ,  0.09700735],
-                            [ 0.02697377, -0.00113548],
-                            [-0.04998247,  0.04741769],
-                            [ 0.0752935 ,  0.0101812 ],
-                            [-0.07316041,  0.00448425],
-                            [ 0.02393236,  0.02762098],
-                            [-0.0541065 ,  0.01168037],
-                            [-0.0008373 , -0.02861629],
-                            [ 0.02036253, -0.00301528],
-                            [ 0.02301268, -0.00663146],
-                            [ 0.00729329,  0.08739137],
-                            [-0.06424448,  0.02205373],
-                            [-0.10345242, -0.04532926],
-                            [-0.04049523, -0.08862355],
-                            [-0.08370238, -0.08036568],
-                            [ 0.0944889 ,  0.11319315],
-                            [-0.01612632, -0.033244  ],
-                            [-0.03482069, -0.09758172],
-                            [-0.01408344, -0.01694928],
-                            [ 0.01295038,  0.05611397],
-                            [ 0.08962012,  0.03492652],
-                            [ 0.02143228,  0.06839815],
-                            [-0.00308122,  0.05854908],
-                            [-0.01016929, -0.0544294 ],
-                            [-0.07146149, -0.01729002],
-                            [ 0.01721404, -0.03629429],
-                            [ 0.0340228 ,  0.04326364],
-                            [-0.06413212, -0.0580089 ],
-                            [ 0.01786435,  0.0595894 ],
-                            [-0.00896541,  0.02284251],
-                            [-0.00737659,  0.00476788],
-                            [ 0.00955506, -0.0185146 ],
-                            [-0.06771121, -0.04626916],
-                            [-0.0375874 , -0.05779237],
-                            [-0.0850151 , -0.01057411],
-                            [-0.03711363, -0.02676278],
-                            [ 0.03556763,  0.08671738]])  # for reproduc. 
-    mat_scatter *= 1.3
-    # axes:
-    left_scat = 0.5
-    ax.plot([left_scat, left_scat + 0.34], [0.1, 0.1], c='k', clip_on=False)
-    ax.plot([left_scat, left_scat], [0.1, 0.5], c='k', clip_on=False)
-    ax.text(s='Neuron 1', x=left_scat + 0.0, y=0.02, c='k')
-    ax.text(s='Neuron 2', x=left_scat - 0.08, y=0.15, c='k', rotation=90)
-    
-    ax.scatter(mat_scatter[:, 0] + left_scat + 0.2, mat_scatter[:, 1] + 0.3, c='k', s=5, clip_on=False)
+    # ## Correlation:
+    if plot_corr:
+        n_scatter = 40
+        # mat_scatter = np.random.multivariate_normal(np.array([0, 0]), np.array([[1, 0.5], [0.5, 1]]), size=n_scatter) * 0.05
+        mat_scatter = np.array([[-0.10894625, -0.03707173],
+                                [ 0.04927918,  0.0558435 ],
+                                [ 0.07458346,  0.03630893],
+                                [ 0.0737646 ,  0.09700735],
+                                [ 0.02697377, -0.00113548],
+                                [-0.04998247,  0.04741769],
+                                [ 0.0752935 ,  0.0101812 ],
+                                [-0.07316041,  0.00448425],
+                                [ 0.02393236,  0.02762098],
+                                [-0.0541065 ,  0.01168037],
+                                [-0.0008373 , -0.02861629],
+                                [ 0.02036253, -0.00301528],
+                                [ 0.02301268, -0.00663146],
+                                [ 0.00729329,  0.08739137],
+                                [-0.06424448,  0.02205373],
+                                [-0.10345242, -0.04532926],
+                                [-0.04049523, -0.08862355],
+                                [-0.08370238, -0.08036568],
+                                [ 0.0944889 ,  0.11319315],
+                                [-0.01612632, -0.033244  ],
+                                [-0.03482069, -0.09758172],
+                                [-0.01408344, -0.01694928],
+                                [ 0.01295038,  0.05611397],
+                                [ 0.08962012,  0.03492652],
+                                [ 0.02143228,  0.06839815],
+                                [-0.00308122,  0.05854908],
+                                [-0.01016929, -0.0544294 ],
+                                [-0.07146149, -0.01729002],
+                                [ 0.01721404, -0.03629429],
+                                [ 0.0340228 ,  0.04326364],
+                                [-0.06413212, -0.0580089 ],
+                                [ 0.01786435,  0.0595894 ],
+                                [-0.00896541,  0.02284251],
+                                [-0.00737659,  0.00476788],
+                                [ 0.00955506, -0.0185146 ],
+                                [-0.06771121, -0.04626916],
+                                [-0.0375874 , -0.05779237],
+                                [-0.0850151 , -0.01057411],
+                                [-0.03711363, -0.02676278],
+                                [ 0.03556763,  0.08671738]])  # for reproduc. 
+        mat_scatter *= 1.3
+        # axes:
+        left_scat = 0.5
+        ax.plot([left_scat, left_scat + 0.34], [0.1, 0.1], c='k', clip_on=False)
+        ax.plot([left_scat, left_scat], [0.1, 0.5], c='k', clip_on=False)
+        ax.text(s='Neuron 1', x=left_scat + 0.0, y=0.02, c='k')
+        ax.text(s='Neuron 2', x=left_scat - 0.08, y=0.15, c='k', rotation=90)
+        
+        ax.scatter(mat_scatter[:, 0] + left_scat + 0.2, mat_scatter[:, 1] + 0.3, c='k', s=5, clip_on=False)
 
 
-    ax.arrow(0.95, 0.43, -0.06, 0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
-                            color='k', length_includes_head=True, clip_on=False)
-    ax.arrow(0.81, 0.57, 0.06, -0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
-                            color='k', length_includes_head=True, clip_on=False)
-    ax.text(s='Corr.', x=0.925, y=0.47, ha='center', rotation=-45)
-    
-    if plot_pc_var:
-        ax.arrow(0.76, 0.21, 0.15, 0.15, head_width=0.04, head_length=0.02, linewidth=1.5,
+        ax.arrow(0.95, 0.43, -0.06, 0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
                                 color='k', length_includes_head=True, clip_on=False)
-        ax.text(s='Var.\n1st PC', x=0.8, y=0.1, c='k', rotation=45)
+        ax.arrow(0.81, 0.57, 0.06, -0.06, head_width=0.04, head_length=0.02, linewidth=1.5,
+                                color='k', length_includes_head=True, clip_on=False)
+        ax.text(s='Corr.', x=0.925, y=0.47, ha='center', rotation=-45)
+        
+        if plot_pc_var:
+            ax.arrow(0.76, 0.21, 0.15, 0.15, head_width=0.04, head_length=0.02, linewidth=1.5,
+                                    color='k', length_includes_head=True, clip_on=False)
+            ax.text(s='Var.\n1st PC', x=0.8, y=0.1, c='k', rotation=45)
+ 
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
     naked(ax)
@@ -2549,6 +2552,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             # tmp_ax.set_xlabel('Trial type')
             tmp_ax.set_xlabel('')
             tmp_ax.set_ylim([-0.55 , 0.75])
+            tmp_ax.tick_params(bottom=False)
             despine(tmp_ax)
         if verbose > 0:
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
@@ -2657,7 +2661,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=1,
                     cbar_kws={'label': 'Probability hit'}, rasterized=False,
                     cmap=sns.diverging_palette(h_neg=350, h_pos=140, s=85, l=23, sep=10, n=10, center='light'))
-        ax.set_title('P(hit) depends on pop. variance\n and number of cells stimulated', y=1.04)
+        ax.set_title('P(hit) depends on pop. variance\n and number of cells targeted', y=1.04)
     elif metric == 'occupancy':
         sns.heatmap(mat_fraction, ax=ax, vmin=0, vmax=30,
                     cbar_kws={'label': 'Number of trials per bin'},
@@ -2671,7 +2675,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
         ax.set_xlabel(f'Binned z-scored {covar_labels[covar_name].lower()}\n(median of bin)')
     else:
         ax.set_xlabel(f'Binned {covar_labels[covar_name]}')
-    ax.set_ylabel('Number of cells stimulated')
+    ax.set_ylabel('Number of cells targeted')
     if plot_arrow:
         ax.arrow(n_bins_covar - 0.5, 0.5, -n_bins_covar + 1, n_bins_covar - 1,
                             head_width=0.35, head_length=0.45, linewidth=3,
