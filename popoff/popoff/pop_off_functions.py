@@ -2187,7 +2187,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
             mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)  # inds of diagonal with 'same SNR'
             tmp_n_stim_inds_arr, tmp_cov_perc_inds_arr = mat_inds 
 
-            cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), 
+            cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), ## -10 to be sure its including the min of all_cov_arr
                                                     cov_perc_arr))
             collapsed_df = None
             for i_el in range(len(tmp_n_stim_inds_arr)):  # loop through bins that are in this diagonal
@@ -2229,7 +2229,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
     else:
         mean_mat_arr, ci_mat_arr = None, None 
 
-    return (mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr), (mean_mat_arr, ci_mat_arr)
+    return (mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr), (mean_mat_arr, ci_mat_arr) 
 
 def get_subset_dprime(session):
     assert session.trial_subsets.shape == session.outcome.shape

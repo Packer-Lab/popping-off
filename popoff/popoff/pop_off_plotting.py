@@ -26,10 +26,13 @@ import pop_off_functions as pof
 # from linear_model import PoolAcrossSessions, LinearModel, MultiSessionModel
 from utils.utils_funcs import d_prime
 
+## Set default settings.
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 plt.rcParams['axes.unicode_minus'] = True
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
+plt.rcParams['xtick.bottom'] = True
+plt.rcParams['ytick.left'] = True
 ## Create list with standard colors:
 color_dict_stand = {}
 for ii, x in enumerate(plt.rcParams['axes.prop_cycle']()):
@@ -139,6 +142,16 @@ def equal_lims_two_axs(ax1, ax2):
     ax2.set_xlim([new_x_min, new_x_max])
     ax1.set_ylim([new_y_min, new_y_max])
     ax2.set_ylim([new_y_min, new_y_max])
+
+def remove_xticklabels(ax):  # remove labels but keep ticks
+    ax.set_xticklabels(['' for x in ax.get_xticklabels()])
+
+def remove_yticklabels(ax):  # remove labels but keep ticks
+    ax.set_yticklabels(['' for x in ax.get_yticklabels()])
+
+def remove_both_ticklabels(ax):  # remove labels but keep ticks
+    remove_xticklabels(ax)
+    remove_yticklabels(ax)
 
 def two_digit_sci_not(x):
     sci_not_spars = np.format_float_scientific(x, precision=1)
@@ -2459,7 +2472,7 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     ax.set_title(r"$\Delta F/F$" + ' activity', y=1.17)
  
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
-                            plot_type='scatter', bonf_n_tests=None,
+                            plot_type='scatter', bonf_n_tests=None, verbose=0,
                     cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
     if ax_dict is None:
         fig, ax = plt.subplots(1, len(cov_names), figsize=(3 * len(cov_names), 2),
@@ -2522,6 +2535,8 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             tmp_ax.set_xlabel('')
             tmp_ax.set_ylim([-0.55 , 0.75])
             despine(tmp_ax)
+        if verbose > 0:
+            print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
 
 def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
@@ -2726,6 +2741,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
                     tt_list=['hit', 'miss', 'too_', 'urh', 'arm'],
                     verbose=0, baseline_by_prestim=True,
                     absolute_vals=False, plot_artefact=False, plot_legend=False,
+                    text_photostim=False, text_xlabel=True, text_ylabel=True,
                     type_plot='trace'):
 
     if ax is None:
@@ -2797,13 +2813,21 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
 
         if plot_artefact:
             add_ps_artefact(ax=ax, time_axis=time_axis)
-            ax.text(s='Photostimulation', x=-0.07, y=0.255, color=color_tt['photostim'], alpha=1)
-        if absolute_vals:
-            ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
+            if text_photostim:
+                ax.annotate(s='Photostimulation', xy=(0.4, 0.9), xycoords='axes fraction',
+                            color=color_tt['photostim'], alpha=1)
+        if text_ylabel:
+            if absolute_vals:
+                ax.set_ylabel('Absolute ' + r"$\Delta$F/F")
+            else:
+                ax.set_ylabel('Average ' + r"$\Delta$F/F")
         else:
-            ax.set_ylabel('Cell-averaged ' + r'$\Delta$F/F' + ' activity')
-        ax.set_xlabel('Time (s)')
+            remove_yticklabels(ax)
         ax.set_xticks([-2, 0, 2, 4, 6])
+        if text_xlabel:
+            ax.set_xlabel('Time (s)')
+        else:
+            remove_xticklabels(ax)
         if absolute_vals:
             ax.set_ylim([ -0.06, 0.15])
         else:
@@ -2823,7 +2847,6 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
     elif type_plot == 'return_bar':
         post_stim_sum = np.sum(mean_arr[np.max(np.where(np.isnan(time_axis))[0]):])  # sum from last nan value of time axis onwards
         return post_stim_sum
-
     else:
         assert False, 'plot type not recognised'
     despine(ax)
@@ -2975,7 +2998,8 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
 
-def lick_hist_all_sessions(lms, ax=None):
+def lick_hist_all_sessions(lms, ax=None,
+                          tt_plot_list=['hit', 'miss', 'fp', 'cr', 'too_', 'urh', 'arm']):
     arr_first_lick_total = np.array([])
     arr_outcome_total = np.array([])
     arr_session_total = np.array([])
@@ -3008,7 +3032,6 @@ def lick_hist_all_sessions(lms, ax=None):
         ax = plt.subplot(111)
     
     plot_bins = np.arange(0, 2000, 50)
-    tt_plot_list = ['hit', 'miss', 'fp', 'cr', 'too_', 'urh']
     n, bins, patches= ax.hist([df[df['outcome'] == tt]['first_lick'] for tt in tt_plot_list], 
             bins=plot_bins, stacked=True)
     for i_tt, tt in enumerate(tt_plot_list):
