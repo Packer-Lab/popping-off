@@ -425,7 +425,7 @@ class LabelEncoder():
 class LinearModel():
 
     def __init__(self, session, times_use, remove_targets=False, use_spks=False,
-                 remove_toosoon=False, pre_start=-0.51):
+                 remove_toosoon=False, pre_start=-0.51, too_soon_threshold=150):
         ''' Perform logistic regression on Session object
 
         Attributes
@@ -465,7 +465,10 @@ class LinearModel():
             self.session.trial_subsets)
 
         if remove_toosoon:
-            self.too_sooner()
+            self.too_soon_threshold = too_soon_threshold
+            self.too_sooner(too_soon_threshold=too_soon_threshold)
+        else:
+            self.too_soon_threshold = None
 
     def nan_removal(self, arr):
         ''' Sometimes nans are not removed from e.g. self.session.outcome
@@ -478,7 +481,7 @@ class LinearModel():
             pass
         return arr
 
-    def too_sooner(self):
+    def too_sooner(self, too_soon_threshold=150):
 
         for trial in range(self.session.n_trials):
 
@@ -487,7 +490,7 @@ class LinearModel():
             if lick is None:
                 continue
 
-            if self.session.outcome[trial] == 'hit' and lick < 250:
+            if self.session.outcome[trial] == 'hit' and lick < too_soon_threshold:
                 self.session.outcome[trial] = 'too_soon' #NB: datatype of outcome currently is U4, so only 4 chars are saved ('too_')
 
     def setup_flu(self, pre_start=-0.51, pre_end=-0.07):
