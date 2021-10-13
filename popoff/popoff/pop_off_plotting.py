@@ -74,7 +74,7 @@ covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'trial_number': 'Trial number', 'mean_cell_variance': 'Temp. variance',
                 'var_cell_variance': 'Meta-variability',
                 # 'reward_history': 'Reward history\n(% succes in last 5 trials)'
-                'reward_history': 'Reward history (% hits)'}
+                'reward_history': 'Rew. history (% hits)'}
 linest_reg = {'s1': '-', 's2': '-'}
 label_split = {**{0: 'No L.', 1: 'Lick'}, **label_tt}
 alpha_reg = {'s1': 0.9, 's2':0.5}
@@ -2375,28 +2375,28 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
 def gaussian(x, mu, sig):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
-def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True, mid_x = 0.05):
+def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True, mid_x = 0.05, translate_y=0.5):
     if ax is None:
         ax = plt.subplot(111)
 
     ## Pop mean and var:
     x_arr_gauss = np.linspace(mid_x -0.25, mid_x + 0.25, 100)
     
-    y_arr_gauss = gaussian(x=x_arr_gauss, mu=mid_x, sig=0.1) * 0.4 + 0.5
+    y_arr_gauss = gaussian(x=x_arr_gauss, mu=mid_x, sig=0.1) * 0.4 + translate_y
 
     ax.plot(x_arr_gauss, y_arr_gauss, c='k', linewidth=1.5, clip_on=False)
 
-    ax.plot([mid_x - 0.3, mid_x + 0.3], [0.47, 0.47], c='k', linewidth=1.0, clip_on=False)
-    ax.text(s=r"$\Delta F/F$" + ' distr.', x=mid_x, y=0.37, ha='center')
-    ax.arrow(mid_x, 0.7, 0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
+    ax.plot([mid_x - 0.3, mid_x + 0.3], [translate_y - 0.03, translate_y - 0.03], c='k', linewidth=1.0, clip_on=False)
+    ax.text(s=r"$\Delta F/F$" + ' distr.', x=mid_x, y=translate_y - 0.13, ha='center')
+    ax.arrow(mid_x, translate_y + 0.2, 0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
-    ax.arrow(mid_x, 0.7, -0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
+    ax.arrow(mid_x, translate_y + 0.2, -0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
-    ax.text(s='Pop var.', x=mid_x, y=0.55, ha='center')
+    ax.text(s='Pop var.', x=mid_x, y=translate_y + 0.05, ha='center')
     
-    ax.arrow(mid_x + 0.1, 1, -0.08, -0.08, head_width=0.04, head_length=0.02, linewidth=1.5,
+    ax.arrow(mid_x + 0.1, translate_y + 0.5, -0.08, -0.08, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
-    ax.text(s='Pop mean', x=mid_x + 0.3, y=1, ha='center')
+    ax.text(s='Pop mean', x=mid_x + 0.3, y=translate_y + 0.5, ha='center')
     
     # ## Correlation:
     if plot_corr:
@@ -2482,7 +2482,7 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
                                         sort_neurons=True, end_time=x_max)
 
     inds_cells = np.array([123, 34, 54, 65, 76, 86, 102])
-    ind_trial = 64
+    ind_trial = 62  # used to be 64 (with 250 ms)
     # print({k: v for k, v in enumerate(outcome_arr)})
     # print(outcome_arr[ind_trial])
     assert len(time_axis) == len(time_axis_norm)# and time_axis[0] == time_axis_norm[0] and time_axis[-1] == time_axis_norm[-1]  # one contains nans at artefact and other one doesnt
@@ -2574,7 +2574,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                 tmp_ax.set_ylabel('')
             # tmp_ax.set_xlabel('Trial type')
             tmp_ax.set_xlabel('')
-            tmp_ax.set_ylim([-0.55 , 0.75])
+            tmp_ax.set_ylim([-0.55 , 0.85])
             tmp_ax.tick_params(bottom=False)
             despine(tmp_ax)
         if verbose > 0:
