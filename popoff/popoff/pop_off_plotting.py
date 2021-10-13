@@ -65,7 +65,8 @@ label_tt = {'hit': 'Hit', 'Hit': 'Hit', 'miss': 'Miss', 'Miss': 'Miss',
             'miss_c1': 'Miss low pop. var.', 'miss_c2': 'Miss mid pop. var.', 'miss_c3': 'Miss high pop. var.',
             'urh': 'UR Hit', 'arm': 'AR Miss', 'spont': 'Reward only', 'prereward': 'Reward only',
             'Reward only': 'Reward only', 'reward only': 'Reward only', 'Rew. only': 'Rew. only',
-            'reward_only': 'Reward only', 'Reward\nonly': 'Reward\nonly'}
+            'reward_only': 'Reward only', 'Reward\nonly': 'Reward\nonly',
+            'cr 10 trials': 'CR 10 trials'}
 covar_labels = {'mean_pre': 'Pop. mean', 'variance_cell_rates': 'Pop. variance',
                 'corr_pre': 'Pop. correlation', 'largest_PC_var': 'Var largest PC',
                 'n_PCs_90': 'PCs for 90% var', 'n_PCs_95': 'PCs for 95% var',
@@ -180,7 +181,7 @@ def readable_p(p_val):
         read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     
     else:
-        if p_val == '1e+00':
+        if p_val == '1e+00' or p_val == '1e-00':
             read_p = '1.0'
         else:
             assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
@@ -1637,22 +1638,28 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
             if plot_artefact:
                 add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
             ax_acc_ps[reg].set_xlim(xlims)
-            ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', 
+            names_tt = [label_tt[x] for x in decoder_key.split("/")]
+            ax_acc_ps[reg].set_title(f'Dynamic {names_tt[0]}/{names_tt[1]} encoding in {reg.upper()}', 
                                      fontdict={'weight': 'bold'}, y=1.15)
-
+            ax_acc_ps[reg].set_xticks([-2, -1, 0, 1, 2, 3, 4])
+            ax_acc_ps[reg].set_yticks([0, 0.5, 1])
+            
             if plot_significance:
                 for i_tt, tt in enumerate(plot_tt):
                     _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
                                                         time_array=time_array, tt=tt, region=reg)
                     ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
-                                    linewidth=2, c=color_tt[tt], clip_on=False)
+                                    linewidth=2, c=color_tt[tt], clip_on=False) 
+            if decoder_key == 'hit/cr 10 trials':
+                ax_acc_ps[reg].set_ylabel('Hit vs CR classification\nusing 10 trials only')
 
         if indicate_spont:
-            ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.33,
+            ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.3,
                                 fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
+       
 
 def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_split, decoder_key='hit/cr',
                                             #   plot_tt=['hit_n1', 'hit_n2', 'hit_n3', 
@@ -1713,7 +1720,8 @@ def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_spl
             ax_acc_ps[reg].set_xlim(xlims)
             ax_acc_ps[reg].set_title(f'Dynamic {decoder_key} encoding in {reg.upper()}', 
                                      fontdict={'weight': 'bold'}, y=1.05)
-
+            ax_acc_ps[reg].set_xticks([-2, -1, 0, 1, 2, 3, 4])
+            ax_acc_ps[reg].set_yticks([0, 0.5, 1])
             if plot_significance:
                 for i_tt, tt in enumerate(plot_tt):
                     _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
@@ -2649,10 +2657,11 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
-                                metric='fraction_hit', plot_arrow=False):
+                                metric='fraction_hit', plot_arrow=False, include_150=True):
     (mat_fraction, median_cov_perc_arr, cov_perc_arr,
         n_stim_arr), _ = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df,
-                                             n_bins_covar=n_bins_covar, metric=metric)
+                                             n_bins_covar=n_bins_covar, metric=metric,
+                                             include_150=include_150)
 
     if ax is None:
         ax = plt.subplot(111)
@@ -2670,7 +2679,9 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
     ax.invert_yaxis()
     ax.set_yticklabels(n_stim_arr, rotation=0)
-    ax.set_xticklabels([np.round(x, 1) for x in median_cov_perc_arr], rotation=45);
+    xticklabels = [str(np.round(x, 1)) for x in median_cov_perc_arr]
+    xticklabels = [x.replace('-0.0', '0').replace('0.0', '0').replace("-", u"\u2212") for x in xticklabels]
+    ax.set_xticklabels(xticklabels, rotation=45)
     if zscored_covar:
         ax.set_xlabel(f'Binned z-scored {covar_labels[covar_name].lower()}\n(median of bin)')
     else:
@@ -2687,12 +2698,14 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
 
 def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                             covar_name='variance_cell_rates', #zscored_covar=True,
-                            metric='fraction_hit', pool_trials=True, verbose=0):
+                            metric='fraction_hit', pool_trials=True, verbose=0,
+                            include_150=True):
     if ax is None:
         ax = plt.subplot(111)
     (mat_fraction, median_cov_perc_arr, cov_perc_arr,
         n_stim_arr), (mean_mat_arr, ci_mat_arr) = pof.compute_density_hit_miss_covar(super_covar_df=super_covar_df,
-                                             n_bins_covar=n_bins_covar, metric=metric, verbose=verbose)
+                                             n_bins_covar=n_bins_covar, metric=metric, verbose=verbose,
+                                             include_150=include_150)
                                             #  zscore_covar=zscore_covar)
 
     diag_arr = np.linspace(0, 100, len(mean_mat_arr))
