@@ -21,6 +21,7 @@ import math, cmath, copy
 from tqdm import tqdm
 import scipy.stats, scipy.optimize
 import statsmodels.api, statsmodels.regression
+import sklearn.linear_model
 from Session import Session  # class that holds all data per session
 import pop_off_functions as pof
 # from linear_model import PoolAcrossSessions, LinearModel, MultiSessionModel
@@ -2059,7 +2060,8 @@ def single_cell_plot(session, cell_id, tt=['hit'], smooth_traces=False, smooth_w
 
 def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logscale=False,
                             plot_indiv_data=True, plot_mean_ci=True, plot_lin_fit=True,
-                            weighted_regression=False, dict_var=None, indicate_spont_ci=False):
+                            weighted_regression=False, sqrt_weights=False, clip_weights=True,
+                            dict_var=None, indicate_spont_ci=False):
     if ax is None:
         ax = plt.subplot(111)
     fit_x = []
@@ -2072,7 +2074,10 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
         x = np.repeat(key, len(val))  # number of cells targeted
         y = np.array(val)
         if weighted_regression:
-            var_y = np.array([1 / tmp_var if tmp_var != 0 else 0.25 for tmp_var in dict_var[key]])  # inverse variance
+            median = np.nanmedian(dict_var[key][dict_var[key] > 0])  # filter 0s for median 
+            var_y = np.array([1 / tmp_var if tmp_var > 0.001 else 1 / median for tmp_var in dict_var[key]])  # inverse variance
+            if sqrt_weights:
+                var_y = np.sqrt(var_y)
         # Need to take a nan out where there's no misses of some cell number
         nn = np.where(~np.isnan(y))
         x = x[nn]
@@ -2086,31 +2091,41 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
             wls_weights.extend(var_y)
 
         if plot_indiv_data:
-            ax.plot(x, y, '.', color=color, markersize=8)  # plot individual sessions
+            if weighted_regression:
+                ax.scatter(x, y, c=color, s=8)  # plot individual sessions
+            else:
+                ax.scatter(x, y, c=color, s=8)  # plot individual sessions
         if plot_mean_ci:
             ci = np.std(y) / np.sqrt(len(y)) * 1.96  # 95% ci
             ax.errorbar(key, np.mean(y), yerr=ci, color=color,
                         markersize=12, label=label, capsize=6, linewidth=1.5, fmt='.')
         # label = None
-
+    if weighted_regression and clip_weights:
+        wls_weights = np.clip(wls_weights, np.percentile(wls_weights, 25), np.percentile(wls_weights, 75))
     if plot_lin_fit:
         ## Linear regression on session data points:
         fit_x = np.array(fit_x)
         fit_y = np.array(fit_y)
         if weighted_regression:
+            sklearn_wls_model = sklearn.linear_model.LinearRegression()
+            sklearn_wls_model.fit(fit_x.reshape(-1, 1), fit_y, sample_weight=wls_weights)
+            # print(sklearn_wls_model.intercept_, sklearn_wls_model.coef_)
             fit_x_with_intercept = statsmodels.api.add_constant(fit_x)
             wls_model = statsmodels.regression.linear_model.WLS(fit_y, fit_x_with_intercept,
-                                                    weights=np.sqrt(wls_weights))
+                                                    weights=wls_weights)
             results = wls_model.fit()
             intercept, slope = results.params
+            # print(results.summary())
+            # print('statsmodels:', intercept, slope)
         else:
             slope, intercept, r, p, se = scipy.stats.linregress(fit_x, fit_y)
+            if verbose:
+                # print(label)
+                print(f'r={r}')
+                print(f'p={p}')
+                print('\n')
         ax.plot(fit_x, fit_x * slope + intercept, color=color, linewidth=2)
-        if verbose:
-            # print(label)
-            print(f'r={r}')
-            print(f'p={p}')
-            print('\n')
+       
     if indicate_spont_ci:
         ax.text(s='R.O. 95% CI', x=72, y=3)
     despine(ax)
@@ -2360,18 +2375,18 @@ def firing_rate_dist(lm, region, match_tnums=False, sort=False,
 def gaussian(x, mu, sig):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
-def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True):
+def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True, mid_x = 0.05):
     if ax is None:
         ax = plt.subplot(111)
 
     ## Pop mean and var:
-    x_arr_gauss = np.linspace(-0.2, 0.3, 100)
-    mid_x = 0.05
+    x_arr_gauss = np.linspace(mid_x -0.25, mid_x + 0.25, 100)
+    
     y_arr_gauss = gaussian(x=x_arr_gauss, mu=mid_x, sig=0.1) * 0.4 + 0.5
 
     ax.plot(x_arr_gauss, y_arr_gauss, c='k', linewidth=1.5, clip_on=False)
 
-    ax.plot([-0.25, 0.35], [0.47, 0.47], c='k', linewidth=1.0, clip_on=False)
+    ax.plot([mid_x - 0.3, mid_x + 0.3], [0.47, 0.47], c='k', linewidth=1.0, clip_on=False)
     ax.text(s=r"$\Delta F/F$" + ' distr.', x=mid_x, y=0.37, ha='center')
     ax.arrow(mid_x, 0.7, 0.1, 0, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
@@ -2381,7 +2396,7 @@ def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True):
     
     ax.arrow(mid_x + 0.1, 1, -0.08, -0.08, head_width=0.04, head_length=0.02, linewidth=1.5,
                             color='k', length_includes_head=True, clip_on=False)
-    ax.text(s='Pop mean', x=0.35, y=1, ha='center')
+    ax.text(s='Pop mean', x=mid_x + 0.3, y=1, ha='center')
     
     # ## Correlation:
     if plot_corr:
