@@ -2790,8 +2790,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
                     text_photostim=False, text_xlabel=True, text_ylabel=True,
                     type_plot='trace'):
 
-    if ax is None:
-        ax = plt.subplot(111)
+    
     if color_dict is None:
         color_dict = color_dict_stand
     if targets:
@@ -2843,6 +2842,8 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         mean_arr -= np.mean(mean_arr[:pre_stim_frame])
 
     if type_plot == 'trace':
+        if ax is None:
+            ax = plt.subplot(111)
         # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
         ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label, linewidth=lw_mean)
         if plot_ci:
@@ -2852,7 +2853,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         if plot_artefact:
             add_ps_artefact(ax=ax, time_axis=time_axis)
             if text_photostim:
-                ax.annotate(s='Photostimulation', xy=(0.4, 0.9), xycoords='axes fraction',
+                ax.annotate(s='Photostimulation', xy=(0.05, 1.06), xycoords='axes fraction',
                             color=color_tt['photostim'], alpha=1)
         if text_ylabel:
             if absolute_vals:
@@ -2878,8 +2879,9 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
                 start_y = 0.18
                 for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
                     ax.text(s=tt, x=2.15, va='top',
-                            y=start_y - idx*0.025, fontdict={'color': color_dict[idx]})
+                            y=start_y - idx * 0.025, fontdict={'color': color_dict[idx]})
                 # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
+        despine(ax)
     elif type_plot == 'return_mean':
         return (time_axis, mean_arr)  
     elif type_plot == 'return_bar':
@@ -2887,8 +2889,52 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         return post_stim_sum
     else:
         assert False, 'plot type not recognised'
+    
+def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True, 
+                          ax=None, color_dict=None, plot_legend=True):
+    n_sessions = len(lm_list)
+    bar_names = ['targets_s1', 'nontargets_s1', 'nontargets_s2']
+    if dict_auc == None:
+        dict_auc = {x: np.zeros(n_sessions) for x in bar_names}
+        for i_s in tqdm(range(n_sessions)):
+            lm = lm_list[i_s]
+            dict_auc['targets_s1'][i_s] = get_plot_trace(lm, targets=True, region='s1',
+                                        absolute_vals=False, type_plot='return_bar',
+                                        baseline_by_prestim=baseline_by_prestim)
+            dict_auc['nontargets_s1'][i_s] = get_plot_trace(lm, targets=False, region='s1', 
+                                        absolute_vals=False, type_plot='return_bar',
+                                        baseline_by_prestim=baseline_by_prestim)
+            dict_auc['nontargets_s2'][i_s] = get_plot_trace(lm, targets=False, region='s2',
+                                        absolute_vals=False, type_plot='return_bar',
+                                        baseline_by_prestim=baseline_by_prestim)
+    
+    if color_dict == None:
+        color_dict = color_dict_stand
+
+    mean_arr = np.array([np.mean(dict_auc[bar_name]) for bar_name in bar_names])
+    std_arr = np.array([np.std(dict_auc[bar_name]) for bar_name in bar_names])
+    ci_arr = std_arr * 1.96 / np.sqrt(n_sessions)
+
+    if ax is None:
+        ax = plt.subplot(111)
+
+    ax.bar(np.arange(len(bar_names)), mean_arr, width=0.8, 
+           color=[color_dict[ii] for ii in range(len(bar_names))],
+           yerr=ci_arr)
+
+    ax.set_ylabel('AUC')
+    ax.spines['bottom'].set_visible(False)
+    ax.set_xticks([])
+    # ax.set_xticklabels(['Targets S1', 'Non-targets S1', 'Non-targets S2'])
     despine(ax)
- 
+
+    if plot_legend:
+        start_y = mean_arr[0]
+        for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
+            ax.text(s=tt, x=0.8, va='top',
+                    y=start_y - idx * 1.75, fontdict={'color': color_dict[idx]})
+
+    return dict_auc
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     np.seterr(divide='ignore')  # Ugly division by 0 error
@@ -2934,20 +2980,7 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     # ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
             # color='red')
 
-    ax.plot(x_range, fit, color='red', label='Average across sessions', linewidth=2)
-    # plt.tick_params(
-    #     axis='x',
-    #     which='both',
-    #     bottom=True
-    # )
-
-    # plt.gca().tick_params(which='minor', labelbottom=True)
-
-    # ax = plt.gca()
-
-    # ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(10))
-
-
+    ax.plot(x_range, fit, color='k', label='Average across sessions', linewidth=3)
     ax.set_xscale('log')
     ax.set_ylabel('Behavioral accuracy (d\')')
     ax.set_xlabel('Number of cells targeted')
@@ -2966,20 +2999,21 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     # ax.vlines(x=n_cells_mid, ymin=0, ymax=midpoint, color='red', ls=':')
     # ax.hlines(y=midpoint, xmin=n_cells_mid, xmax=popt[1], color='red', ls=':')
     
-    color = 'red'
+    color_mean = 'k'
     n_cells_mid, dprime_mid = get_percentile_value(x_range, fit)
     print(n_cells_mid)
-    ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color, ls=':')
-    ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color, ls=':')
+    ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
+    ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
 
-    ax.set_xticks([5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
-    ax.set_xticklabels(['', '', '', '', '', '10', '', '', '', '', '', '', '', '', '100','', '', '', '', '', ])
-    ax.tick_params(axis='both', which='major', direction='out', length=3, width=1,
-                    colors='k', zorder=10, pad=1, bottom=True)
+    ax.set_xticks(ticks=[5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150],
+                  minor=True)
+    ax.set_xticks(ticks=[10, 100], minor=False)
+    ax.set_xticklabels([''] * 18, minor=True)
+    ax.set_xticklabels(['10', '100'])
     despine(ax)
-    ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color='red')
-    ax.text(x=4.5, y=3.2, s='Individual sessions', color='grey', alpha=1)
-    ax.text(x=4.5, y=2.9, s='Average across sessions', color='red')
+    ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
+    ax.text(x=4.5, y=3.6, s='Individual sessions', color='grey', alpha=1)
+    ax.text(x=4.5, y=3.2, s='Average across sessions', color=color_mean)
     
 def get_percentile_value(x_range, curve, p=0.5):
 
@@ -3027,12 +3061,13 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
 
-def lick_hist_all_sessions(lms, ax=None,
+def lick_hist_all_sessions(lms, ax=None, cutoff_time=2000,
                           tt_plot_list=['hit', 'miss', 'fp', 'cr', 'too_', 'urh', 'arm']):
     arr_first_lick_total = np.array([])
     arr_outcome_total = np.array([])
     arr_session_total = np.array([])
-
+    dict_count_no_lick = {x: 0 for x in tt_plot_list}
+    dict_count_greater_cutoff = {x: 0 for x in tt_plot_list}
     for i_lm, lm in enumerate(lms):
         session = lm.session
         binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]
@@ -3042,17 +3077,23 @@ def lick_hist_all_sessions(lms, ax=None,
         assert len(binned_licks) == len(trial_subsets)
         for tt in np.unique(outcome):
             inds_tt = np.where(outcome == tt)[0]
-            arr_tt = binned_licks[inds_tt]
+            arr_tt = binned_licks[inds_tt]  # array of trials; for each trial an array of lick times
             arr_first_lick = np.array([(x[0] if len(x) > 0 else np.nan) for x in arr_tt])
+            n_no_lick = np.sum(np.array([len(x) for x in arr_tt]) == 0)
+            n_greater_cutoff = np.sum(arr_first_lick > cutoff_time)
+            if tt in tt_plot_list:  # add no licks trials and greater than cutoff
+                dict_count_no_lick[tt] += n_no_lick
+                dict_count_greater_cutoff[tt] += n_greater_cutoff
+                if tt == 'hit' and n_no_lick > 0:
+                    print(lm.session, tt, n_no_lick)
+                    return arr_tt
             arr_outcome = outcome[inds_tt]
             arr_session = [session.name] * len(arr_outcome)
-
             arr_first_lick_total = np.concatenate((arr_first_lick_total, arr_first_lick))
             arr_outcome_total = np.concatenate((arr_outcome_total, arr_outcome))
             arr_session_total = np.concatenate((arr_session_total, arr_session))
-            # print(tt, arr_first_lick, arr_outcome, arr_session)
-        # print([((x[0] if len(x) > 0 else 'None'), outcome[ii]) for ii, x in enumerate(binned_licks)])
-
+    print('no lick:', dict_count_no_lick)      
+    print('cutoff:', dict_count_greater_cutoff)      
     df = pd.DataFrame({'session': arr_session_total,
                        'first_lick': arr_first_lick_total,
                        'outcome': arr_outcome_total})    
@@ -3076,7 +3117,7 @@ def lick_hist_all_sessions(lms, ax=None,
     ax.set_title('Lick response times of all sessions', weight='bold')
     return df
 
-def lick_raster(lm, fig=None):
+def lick_raster(lm, fig=None, trial_schematic=False):
     CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
                   '#999999', '#e41a1c', '#dede00']
@@ -3085,86 +3126,86 @@ def lick_raster(lm, fig=None):
     binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]
     trial_subsets = session.trial_subsets
     outcome = session.outcome
-
     assert len(binned_licks) == len(trial_subsets) == len(outcome)
 
-    # Current putting too_soons back in as hits. You can also
-    # remove them completely
-    ## Its currently called 'too_' for some reason
-    outcome[outcome=='too_'] = 'hit'
+    # # Current putting too_soons back in as hits. You can also
+    # # remove them completely
+    # ## Its currently called 'too_' for some reason
+    # outcome[outcome=='too_'] = 'hit'
 
-    # Switch out thijs trial definitions for simlicity 
-    outcome[outcome=='urh'] = 'hit'
-    outcome[outcome=='arm'] = 'miss'
+    # # Switch out thijs trial definitions for simlicity 
+    # outcome[outcome=='urh'] = 'hit'
+    # outcome[outcome=='arm'] = 'miss'
 
     # Sort variables by whether the number of cells stimmed
-    trial_idxs = np.argsort(trial_subsets, kind='mergesort')
+    tt_plot_list = ['hit', 'miss', 'fp', 'cr']
+    trial_idxs = np.isin(outcome, tt_plot_list)
+    # trial_idxs = np.argsort(trial_subsets, kind='mergesort') # old, when all tts were used
+    inds_sorted_trials = np.argsort(trial_subsets[trial_idxs], kind='mergesort')
+    trial_idxs = np.where(trial_idxs)[0][inds_sorted_trials]
 
     sorted_licks = binned_licks[trial_idxs]
     sorted_outcome = outcome[trial_idxs]
     sorted_subsets = trial_subsets[trial_idxs]
     sorted_subsets = pof.trial_binner(sorted_subsets)
-
-    # Map a plot color to each subset size
-    #colors = ['black', 'dimgrey', 'darkgrey', 'silver', 'pink']
-    colors = ['pink'] * 4
-    colors.append('c')
-    colors = ['black'] * 5
     subsets = ['150', '40-50', '20-30', '5-10', '0']
 
-    color_map = {}
-    for i, sub in enumerate(subsets):
-        color_map[sub] = colors[i]
-    subset_colors = [color_map[i] for i in sorted_subsets]
+    # Map a plot color to each subset size
+    # colors = ['pink'] * 4
+    # colors.append('c')
+    # colors = ['black'] * 5
+    # color_map = {}
+    # for i, sub in enumerate(subsets):
+    #     color_map[sub] = colors[i]
+    # subset_colors = [color_map[i] for i in sorted_subsets]
 
     if fig is None:
         fig = plt.figure(figsize=(5,10))
-    # gs = fig.add_gridspec(2, 2,  width_ratios=(4,1),
-                      # left=0.1, right=0.9, bottom=0.1, top=0.9,
-                      # wspace=0.05, hspace=0.05)
-
-    gs = gridspec.GridSpecFromSubplotSpec(1, 2, fig, width_ratios=[4, 1], wspace=0) 
-
+  
+    gs = gridspec.GridSpecFromSubplotSpec(1, 2, fig, width_ratios=[4, 1], wspace=0.0) 
     ax0 = plt.subplot(gs[0])
     ax1 = plt.subplot(gs[1])
 
     # Plot lick rasters
     line_pos = []
-
     reaction_times = []
+
     for i, rast in enumerate(sorted_licks):
-
-        color=subset_colors[i]
+        # color = subset_colors[i]
         y_axis = np.ones(len(rast)) + i
-
-        if sorted_subsets[i] != sorted_subsets[i-1] and i != 0:
+        if sorted_subsets[i] != sorted_subsets[i - 1] and i != 0:
             ax0.axhline(y=i, ls='--', color='black')
             line_pos.append(i)
         try:
             point = rast[0] / 1000
-            if point <= 1:
+            if point <= 1 and point >= 0.15:
                 marker = '.'
                 fillstyle = 'full'
             else:
                 marker = '.'
                 fillstyle = 'none'
             ax0.plot(point, y_axis[0], marker=marker,
-                     fillstyle=fillstyle, c=color, markersize=8.5)
+                     fillstyle=fillstyle, c='k', markersize=8.5)  # set c = color for subset dependent colors
             reaction_times.append(rast[0])
         except IndexError:
             reaction_times.append(np.nan)
             pass
 
     # Get positions of dividing lines so know where to put y tick labels
-    line_pos.insert(0,0)
+    line_pos.insert(0, 0)
     line_pos.append(len(sorted_subsets))
-    subset_centre = [(line_pos[i] + line_pos[i+1]) / 2 for i in range(len(line_pos)-1)]
+    subset_centre = [(line_pos[i] + line_pos[i + 1]) / 2 for i in range(len(line_pos) - 1)]
 
     # Setup raster axis
-    ax0.fill_between([0, 1], 0, len(sorted_licks), color='gainsboro', alpha=0.5)
+    if trial_schematic:
+        added_height_rw = 80
+    else:
+        added_height_rw = 3
+    ax0.fill_between([0.15, 1], 0, len(sorted_licks) + added_height_rw, color='gainsboro', alpha=0.5,
+                     clip_on=False)
     ax0.set_xlim((0, 1.95))
     ax0.set_xlabel('Time (s)')
-    ax0.set_ylim((0, len(sorted_licks)+1))
+    ax0.set_ylim((0, len(sorted_licks) + 3))
     ax0.set_yticks(subset_centre)
     ax0.set_yticklabels(np.flip(subsets))
     ax0.tick_params(left=False)
@@ -3174,12 +3215,10 @@ def lick_raster(lm, fig=None):
     despine(ax1)
 
     # Map trial types to ints so can express as colormap
-    int_map = {
-        'hit': 3,
-        'miss': 2,
-        'fp': 1,
-        'cr': 0
-    }
+    int_map = {'hit': 3,
+               'miss': 2,
+               'fp': 1,
+               'cr': 0}
 
     int_mapped = [int_map[out] for out in np.flip(sorted_outcome)]
     bar_width = 10
@@ -3206,9 +3245,9 @@ def lick_raster(lm, fig=None):
 
     ## Matrix with outcomes:
     ax0.plot([2.4, 3.6], [50, 50], c='grey', linestyle=':', clip_on=False, zorder=1)
-    ax0.plot([2.75, 2.75], [0, 70], c='grey', linestyle=':', clip_on=False, zorder=1)
-    ax0.text(s='Go', x=2.7, y=30, ha='right')
-    ax0.text(s='Catch', x=2.7, y=10, ha='right')
+    ax0.plot([2.76, 2.76], [0, 70], c='grey', linestyle=':', clip_on=False, zorder=1)
+    ax0.text(s='Go', x=2.73, y=30, ha='right')
+    ax0.text(s='Catch', x=2.73, y=10, ha='right')
     ax0.text(s='Hit', x=2.8, y=30, c=color_tt['hit'])
     ax0.text(s='Miss', x=3.15, y=30, c=color_tt['miss'])
     ax0.text(s='FP', x=2.8, y=10, c=color_tt['fp'])
@@ -3217,12 +3256,46 @@ def lick_raster(lm, fig=None):
     ax0.text(s='No lick', x=3.15, y=55)
 
     ## Legend dots:
-    ax0.plot(2.42, 199, marker='.', clip_on=False, zorder=1,
+    ax0.plot(2.42, 184, marker='.', clip_on=False, zorder=1,
             fillstyle='full', c='k', markersize=8.5)
-    ax0.plot(2.42, 149, marker='.', clip_on=False, zorder=1,
+    ax0.plot(2.42, 134, marker='.', clip_on=False, zorder=1,
             fillstyle='none', c='k', markersize=8.5)
-    ax0.text(s=' Lick inside\nresponse window', x=2.5, y=205, va='top')
-    ax0.text(s=' Lick outside\nresponse window', x=2.5, y=155, va='top')
+    ax0.text(s='Lick inside\nresp. window', x=2.5, y=190, va='top')
+    ax0.text(s='Lick outside\nresp. window', x=2.5, y=140, va='top')
+
+    ## Trial schematic:
+    if trial_schematic:
+        main_ylims = ax0.get_ylim()
+        print(main_ylims)
+        bottom_vbars = added_height_rw - 45
+        height_vbars = added_height_rw - 3  # because ylim is + 3
+        lift_text = (height_vbars  + bottom_vbars) / 2
+        left_end = -1.25
+        right_end = 2.5
+        for xcoord in [left_end, 0, 0.15, 1, right_end]:
+            ax0.plot([xcoord, xcoord], [main_ylims[1] + bottom_vbars, 
+                                        main_ylims[1] + height_vbars], 
+                        c='k', clip_on=False)
+            
+        for ycoord in [bottom_vbars, height_vbars]:
+            ax0.plot([left_end, right_end], [main_ylims[1] + ycoord, main_ylims[1] + ycoord], 
+                            c='k', clip_on=False)
+        ax0.fill_between([0.0, 0.15], main_ylims[1] + bottom_vbars, len(sorted_licks) + added_height_rw, 
+                        color=color_tt['photostim'], alpha=0.3,
+                     clip_on=False)
+    
+        ax0.annotate('Response\nwindow', xy=(0.575, main_ylims[1] + lift_text), 
+                     xycoords='data', ha='center', va='center', annotation_clip=False)
+        ax0.annotate('Lick withhold\n(4 - 6 seconds)', xy=(left_end / 2, main_ylims[1] + lift_text), 
+                     xycoords='data', ha='center', va='center', annotation_clip=False)
+        ax0.annotate('Inter-trial interval\n(5 seconds)', xy=((right_end - 1) / 2 + 1, main_ylims[1] + lift_text), 
+                     xycoords='data', ha='center', va='center', annotation_clip=False)
+        # ax0.annotate('Trial structure:', xy=(0.575, main_ylims[1] + height_vbars + 9), 
+        #              xycoords='data', ha='center', va='center', annotation_clip=False)
+        ax0.annotate('Trial structure', xy=(left_end, main_ylims[1] + height_vbars + 9), weight='bold',
+                     xycoords='data', ha='left', va='center', annotation_clip=False)
+        ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 1), weight='bold', 
+                     xycoords='data', ha='left', va='bottom', annotation_clip=False)
 
 def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.0125):
     
