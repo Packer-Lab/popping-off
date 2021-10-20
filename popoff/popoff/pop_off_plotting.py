@@ -2931,7 +2931,7 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
     if plot_legend:
         start_y = mean_arr[0]
         for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
-            ax.text(s=tt, x=0.8, va='top',
+            ax.text(s=tt, x=0.6, va='top',
                     y=start_y - idx * 1.75, fontdict={'color': color_dict[idx]})
 
     return dict_auc
@@ -3010,9 +3010,11 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
     ax.set_xticks(ticks=[10, 100], minor=False)
     ax.set_xticklabels([''] * 18, minor=True)
     ax.set_xticklabels(['10', '100'])
+
+    ax.set_yticks([-1, 0, 1, 2])
     despine(ax)
     ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
-    ax.text(x=4.5, y=3.6, s='Individual sessions', color='grey', alpha=1)
+    ax.text(x=4.5, y=3.5, s='Individual sessions', color='grey', alpha=1)
     ax.text(x=4.5, y=3.2, s='Average across sessions', color=color_mean)
     
 def get_percentile_value(x_range, curve, p=0.5):
@@ -3244,24 +3246,28 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         ax1.spines[s].set_visible(False)
 
     ## Matrix with outcomes:
-    ax0.plot([2.4, 3.6], [50, 50], c='grey', linestyle=':', clip_on=False, zorder=1)
-    ax0.plot([2.76, 2.76], [0, 70], c='grey', linestyle=':', clip_on=False, zorder=1)
-    ax0.text(s='Go', x=2.73, y=30, ha='right')
-    ax0.text(s='Catch', x=2.73, y=10, ha='right')
-    ax0.text(s='Hit', x=2.8, y=30, c=color_tt['hit'])
-    ax0.text(s='Miss', x=3.15, y=30, c=color_tt['miss'])
-    ax0.text(s='FP', x=2.8, y=10, c=color_tt['fp'])
-    ax0.text(s='CR', x=3.15, y=10, c=color_tt['cr'])
-    ax0.text(s='Lick', x=2.8, y=55)
-    ax0.text(s='No lick', x=3.15, y=55)
+    mat_x = -4.6
+    mat_y = 0
+    ax0.plot([mat_x + 2.4, mat_x + 3.6], [mat_y + 50, mat_y + 50], c='grey', linestyle=':', clip_on=False, zorder=1)
+    ax0.plot([mat_x + 2.76, mat_x + 2.76], [mat_y, mat_y + 70], c='grey', linestyle=':', clip_on=False, zorder=1)
+    ax0.text(s='Go', x=mat_x + 2.73, y=mat_y + 30, ha='right')
+    ax0.text(s='Catch', x=mat_x + 2.73, y=mat_y + 10, ha='right')
+    ax0.text(s='Hit', x=mat_x + 2.8, y=mat_y + 30, c=color_tt['hit'])
+    ax0.text(s='Miss', x=mat_x + 3.15, y=mat_y + 30, c=color_tt['miss'])
+    ax0.text(s='FP', x=mat_x + 2.8, y=mat_y + 10, c=color_tt['fp'])
+    ax0.text(s='CR', x=mat_x + 3.15, y=mat_y + 10, c=color_tt['cr'])
+    ax0.text(s='Lick', x=mat_x + 2.8, y=mat_y + 55)
+    ax0.text(s='No lick', x=mat_x + 3.15, y=mat_y + 55)
 
     ## Legend dots:
-    ax0.plot(2.42, 184, marker='.', clip_on=False, zorder=1,
+    leg_x = -4.45
+    leg_y = -15
+    ax0.plot(leg_x + 2.42, leg_y + 179, marker='.', clip_on=False, zorder=1,
             fillstyle='full', c='k', markersize=8.5)
-    ax0.plot(2.42, 134, marker='.', clip_on=False, zorder=1,
+    ax0.plot(leg_x + 2.42, leg_y + 134, marker='.', clip_on=False, zorder=1,
             fillstyle='none', c='k', markersize=8.5)
-    ax0.text(s='Lick inside\nresp. window', x=2.5, y=190, va='top')
-    ax0.text(s='Lick outside\nresp. window', x=2.5, y=140, va='top')
+    ax0.text(s='Lick in\nwindow', x=leg_x + 2.52, y=leg_y + 185, va='top')
+    ax0.text(s='Lick outside\nwindow', x=leg_x + 2.52, y=leg_y + 140, va='top')
 
     ## Trial schematic:
     if trial_schematic:
@@ -3270,7 +3276,7 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         bottom_vbars = added_height_rw - 45
         height_vbars = added_height_rw - 3  # because ylim is + 3
         lift_text = (height_vbars  + bottom_vbars) / 2
-        left_end = -1.25
+        left_end = -1.35
         right_end = 2.5
         for xcoord in [left_end, 0, 0.15, 1, right_end]:
             ax0.plot([xcoord, xcoord], [main_ylims[1] + bottom_vbars, 
@@ -3294,7 +3300,7 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         #              xycoords='data', ha='center', va='center', annotation_clip=False)
         ax0.annotate('Trial structure', xy=(left_end, main_ylims[1] + height_vbars + 9), weight='bold',
                      xycoords='data', ha='left', va='center', annotation_clip=False)
-        ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 1), weight='bold', 
+        ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 3), weight='bold', 
                      xycoords='data', ha='left', va='bottom', annotation_clip=False)
 
 def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.0125):
