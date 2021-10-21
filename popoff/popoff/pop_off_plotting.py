@@ -3200,13 +3200,14 @@ def lick_raster(lm, fig=None, trial_schematic=False):
 
     # Setup raster axis
     if trial_schematic:
-        added_height_rw = 80
+        # added_height_rw = 80
+        added_height_rw = 100
     else:
         added_height_rw = 3
     ax0.fill_between([0.15, 1], 0, len(sorted_licks) + added_height_rw, color='gainsboro', alpha=0.5,
                      clip_on=False)
     ax0.set_xlim((0, 1.95))
-    ax0.set_xlabel('Time (s)')
+    ax0.set_xlabel('Time from photostimulation onset (s)')
     ax0.set_ylim((0, len(sorted_licks) + 3))
     ax0.set_yticks(subset_centre)
     ax0.set_yticklabels(np.flip(subsets))
@@ -3246,8 +3247,8 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         ax1.spines[s].set_visible(False)
 
     ## Matrix with outcomes:
-    mat_x = -4.6
-    mat_y = 0
+    mat_x = -4.7
+    mat_y = 105 #-15
     ax0.plot([mat_x + 2.4, mat_x + 3.6], [mat_y + 50, mat_y + 50], c='grey', linestyle=':', clip_on=False, zorder=1)
     ax0.plot([mat_x + 2.76, mat_x + 2.76], [mat_y, mat_y + 70], c='grey', linestyle=':', clip_on=False, zorder=1)
     ax0.text(s='Go', x=mat_x + 2.73, y=mat_y + 30, ha='right')
@@ -3258,16 +3259,31 @@ def lick_raster(lm, fig=None, trial_schematic=False):
     ax0.text(s='CR', x=mat_x + 3.15, y=mat_y + 10, c=color_tt['cr'])
     ax0.text(s='Lick', x=mat_x + 2.8, y=mat_y + 55)
     ax0.text(s='No lick', x=mat_x + 3.15, y=mat_y + 55)
-
+    box_behav_mat = matplotlib.patches.FancyBboxPatch(xy=(mat_x + 2.3, mat_y - 5),
+                                                      width=1.4, height=80, clip_on=False,
+                                                      facecolor='none', edgecolor='grey', lw=1,
+                                        boxstyle=matplotlib.patches.BoxStyle("Round", pad=0.05))
+    ax0.add_patch(box_behav_mat)
     ## Legend dots:
-    leg_x = -4.45
-    leg_y = -15
+    
+    leg_x = -1.3 #-4.5
+    leg_y = 35 #-30
+    # ax0.plot(leg_x + 2.42, leg_y + 179, marker='.', clip_on=False, zorder=1,
+    #         fillstyle='full', c='k', markersize=8.5)
+    # ax0.plot(leg_x + 2.42, leg_y + 134, marker='.', clip_on=False, zorder=1,
+    #         fillstyle='none', c='k', markersize=8.5)
+    
+    # ax0.text(s='Lick in\nwindow', x=leg_x + 2.52, y=leg_y + 185, va='top')
+    # ax0.text(s='Lick outside\nwindow', x=leg_x + 2.52, y=leg_y + 140, va='top')
+    # leg_x = -1.2
+    # leg_y = 5
     ax0.plot(leg_x + 2.42, leg_y + 179, marker='.', clip_on=False, zorder=1,
             fillstyle='full', c='k', markersize=8.5)
-    ax0.plot(leg_x + 2.42, leg_y + 134, marker='.', clip_on=False, zorder=1,
+    ax0.plot(leg_x + 2.42, leg_y + 157, marker='.', clip_on=False, zorder=1,
             fillstyle='none', c='k', markersize=8.5)
-    ax0.text(s='Lick in\nwindow', x=leg_x + 2.52, y=leg_y + 185, va='top')
-    ax0.text(s='Lick outside\nwindow', x=leg_x + 2.52, y=leg_y + 140, va='top')
+    ax0.text(s='Lick responses:', x=leg_x + 2.375, y=leg_y + 205, va='top')
+    ax0.text(s='In window', x=leg_x + 2.52, y=leg_y + 185, va='top')
+    ax0.text(s='Outside\nwindow', x=leg_x + 2.52, y=leg_y + 165, va='top')
 
     ## Trial schematic:
     if trial_schematic:
@@ -3286,22 +3302,29 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         for ycoord in [bottom_vbars, height_vbars]:
             ax0.plot([left_end, right_end], [main_ylims[1] + ycoord, main_ylims[1] + ycoord], 
                             c='k', clip_on=False)
-        ax0.fill_between([0.0, 0.15], main_ylims[1] + bottom_vbars, len(sorted_licks) + added_height_rw, 
-                        color=color_tt['photostim'], alpha=0.3,
-                     clip_on=False)
-    
+        ## Photostim bar in trial structure:
+        # ax0.fill_between([0.0, 0.15], main_ylims[1] + bottom_vbars, len(sorted_licks) + added_height_rw, 
+        #                 color=color_tt['photostim'], alpha=0.3, clip_on=False)
+        ax0.fill_between([0.0, 0.25], main_ylims[1] + 10, main_ylims[1] + 25, 
+                        color=color_tt['photostim'], alpha=0.3, clip_on=False)
+        ax0.fill_between([0.0, 0.76], main_ylims[1] + 35, main_ylims[1] + 50, 
+                        color=color_tt['photostim'], alpha=0.3, clip_on=False)
+        ax0.annotate('5-50 cells stim.', xy=(-0.03, main_ylims[1] + 16), c=color_tt['photostim'],
+                     xycoords='data', ha='right', va='center', annotation_clip=False)
+        ax0.annotate('150 cells stim.', xy=(-0.03, main_ylims[1] + 41),c=color_tt['photostim'],
+                     xycoords='data', ha='right', va='center', annotation_clip=False)
         ax0.annotate('Response\nwindow', xy=(0.575, main_ylims[1] + lift_text), 
                      xycoords='data', ha='center', va='center', annotation_clip=False)
         ax0.annotate('Lick withhold\n(4 - 6 seconds)', xy=(left_end / 2, main_ylims[1] + lift_text), 
                      xycoords='data', ha='center', va='center', annotation_clip=False)
         ax0.annotate('Inter-trial interval\n(5 seconds)', xy=((right_end - 1) / 2 + 1, main_ylims[1] + lift_text), 
                      xycoords='data', ha='center', va='center', annotation_clip=False)
-        # ax0.annotate('Trial structure:', xy=(0.575, main_ylims[1] + height_vbars + 9), 
-        #              xycoords='data', ha='center', va='center', annotation_clip=False)
-        ax0.annotate('Trial structure', xy=(left_end, main_ylims[1] + height_vbars + 9), weight='bold',
-                     xycoords='data', ha='left', va='center', annotation_clip=False)
-        ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 3), weight='bold', 
-                     xycoords='data', ha='left', va='bottom', annotation_clip=False)
+        # ax0.annotate('Trial structure', xy=(left_end, main_ylims[1] + height_vbars + 9), weight='bold',
+        #              xycoords='data', ha='left', va='center', annotation_clip=False)
+        # ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 3), weight='bold', 
+        #              xycoords='data', ha='left', va='bottom', annotation_clip=False)
+
+
 
 def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.0125):
     
