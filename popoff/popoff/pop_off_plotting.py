@@ -3259,10 +3259,10 @@ def lick_raster(lm, fig=None, trial_schematic=False):
     ax0.text(s='CR', x=mat_x + 3.15, y=mat_y + 10, c=color_tt['cr'])
     ax0.text(s='Lick', x=mat_x + 2.8, y=mat_y + 55)
     ax0.text(s='No lick', x=mat_x + 3.15, y=mat_y + 55)
-    box_behav_mat = matplotlib.patches.FancyBboxPatch(xy=(mat_x + 2.3, mat_y - 5),
-                                                      width=1.4, height=80, clip_on=False,
-                                                      facecolor='none', edgecolor='grey', lw=1,
-                                        boxstyle=matplotlib.patches.BoxStyle("Round", pad=0.05))
+    box_behav_mat = matplotlib.patches.Rectangle(xy=(mat_x + 2.24, mat_y - 5),
+                                                      width=1.5, height=80, clip_on=False,
+                                                      facecolor='none', edgecolor='grey', lw=1)#,
+                                        # boxstyle=matplotlib.patches.BoxStyle("Round", pad=0.05))
     ax0.add_patch(box_behav_mat)
     ## Legend dots:
     
