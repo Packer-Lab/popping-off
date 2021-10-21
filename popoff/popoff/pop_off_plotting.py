@@ -2165,7 +2165,7 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
         #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
         # xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
         xy = (1.1, 0.045)
-        ax_dict[reg].annotate(s=f'r={np.round(pearson_r, 2)}\np < {readable_p(pearson_p)}',
+        ax_dict[reg].annotate(s='r={:.2f}'.format(np.round(pearson_r, 2)) + f'\np < {readable_p(pearson_p)}',
                           xy=xy, xycoords='axes fraction', ha='right')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\ntargeted:', xy=(1.25, 0.77), xycoords='axes fraction')
@@ -2783,6 +2783,7 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', 
                     n_stim_list=[5, 10, 20, 30, 40, 50],
+                    coords_photostim_text=(0.05, 1.06),
                     i_col=0, color_dict=None, plot_ci=True, lw_mean=1,
                     tt_list=['hit', 'miss', 'too_', 'urh', 'arm'],
                     verbose=0, baseline_by_prestim=True,
@@ -2853,7 +2854,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         if plot_artefact:
             add_ps_artefact(ax=ax, time_axis=time_axis)
             if text_photostim:
-                ax.annotate(s='Photostimulation', xy=(0.05, 1.06), xycoords='axes fraction',
+                ax.annotate(s='Photostimulation', xy=coords_photostim_text, xycoords='axes fraction',
                             color=color_tt['photostim'], alpha=1)
         if text_ylabel:
             if absolute_vals:
@@ -3064,7 +3065,7 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
 
-def lick_hist_all_sessions(lms, ax=None, cutoff_time=2000,
+def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
                           tt_plot_list=['hit', 'miss', 'fp', 'cr', 'too_', 'urh', 'arm']):
     arr_first_lick_total = np.array([])
     arr_outcome_total = np.array([])
@@ -3088,15 +3089,13 @@ def lick_hist_all_sessions(lms, ax=None, cutoff_time=2000,
                 dict_count_no_lick[tt] += n_no_lick
                 dict_count_greater_cutoff[tt] += n_greater_cutoff
                 if tt == 'hit' and n_no_lick > 0:
-                    print(lm.session, tt, n_no_lick)
-                    return arr_tt
+                    print(lm.session, tt, n_no_lick, np.sum(lm.session.first_lick[inds_tt] == None))
+                    # return arr_tt
             arr_outcome = outcome[inds_tt]
             arr_session = [session.name] * len(arr_outcome)
             arr_first_lick_total = np.concatenate((arr_first_lick_total, arr_first_lick))
             arr_outcome_total = np.concatenate((arr_outcome_total, arr_outcome))
             arr_session_total = np.concatenate((arr_session_total, arr_session))
-    print('no lick:', dict_count_no_lick)      
-    print('cutoff:', dict_count_greater_cutoff)      
     df = pd.DataFrame({'session': arr_session_total,
                        'first_lick': arr_first_lick_total,
                        'outcome': arr_outcome_total})    
@@ -3104,6 +3103,7 @@ def lick_hist_all_sessions(lms, ax=None, cutoff_time=2000,
     if ax is None:
         ax = plt.subplot(111)
     
+    ## Main hist:
     plot_bins = np.arange(0, 2000, 50)
     n, bins, patches= ax.hist([df[df['outcome'] == tt]['first_lick'] for tt in tt_plot_list], 
             bins=plot_bins, stacked=True)
@@ -3118,6 +3118,22 @@ def lick_hist_all_sessions(lms, ax=None, cutoff_time=2000,
     ax.set_xlabel('Response time (ms)')
     ax.set_ylabel('Frequency')
     ax.set_title('Lick response times of all sessions', weight='bold')
+
+    ## Extra hist:
+    if ax_extra is not None:
+        print('no lick:', dict_count_no_lick)      
+        print('cutoff:', dict_count_greater_cutoff) 
+        prev_bottoms = np.array([0, 0])     
+        for i_tt, tt in enumerate(tt_plot_list):
+            ax_extra.bar(x=[0.6, 1.3], height=[dict_count_greater_cutoff[tt], dict_count_no_lick[tt]],
+                    width=0.3, bottom=prev_bottoms, color=[color_tt[tt]] * 2)
+            prev_bottoms[0] += dict_count_greater_cutoff[tt]
+            prev_bottoms[1] += dict_count_no_lick[tt]
+        despine(ax_extra)
+        ax_extra.set_ylabel('Frequency')
+        ax_extra.set_xticks([0.6, 1.3])
+        ax_extra.set_xlim([0.2, 1.8])
+        ax_extra.set_xticklabels(['>2000 ms', 'No lick'], rotation=30, ha='right')
     return df
 
 def lick_raster(lm, fig=None, trial_schematic=False):
