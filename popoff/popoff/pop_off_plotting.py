@@ -2922,7 +2922,8 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
            color=[color_dict[ii] for ii in range(len(bar_names))],
            yerr=ci_arr)
 
-    ax.set_ylabel('AUC')
+    # ax.set_ylabel('AUC')
+    ax.set_ylabel('Total ' + r"$\Delta F/F$" + ' response\npost-stimulus (AUC)')
     ax.spines['bottom'].set_visible(False)
     ax.set_xticks([])
     # ax.set_xticklabels(['Targets S1', 'Non-targets S1', 'Non-targets S2'])
