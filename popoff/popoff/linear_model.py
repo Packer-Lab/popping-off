@@ -485,8 +485,11 @@ class LinearModel():
 
         for trial in range(self.session.n_trials):
             lick = self.session.first_lick[trial]
-            if lick is None:
+            if lick is None and self.session.outcome[trial] != 'hit':
                 continue
+            elif lick is None and self.session.outcome[trial] == 'hit':  # in very rare cases, lick occurs so fast that it is not registered because of lag between pycontrol and setup; these are thus too-soon too
+                self.session.outcome[trial] = 'too_soon' 
+                print(self.session, ' registered no-lick hit. changed to too soon') 
             if self.session.outcome[trial] == 'hit' and lick < too_soon_threshold:
                 self.session.outcome[trial] = 'too_soon' #NB: datatype of outcome currently is U4, so only 4 chars are saved ('too_')
 
