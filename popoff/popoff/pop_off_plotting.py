@@ -201,6 +201,20 @@ def readable_p(p_val):
                 read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     return read_p
 
+def asterisk_p(p_val, bonf_correction=1):
+    if type(p_val) == str:
+        p_val = float(p_val)
+  
+    if p_val < (0.001 / bonf_correction):
+        return '***'
+    elif p_val < (0.01 / bonf_correction):
+        return '**'
+    elif p_val < (0.05 / bonf_correction):
+        return '*'
+    else:
+        return 'n.s.'
+
+
 def translate_session(session_name, number_only=False, capitalize=True):
     session_name = str(session_name)
     dict_translations = {'Mouse J064, run 10': 'Session 1',
@@ -2652,8 +2666,8 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         slope, _, corr_coef, p_val, __ = result_lr
         label = ' '
         if slope < 0 and corr_coef < 0:
-            if (p_val * 2 * n_sessions) < 1e-3:  # multiply by 2 for one-sided p val & bonferroni
-                label = '**'
+            bonf_correction = 2 * n_sessions  # multiply by 2 for one-sided p val & bonferroni
+            label = asterisk_p(p_val=p_val, bonf_correction=bonf_correction)
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
         ax.plot(av_vcr_arr, av_y_arr, label=label, linewidth=3, alpha=0.7, c=color_dict_stand[i_ss])
@@ -2669,8 +2683,8 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s=f'{n_sessions} sessions:\n**: p < 0.001', x=2.1, y=0.81)
-    ax.legend(bbox_to_anchor=(1.1, -0.2), loc='lower left', frameon=False, ncol=2)
+    ax.text(s=f'{n_sessions} sessions:\n***: p < 0.001', x=2.1, y=0.81)
+    ax.legend(bbox_to_anchor=(1.1, -0.25), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
@@ -3345,7 +3359,8 @@ def lick_raster(lm, fig=None, trial_schematic=False):
 
 
 
-def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.0125):
+def percent_responding_tts(lm_list, axes=None, verbose=1, 
+                            p_val_significant=0.05, bonf_correction=4):
     
     if axes is None:
         _, axes = plt.subplots(1,2)
@@ -3384,10 +3399,7 @@ def percent_responding_tts(lm_list, axes=None, verbose=1, p_val_significant=0.01
             s = f'Hit vs {tt_against}, p = {p}, significant = {p < alpha}'
             if verbose > 0:
                 print(s)
-            if p < p_val_significant:
-                ax.text(s='**', x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
-            else:
-                ax.text(s='n.s.', x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
-
+            label_sign = asterisk_p(p_val=p, bonf_correction=bonf_correction)
+            ax.text(s=label_sign, x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
             x_coord_tt += 1
         ax.tick_params(bottom=False)
