@@ -1234,6 +1234,8 @@ def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 
     time_ticks = [0, 30, 60, 90]
     time_tick_labels = [x.replace("-", u"\u2212") for x in ['-1', '0', '1', '2']]
     
+    # return data_use_mat_norm_s1, outcome_arr
+
     ## Plot raster plots
     for reg, tt_dict in ax_dict.items():
         for xx, ax in tt_dict.items():
@@ -2155,7 +2157,7 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
             ax_dict[reg].scatter(arr_exc, arr_inh, color=color_tt[tt], s=np.power(n_stim, 0.7), label=int(n_stim))
         ax_dict[reg].set_xlabel('Fraction excited (%)')
         ax_dict[reg].set_ylabel('Fraction inhibited (%)')
-        ax_dict[reg].set_title(f'E/I balance in {reg.upper()} on {tt} trials')
+        # ax_dict[reg].set_title(f'E/I balance in {reg.upper()} on {tt} trials')
         despine(ax_dict[reg])
         equal_xy_lims(ax=ax_dict[reg], start_zero=True)
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
