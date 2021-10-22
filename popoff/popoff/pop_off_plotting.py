@@ -2850,7 +2850,10 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         std_arr = np.std(flu, (0, 1))
         ci_arr = std_arr * 1.96 / np.sqrt(flu.shape[0] * flu.shape[1])
 
-    remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
+    if 150 in n_stim_list:
+        remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
+    else:
+        remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
     time_axis = copy.deepcopy(time_axis)
     time_axis[remove_stim_art_inds] = np.nan
     pre_stim_frame = np.where(np.isnan(time_axis))[0][0]
@@ -2861,7 +2864,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
     if type_plot == 'trace':
         if ax is None:
             ax = plt.subplot(111)
-        # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
+        ax.plot(time_axis, np.zeros(len(time_axis)), linestyle=':', c='grey', zorder=-10)
         ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label, linewidth=lw_mean)
         if plot_ci:
             ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr,
@@ -2887,7 +2890,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         if absolute_vals:
             ax.set_ylim([ -0.06, 0.15])
         else:
-            ax.set_ylim(-0.06, 0.2)
+            ax.set_ylim(-0.06, 0.23)
             ax.set_yticks([0, 0.1, 0.2])
         if plot_legend:
             if absolute_vals:
