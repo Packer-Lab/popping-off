@@ -31,7 +31,7 @@ import copy
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
-import time
+import time, datetime
 import utils_funcs as utils 
 import run_functions as rf
 from subsets_analysis import Subsets
@@ -675,7 +675,8 @@ def only_numerics(seq):
     seq_type= type(seq)
     return seq_type().join(filter(seq_type.isdigit, seq))
 
-def load_files(save_dict, data_dict, folder_path, flu_flavour):
+def load_files(save_dict, data_dict, folder_path, flu_flavour,
+               pre_seconds=4, post_seconds=6):
     total_ds = 0
     debug = False
     for mouse in data_dict.keys():
@@ -692,7 +693,8 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour):
             try:
                 session = SessionLite(mouse, run_number, folder_path, 
                                       flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, pre_seconds=4, post_seconds=6, 
+                                      post_gap_seconds=0, pre_seconds=pre_seconds, 
+                                      post_seconds=post_seconds, 
                                       filter_threshold=10)
 
                 save_dict[total_ds] = session
@@ -748,9 +750,14 @@ if __name__ == '__main__':
         run_dict['J065'].remove(14)
 
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
-                                    folder_path=pkl_path, flu_flavour=flu_flavour)
+                                    folder_path=pkl_path, flu_flavour=flu_flavour,
+                                    pre_seconds=10,
+                                    post_seconds=6)
 
-    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_lite_{flu_flavour}.pkl')
+    dt = datetime.datetime.now()
+    timestamp = str(dt.date())# + '-' + str(dt.hour).zfill(2) + str(dt.minute).zfill(2)      
+
+    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_lite_{flu_flavour}_{timestamp}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
