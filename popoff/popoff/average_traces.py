@@ -75,18 +75,17 @@ class AverageTraces():
         self.n_plots=0
 
 
-    def load_sessions(self):
+    def load_sessions(self, ts='2021-10-22'):
 
         base_path = self.user_paths['base_path']
         if self.flu_flavour == 'denoised_flu':
-            sessions_file = 'sessions_lite_denoised_flu.pkl'
+            sessions_file = f'sessions_lite_denoised_flu_{ts}.pkl'
         elif self.flu_flavour == 'dff':
-            # sessions_file = 'sessions_lite_flu_filter5.pkl'
-            sessions_file = 'sessions_lite_flu.pkl'
+            sessions_file = f'sessions_lite_flu_{ts}.pkl'
         elif self.flu_flavour == 'spks':
-            sessions_file = 'sessions_lite_spks.pkl'
+            sessions_file = f'sessions_lite_spks_{ts}.pkl'
         elif self.flu_flavour == 'raw':
-            sessions_file = 'sessions_lite_flu_raw.pkl'
+            sessions_file = f'sessions_lite_flu_raw_{ts}.pkl'
         else:
             raise ValueError('flu_flavour not recognised')
             
