@@ -291,7 +291,7 @@ class Session:
 
         # This will either be a scalar -> the x coord of a vertical line separating S1 and S2,
         # or a vector describing a non straight line, in the format [x1,y1,x2,y2]
-        with open('/home/jrowland/Documents/code/Vape/s2_position.json') as json_file:
+        with open('/data.nst/loidolt/packer_data/JR3/s2_position.json') as json_file:
             s1s2_border_json = json.load(json_file)
     
         self.s1s2_border = s1s2_border_json[self.mouse][str(self.run_number)]
@@ -520,7 +520,7 @@ class Session:
         self.autorewarded = self.autorewarded[self.nonnan_trials]
         self.unrewarded_hits = self.unrewarded_hits[self.nonnan_trials]
         self.n_trials = len(self.nonnan_trials)
-        self.is_target = self.is_target[:, self.nonnan_trials, :]
+        #self.is_target = self.is_target[:, self.nonnan_trials, :]
         self.first_lick = self.first_lick[self.nonnan_trials]
 
         if vverbose >= 1:
@@ -628,7 +628,7 @@ class SessionLite(Session):
         # Filter neurons based on mean abs values
         self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)  
         self.define_s1_s2()   # label s1 and s2 identity of neurons
-        self.get_targets()
+        #self.get_targets()
         self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
         self.clean_obj()
 
