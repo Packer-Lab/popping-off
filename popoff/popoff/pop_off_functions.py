@@ -333,7 +333,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
                     elif hard_set_10_trials:
                         min_n_trials = 10  # use to control for n_trials of spont
-                        print('only using 10 trials per trial type!!')
+                        print('only using 10 trials per trial type!!')  # always give warning
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
@@ -364,7 +364,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
             ## Retrieve normalized data:
             (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, end_time=6, filter_150_stim=False)
+                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=session.filter_ps_time.min(), 
+                                                                                     end_time=session.filter_ps_time.max(), filter_150_stim=False)
             assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape, len(trial_inds))
             ## Filter neurons
             data_use = data_use_mat_norm[neurons_include, :, :]
