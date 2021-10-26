@@ -2600,7 +2600,7 @@ def dyn_dec_sketch(session,
         time_incr += 0.3
         
     ylims = ax_sketch.get_ylim()
-    ylims = (-7.3, 6.7)
+    ylims = (-7.54, 6.83)  # these limits are meticiously set to have the ps artefacts line up nicely .. 
     func_map_ax_to_data_coords = lambda x: (ylims[1] - ylims[0]) * x + ylims[0]
     func_map_data_to_ax_coords = lambda x: (x - ylims[0]) / (ylims[1] - ylims[0])
     time_incr = 0.4
@@ -2690,7 +2690,7 @@ def dyn_dec_sketch(session,
         tmp_cr = 1- tmp_hit
     print(np.sum(np.isnan(tmp_hit)))
     print(np.where(np.isnan(tmp_hit))[0])
-    ax_trace.plot([-1, 2], [0.5, 0.5], linestyle=':', linewidth=2, color='grey')
+    ax_trace.plot([-1, 2], [0.5, 0.5], linestyle=':', linewidth=2, color='grey', zorder=-1)
     ax_trace.plot(time_axis, tmp_hit, linewidth=3, c=color_tt['hit'], zorder=0)
     ax_trace.plot(time_axis, tmp_cr, linewidth=3, c=color_tt['cr'], zorder=0)
     add_ps_artefact(ax=ax_trace, time_axis=time_axis)
