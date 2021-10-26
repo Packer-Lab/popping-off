@@ -2634,7 +2634,7 @@ def dyn_dec_sketch(session,
     # ax_sketch.text(s='Hit & CR trials', x=-0.4, y=4.1, ha='center', va='center', rotation=33.5)
 
     ax_sketch.text(s='Hit', x=-0.95, y=2.65, ha='center', va='center', rotation=33.5, C=color_tt['hit'])
-    ax_sketch.text(s='&', x=-0.7, y=3.32, ha='center', va='center', rotation=33.5, C='k')
+    ax_sketch.text(s='&', x=-0.69, y=3.34, ha='center', va='center', rotation=33.5, C='k')
     ax_sketch.text(s='CR', x=-0.4, y=4.1, ha='center', va='center', rotation=33.5, C=color_tt['cr'])
     ax_sketch.text(s='trials', x=0.05, y=5.35, ha='center', va='center', rotation=33.5, C='k')
 
