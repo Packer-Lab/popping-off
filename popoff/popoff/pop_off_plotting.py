@@ -2688,8 +2688,6 @@ def dyn_dec_sketch(session,
         tmp_hit = tmp_hit[25:115]
         tmp_hit = 0.5 + (tmp_hit - 0.5) * 1.3
         tmp_cr = 1- tmp_hit
-    print(np.sum(np.isnan(tmp_hit)))
-    print(np.where(np.isnan(tmp_hit))[0])
     ax_trace.plot([-1, 2], [0.5, 0.5], linestyle=':', linewidth=2, color='grey', zorder=-1)
     ax_trace.plot(time_axis, tmp_hit, linewidth=3, c=color_tt['hit'], zorder=0)
     ax_trace.plot(time_axis, tmp_cr, linewidth=3, c=color_tt['cr'], zorder=0)
