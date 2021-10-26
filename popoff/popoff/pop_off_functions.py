@@ -333,7 +333,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
                     elif hard_set_10_trials:
                         min_n_trials = 10  # use to control for n_trials of spont
-                        print('only using 10 trials per trial type!!')
+                        print('only using 10 trials per trial type!!')  # always give warning
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
@@ -364,7 +364,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
 
             ## Retrieve normalized data:
             (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=-4, end_time=6, filter_150_stim=False)
+                time_ticks, time_tick_labels, time_axis) = pop.normalise_raster_data(session, sort_neurons=False, start_time=session.filter_ps_time.min(), 
+                                                                                     end_time=session.filter_ps_time.max(), filter_150_stim=False)
             assert data_use_mat_norm.shape[1] == session.behaviour_trials.shape[1], (data_use_mat_norm.shape, session.behaviour_trials.shape, len(trial_inds))
             ## Filter neurons
             data_use = data_use_mat_norm[neurons_include, :, :]
@@ -1954,6 +1955,43 @@ def get_percent_cells_responding(session, region='s1', direction='positive', pre
     assert len(magnitude) == flu.shape[1]
     return percent_cells_responding
 
+def get_data_dict(lm_list, region, tt_plot=['hit', 'miss', 'cr', 'fp', 'spont']):
+    ''' Gets the percent cells responding across all trials for individual sessions
+        Hit and miss trials, only when n_cells_stimmed > 20 (50% behaviour 
+        sigmoid threshold)
+    '''
+    data_dict = {k:[] for k in tt_plot}
+
+    for session_idx in range(len(lm_list)):
+        session = lm_list[session_idx].session
+
+        n_responders =  get_percent_cells_responding(session, region, direction='positive')\
+                        + get_percent_cells_responding(session, region, direction='negative')
+
+        for tt in tt_plot:
+            if tt == 'spont':
+                continue
+
+            tt_idx = session.outcome == tt
+#             if tt in ['hit', 'miss']:
+#                 tt_idx = np.logical_and(tt_idx, session.trial_subsets>20)
+            data_dict[tt].append(np.mean(n_responders[tt_idx]))
+
+        n_responders =  get_percent_cells_responding(session, region, direction='positive', prereward=True)\
+                        + get_percent_cells_responding(session, region, direction='negative', prereward=True)
+
+        data_dict['spont'].append(np.mean(n_responders))
+    
+    data_dict['Hit'] = data_dict.pop('hit')
+    data_dict['Miss'] = data_dict.pop('miss')
+    data_dict['CR'] = data_dict.pop('cr')
+    data_dict['FP'] = data_dict.pop('fp')
+    data_dict['Reward\nonly'] = data_dict.pop('spont')
+    
+    return {k:np.array(v) for k, v in data_dict.items()}
+    
+    
+
 def transfer_dict(msm, region, direction='positive'):
     '''For each session, compute how many responding cells [in direction] there are 
     for both hit and miss trials. '''
@@ -2039,13 +2077,14 @@ def select_cells_and_frames(lm, region='s1', frames='pre'):
     flu = flu[:, :, lm.frames_map[frames]]
     return flu
 
-def get_covariates(lm, region, match_tnums=False, prereward=False, hitmiss_only=False):
+def get_covariates(lm, region, match_tnums=False, prereward=False, hitmiss_only=False,
+                    filter_150=False):
     
     covariate_dict, y = lm.prepare_data(frames='all', model='partial', n_comps_include=0,
                                         outcomes=(['hit', 'miss'] if hitmiss_only else np.unique(lm.session.outcome)), 
                                         prereward=prereward,
                                         region=region, return_matrix=False,
-                                        remove_easy=False)
+                                        remove_easy=filter_150)
     # if prereward is False:
     #     assert (np.where(np.isin(lm.session.outcome, ['hit', 'miss']))[0] == covariate_dict['trial_number_original']).all()
     covariate_dict['y'] = y
@@ -2150,7 +2189,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
             mat_inds = np.where(np.eye(n_bins_covar, k=diag_index) == 1)  # inds of diagonal with 'same SNR'
             tmp_n_stim_inds_arr, tmp_cov_perc_inds_arr = mat_inds 
 
-            cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), 
+            cov_perc_arr_incl_min = np.concatenate((np.array([np.min(all_cov_arr) - 10]), ## -10 to be sure its including the min of all_cov_arr
                                                     cov_perc_arr))
             collapsed_df = None
             for i_el in range(len(tmp_n_stim_inds_arr)):  # loop through bins that are in this diagonal
@@ -2192,7 +2231,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
     else:
         mean_mat_arr, ci_mat_arr = None, None 
 
-    return (mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr), (mean_mat_arr, ci_mat_arr)
+    return (mat_fraction, median_cov_perc_arr, cov_perc_arr, n_stim_arr), (mean_mat_arr, ci_mat_arr) 
 
 def get_subset_dprime(session):
     assert session.trial_subsets.shape == session.outcome.shape
