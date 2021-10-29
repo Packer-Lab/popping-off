@@ -3228,6 +3228,8 @@ def get_percentile_value(x_range, curve, p=0.5):
 
 def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
+    if ax is None:
+        ax = plt.subplot(111)
     x_axis = [5, 10, 20, 30, 40, 50, 150]
     y = np.concatenate(subset_dprimes)
     x = np.tile(x_axis, subset_dprimes.shape[0])
@@ -3238,21 +3240,19 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
 
     y = y + min_val
-    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
+    x_range = np.linspace(np.min(x_axis), np.max(x_axis) + 1, 10001)
 
     perr = np.sqrt(np.diag(pcov))
-    ci_95 = perr * 1.96
+    ci_95 = perr * 1.96 / np.sqrt(subset_dprimes.size)
     # The midpoint should be lower for the upper bound and higher for the lower bound
     ci_95[1] = ci_95[1] * -1
-
-    fig, ax = plt.subplots()
 
     fit = pof.pf(x_range, *popt) + min_val
     bound_upper = pof.pf(x_range, *(popt + ci_95)) + min_val
     bound_lower = pof.pf(x_range, *(popt - ci_95)) + min_val
 
-    plt.plot(x_range, fit, 'black')
-    plt.fill_between(x_range, bound_lower, bound_upper,
+    ax.plot(x_range, fit, 'black')
+    ax.fill_between(x_range, bound_lower, bound_upper,
                      color = 'grey', alpha = 0.5)
 
     for curve, color in zip([bound_lower, fit, bound_upper], ['grey', 'red', 'grey']):
