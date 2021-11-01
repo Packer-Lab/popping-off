@@ -2269,7 +2269,7 @@ def pf(x, max_value, alpha, beta):
         alpha: x_axis midpoint
         beta: the growth rate
     '''
-    return max_value / (1 + np.exp( -(x-alpha)/beta)) 
+    return max_value / (1 + np.exp(-(x - alpha) / beta)) 
 
 def trial_binner(arr):
     group_dict = {0: '0',

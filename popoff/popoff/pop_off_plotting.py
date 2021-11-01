@@ -2779,16 +2779,20 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
 
-def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
+def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='mean_pre', 
                                         n_bonferoni=3,
                                         covar_2='corr_pre', region='s1', verbose=0):
-    arr_1, arr_2 = np.array([]), np.array([])
-    n_sessions = len(cov_dicts[region])
+    ## if cov_dicts given:
+    # arr_1, arr_2 = np.array([]), np.array([])
+    # n_sessions = len(cov_dicts[region])
     
-    for i_sess in range(n_sessions):
-        arr_1 = np.concatenate((arr_1, cov_dicts[region][i_sess][covar_1]))
-        arr_2 = np.concatenate((arr_2, cov_dicts[region][i_sess][covar_2]))
+    # for i_sess in range(n_sessions):
+    #     arr_1 = np.concatenate((arr_1, cov_dicts[region][i_sess][covar_1]))
+    #     arr_2 = np.concatenate((arr_2, cov_dicts[region][i_sess][covar_2]))
     
+    arr_1 = copy.deepcopy(super_covar_df_dict[region][covar_1])  # use copy because of jitter with reward history
+    arr_2 = copy.deepcopy(super_covar_df_dict[region][covar_2])
+
     result_lr = scipy.stats.linregress(x=arr_1, y=arr_2)
     slope, _, corr_coef, p_val, __ = result_lr
     if verbose > 0:
@@ -2798,7 +2802,7 @@ def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre',
         assert len(np.unique(arr_1)) == 6
         arr_1 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_1))
     elif covar_2 == 'reward_history':
-        assert len(np.unique(arr_2)) == 6
+        assert len(np.unique(arr_2)) == 6, np.unique(arr_2)
         ax.set_yticks([0, 1, 2, 3, 4, 5])
         ax.set_yticklabels(['0', '20', '40', '60', '80', '100'])
         arr_2 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_2))
@@ -3228,6 +3232,8 @@ def get_percentile_value(x_range, curve, p=0.5):
 
 def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
+    if ax is None:
+        ax = plt.subplot(111)
     x_axis = [5, 10, 20, 30, 40, 50, 150]
     y = np.concatenate(subset_dprimes)
     x = np.tile(x_axis, subset_dprimes.shape[0])
@@ -3238,21 +3244,19 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
 
     y = y + min_val
-    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
+    x_range = np.linspace(np.min(x_axis), np.max(x_axis) + 1, 10001)
 
     perr = np.sqrt(np.diag(pcov))
-    ci_95 = perr * 1.96
+    ci_95 = perr * 1.96 / np.sqrt(subset_dprimes.size)
     # The midpoint should be lower for the upper bound and higher for the lower bound
     ci_95[1] = ci_95[1] * -1
-
-    fig, ax = plt.subplots()
 
     fit = pof.pf(x_range, *popt) + min_val
     bound_upper = pof.pf(x_range, *(popt + ci_95)) + min_val
     bound_lower = pof.pf(x_range, *(popt - ci_95)) + min_val
 
-    plt.plot(x_range, fit, 'black')
-    plt.fill_between(x_range, bound_lower, bound_upper,
+    ax.plot(x_range, fit, 'black')
+    ax.fill_between(x_range, bound_lower, bound_upper,
                      color = 'grey', alpha = 0.5)
 
     for curve, color in zip([bound_lower, fit, bound_upper], ['grey', 'red', 'grey']):
