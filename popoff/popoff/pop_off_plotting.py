@@ -106,14 +106,15 @@ def set_fontsize(font_size=12):
     plt.rcParams.update(params)
     print(f'Font size is set to {font_size}')
 
-def add_ps_artefact(ax, time_axis):
+def add_ps_artefact(ax, time_axis, y_min=0, y_max=1):
     ## plot box over artefact
     color_box = color_tt['photostim']
     alpha_box = 0.3
     start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0])- 1] + 1 / 30
     end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0]) + 1] - 1 / 30
     # print(start_box, end_box)
-    ax.axvspan(start_box, end_box, alpha=alpha_box, color=color_box)
+    ax.axvspan(start_box, end_box, ymin=y_min, ymax=y_max,
+                alpha=alpha_box, color=color_box)
 
 def equal_xy_lims(ax, start_zero=False):
     xlims = ax.get_xlim()
@@ -532,6 +533,8 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
             for rr, av_mean in average_mean.items():
                 # av_mean[2:-2] = np.convolve(av_mean, np.ones(window_size), mode='valid') / window_size
                 if rr in region_list:
+                    # if rr == 's2':
+                    #     print([str(x) + ',' for x in av_mean])
                     std_means = np.std(all_means[rr], 0) / np.sqrt(count_means[rr]) * 1.96  # 95% CI
                     if plot_errorbar is False:  # plot group means
                         ax.plot(time_1, av_mean[:time_breakpoint],  linewidth=4, linestyle=linest[rr],
@@ -2483,7 +2486,6 @@ def covar_sketch(ax=None, plot_pc_var=True, plot_corr=True, mid_x = 0.05, transl
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
     naked(ax)
-    
 
 def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     if ax is None:
@@ -2528,6 +2530,186 @@ def pre_stim_sketch(session, ax=None, x_min=-1, x_max=2, pre_stim_start=-0.5):
     ax.set_ylabel('')
     ax.set_title(r"$\Delta F/F$" + ' activity', y=1.17)
  
+def dyn_dec_sketch(session, 
+
+                  fig=None, x_min=-1, x_max=2, pre_stim_start=-0.5,
+                  hit_dyn_dec_trace=None, cr_dyn_dec_trace=None):
+
+    ##
+    if fig is None:
+        fig = plt.figure(constrained_layout=False, figsize=(8, 3.25))
+    else:
+        figsize = fig.get_size_inches()
+        if figsize[0] > figsize[1]:  # assume only the sketch should be shown 
+            gs_sketch_activity = fig.add_gridspec(ncols=1, nrows=1, bottom=0.05, top=0.95, right=0.5, left=0.01, 
+                                hspace=0.1, wspace=0.1)
+            gs_scatter = fig.add_gridspec(ncols=3, nrows=1, bottom=0.65, top=0.9, right=0.95, left=0.6, 
+                                hspace=0.1, wspace=0.25)
+            gs_trace = fig.add_gridspec(ncols=1, nrows=1, bottom=0.05, top=0.5, right=0.95, left=0.6, 
+                                hspace=0.1, wspace=0.1)
+        else: # assume it is part of Fig 3
+            gs_sketch_activity = fig.add_gridspec(ncols=1, nrows=1, bottom=0.68, top=0.94, right=0.5, left=0.03, 
+                                hspace=0.1, wspace=0.1)
+            gs_scatter = fig.add_gridspec(ncols=3, nrows=1, bottom=0.85, top=0.91, right=0.95, left=0.61, 
+                                hspace=0.1, wspace=0.25)
+            gs_trace = fig.add_gridspec(ncols=1, nrows=1, bottom=0.69, top=0.81, right=0.95, left=0.61, 
+                                hspace=0.1, wspace=0.1)
+
+    ## Activity sketch
+    ## -----------------------
+    ax_sketch = fig.add_subplot(gs_sketch_activity[0])
+    time_axis = np.arange(x_min, x_max, 1/30)
+    remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
+    time_axis[remove_stim_art_inds] = np.nan
+    c_dict = {**{x: color_tt['hit'] for x in [0, 2, 4]},
+              **{x: color_tt['cr'] for x in [1, 3]}}
+    
+    (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
+        time_ticks, time_tick_labels, time_axis_norm) = normalise_raster_data(session=session, start_time=x_min, filter_150_stim=True,
+                                        sort_neurons=True, end_time=x_max)
+
+    inds_cells = np.array([123, 34, 54, 65, 76, 86, 102])
+    ind_trial = 62  # used to be 64 (with 250 ms)
+    # print({k: v for k, v in enumerate(outcome_arr)})
+    # print(outcome_arr[ind_trial])
+    assert len(time_axis) == len(time_axis_norm)# and time_axis[0] == time_axis_norm[0] and time_axis[-1] == time_axis_norm[-1]  # one contains nans at artefact and other one doesnt
+    data_plot = data_use_mat_norm_s1[inds_cells, :, :][:, ind_trial, :]
+    assert data_plot.ndim == 2
+    n_cells = len(inds_cells)
+    ## First one:
+    y_incr = 0.9
+    translate_y = -5
+    for i_cell, ind_cell in enumerate(inds_cells):
+        ax_sketch.plot(time_axis, data_plot[i_cell, :] + y_incr * i_cell + translate_y, 
+        c=c_dict[0])
+    
+    add_ps_artefact(ax=ax_sketch, time_axis=time_axis, y_min=0.18, y_max=0.59)
+    time_incr = 0.4
+    dist_y = 0.3
+    for increment in range(5):
+        ## top:
+        ax_sketch.plot(time_axis + time_incr, 
+                data_plot[i_cell, :] + y_incr * (n_cells + increment + dist_y) + translate_y, 
+                c=c_dict[increment])
+        # others:
+        for i_cell, ind_cell in enumerate(inds_cells):
+            if i_cell != n_cells - 1:  # last one is not necessary because already done baove
+                ax_sketch.plot(time_axis[-5:] + time_incr, 
+                data_plot[i_cell, :][-5:] + y_incr * (i_cell + 1 + + increment + dist_y) + translate_y,
+                c=c_dict[increment])
+        time_incr += 0.3
+        
+    ylims = ax_sketch.get_ylim()
+    ylims = (-7.54, 6.83)  # these limits are meticiously set to have the ps artefacts line up nicely .. 
+    func_map_ax_to_data_coords = lambda x: (ylims[1] - ylims[0]) * x + ylims[0]
+    func_map_data_to_ax_coords = lambda x: (x - ylims[0]) / (ylims[1] - ylims[0])
+    time_incr = 0.4
+
+    for increment in range(5):
+        ymin_data_coords = y_incr * (n_cells + increment + dist_y - 0.3) + translate_y
+        ymax_data_coords = y_incr * (n_cells + increment + dist_y + 0.3) + translate_y
+
+        add_ps_artefact(ax=ax_sketch, time_axis=time_axis + time_incr, 
+                        y_min=func_map_data_to_ax_coords(ymin_data_coords),
+                        y_max=func_map_data_to_ax_coords(ymax_data_coords))
+        time_incr += 0.3
+
+    ## axes 
+    ax_sketch.plot([-1.15, 2.1], [-6, -6], c='k')  # time 
+    ax_sketch.plot([-1.15, -1.15], [-6, 1], c='k')  # neurons 
+    ax_sketch.plot([-1.15, 0.7], [1, 6.2], c='k')  # trials 
+    
+    ## cosmetics:
+    naked(ax_sketch)
+    
+    for i_arrow, time_arrow in enumerate([-0.67, 0.5, 1.67]):
+        ax_sketch.arrow(time_arrow, -7.5, 0.0, 1.2, alpha=(i_arrow + 2) / 4,
+                        head_width=0.15, head_length=0.5, linewidth=2, zorder=10,
+                        color='k', length_includes_head=True, clip_on=False)
+
+    ax_sketch.text(s='Time points', x=0.5, y=-9.4, ha='center')
+
+    ax_sketch.text(s='Time points', x=6.65, y=-9.4, ha='center')
+    ax_sketch.text(s='Neurons', x=-1.35, y=-2.5, ha='center', va='center', rotation=90)
+    # ax_sketch.text(s='Hit & CR trials', x=-0.4, y=4.1, ha='center', va='center', rotation=33.5)
+
+    ax_sketch.text(s='Hit', x=-0.95, y=2.65, ha='center', va='center', rotation=33.5, C=color_tt['hit'])
+    ax_sketch.text(s='&', x=-0.69, y=3.34, ha='center', va='center', rotation=33.5, C='k')
+    ax_sketch.text(s='CR', x=-0.4, y=4.1, ha='center', va='center', rotation=33.5, C=color_tt['cr'])
+    ax_sketch.text(s='trials', x=0.05, y=5.35, ha='center', va='center', rotation=33.5, C='k')
+
+
+    ## Scatter
+    ## -------------
+    ax_scatter = {x: fig.add_subplot(gs_scatter[x]) for x in range(3)}
+    scatter_data_dict = {0: {'hit': np.array([[0.3, 0.4], [0.22, 0.76], [0.7, 0.63], [0.55, 0.25]]),
+                             'cr': np.array([[0.17, 0.25], [0.76, 0.35], [0.45, 0.85], [0.6, 0.5]])},
+                         1: {'hit': np.array([[0.73, 0.4], [0.42, 0.26], [0.75, 0.43], [0.55, 0.15]]),
+                             'cr': np.array([[0.17, 0.35], [0.26, 0.65], [0.45, 0.85], [0.6, 0.75]])},                            
+                         2: {'hit': np.array([[0.63, 0.14], [0.82, 0.16], [0.77, 0.18], [0.95, 0.25]]),
+                             'cr': np.array([[0.37, 0.85], [0.06, 0.65], [0.14, 0.75], [0.16, 0.85]])}}
+    for i_plot in range(3):
+        for tt in ['hit', 'cr']:
+            ax_scatter[i_plot].plot(scatter_data_dict[i_plot][tt][:, 0], 
+                                    scatter_data_dict[i_plot][tt][:, 1],
+                                    '.', c=color_tt[tt], markersize=12)
+        despine(ax_scatter[i_plot])
+        ax_scatter[i_plot].set_xlim(0, 1)
+        ax_scatter[i_plot].set_ylim(0, 1)
+        ax_scatter[i_plot].set_xticks([])
+        ax_scatter[i_plot].set_yticks([])
+
+    ax_scatter[0].set_xlabel('Neural dim. 1')
+    ax_scatter[0].set_ylabel('Neural\ndim. 2')
+    ax_scatter[1].set_title('Classify trials per time point')
+    ## trace:
+    ax_trace = fig.add_subplot(gs_trace[0])
+
+    if hit_dyn_dec_trace is None:
+        tmp_hit = np.array([0.491, 0.492, 0.489, 0.489, 0.489, 0.498, 0.503, 0.506, 0.512,
+                            0.512, 0.508, 0.512, 0.512, 0.512, 0.512, 0.504, 0.499, 0.497,
+                            0.499, 0.498, 0.496, 0.491, 0.493, 0.494, 0.487, 0.492, 0.496,
+                            0.498, 0.493, 0.495, 0.498, 0.504, 0.502, 0.5  , 0.504, 0.505,
+                            0.506, 0.501, 0.499, 0.498, 0.497, 0.499, 0.501, 0.501, 0.504,
+                            0.501, 0.495, 0.496, 0.505, 0.506, 0.5, 0.484, 0.52, np.nan,
+                            np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan,
+                            np.nan, np.nan, np.nan, 0.64 , 0.633, 0.642, 0.65 , 0.659, 0.673,
+                            0.686, 0.69 , 0.698, 0.707, 0.712, 0.717, 0.719, 0.718, 0.717,
+                            0.722, 0.729, 0.738, 0.743, 0.744, 0.749, 0.754, 0.757, 0.763,
+                            0.769, 0.77 , 0.771, 0.773, 0.773, 0.777, 0.777, 0.778, 0.782,
+                            0.784, 0.786, 0.79 , 0.788, 0.787, 0.793, 0.794, 0.796, 0.794,
+                            0.795, 0.795, 0.796, 0.792, 0.793, 0.792, 0.789, 0.786, 0.786,
+                            0.786, 0.783, 0.783, 0.782, 0.783, 0.781, 0.782, 0.779, 0.781,
+                            0.78 , 0.782, 0.784, 0.78 , 0.777, 0.776, 0.777, 0.775, 0.775,
+                            0.772, 0.774, 0.771, 0.768, 0.767, 0.77 , 0.77 , 0.767, 0.764,
+                            0.761, 0.759, 0.752, 0.749, 0.747, 0.749, 0.744, 0.741, 0.74 ,
+                            0.741, 0.742, 0.74 , 0.742, 0.739, 0.734, 0.729, 0.725, 0.724,
+                            0.722, 0.72 , 0.712, 0.714, 0.71 , 0.709, 0.706, 0.704, 0.703])
+        tmp_hit = tmp_hit[25:115]
+        tmp_hit = 0.5 + (tmp_hit - 0.5) * 1.3
+        tmp_cr = 1- tmp_hit
+    ax_trace.plot([-1, 2], [0.5, 0.5], linestyle=':', linewidth=2, color='grey', zorder=-1)
+    ax_trace.plot(time_axis, tmp_hit, linewidth=3, c=color_tt['hit'], zorder=0)
+    ax_trace.plot(time_axis, tmp_cr, linewidth=3, c=color_tt['cr'], zorder=0)
+    add_ps_artefact(ax=ax_trace, time_axis=time_axis)
+    despine(ax_trace)
+    ax_trace.set_ylim(0, 1)
+    ax_trace.set_xticks([])
+    # ax_trace.set_xlabel('Time')# + r"$\to$")
+    ax_trace.set_yticks([0, 0.5, 1])
+    ax_trace.set_ylabel('Hit vs CR\nclassification')
+    ax_trace.arrow(-0.67, 1.1, 0.0, -0.5, alpha=0.5,
+                    head_width=0.1, head_length=0.1, linewidth=2, zorder=10,
+                    color='k', length_includes_head=True, clip_on=False)
+    ax_trace.arrow(0.5, 1.2, 0.0, -0.4, alpha=0.75,
+                    head_width=0.1, head_length=0.1, linewidth=2, zorder=10,
+                    color='k', length_includes_head=True, clip_on=False)
+    ax_trace.arrow(1.67, 1.2, 0.0, -0.25, alpha=1,
+                    head_width=0.1, head_length=0.1, linewidth=2, zorder=10,
+                    color='k', length_includes_head=True, clip_on=False)
+    ax_trace.text(s='Chance level', x=1, y=0.55, color='grey')
+
+
 def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                             plot_type='scatter', bonf_n_tests=None, verbose=0,
                     cov_names=['mean_pre', 'variance_cell_rates', 'corr_pre', 'largest_PC_var']):
@@ -2597,16 +2779,20 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
 
-def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre', 
+def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='mean_pre', 
                                         n_bonferoni=3,
                                         covar_2='corr_pre', region='s1', verbose=0):
-    arr_1, arr_2 = np.array([]), np.array([])
-    n_sessions = len(cov_dicts[region])
+    ## if cov_dicts given:
+    # arr_1, arr_2 = np.array([]), np.array([])
+    # n_sessions = len(cov_dicts[region])
     
-    for i_sess in range(n_sessions):
-        arr_1 = np.concatenate((arr_1, cov_dicts[region][i_sess][covar_1]))
-        arr_2 = np.concatenate((arr_2, cov_dicts[region][i_sess][covar_2]))
+    # for i_sess in range(n_sessions):
+    #     arr_1 = np.concatenate((arr_1, cov_dicts[region][i_sess][covar_1]))
+    #     arr_2 = np.concatenate((arr_2, cov_dicts[region][i_sess][covar_2]))
     
+    arr_1 = copy.deepcopy(super_covar_df_dict[region][covar_1])  # use copy because of jitter with reward history
+    arr_2 = copy.deepcopy(super_covar_df_dict[region][covar_2])
+
     result_lr = scipy.stats.linregress(x=arr_1, y=arr_2)
     slope, _, corr_coef, p_val, __ = result_lr
     if verbose > 0:
@@ -2616,7 +2802,7 @@ def plot_scatter_all_trials_two_covars(cov_dicts, ax=None, covar_1='mean_pre',
         assert len(np.unique(arr_1)) == 6
         arr_1 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_1))
     elif covar_2 == 'reward_history':
-        assert len(np.unique(arr_2)) == 6
+        assert len(np.unique(arr_2)) == 6, np.unique(arr_2)
         ax.set_yticks([0, 1, 2, 3, 4, 5])
         ax.set_yticklabels(['0', '20', '40', '60', '80', '100'])
         arr_2 += np.random.uniform(low=-0.2, high=0.2, size=len(arr_2))
@@ -2850,7 +3036,10 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         std_arr = np.std(flu, (0, 1))
         ci_arr = std_arr * 1.96 / np.sqrt(flu.shape[0] * flu.shape[1])
 
-    remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
+    if 150 in n_stim_list:
+        remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.83)
+    else:
+        remove_stim_art_inds = np.logical_and(time_axis >= -0.07, time_axis < 0.35)
     time_axis = copy.deepcopy(time_axis)
     time_axis[remove_stim_art_inds] = np.nan
     pre_stim_frame = np.where(np.isnan(time_axis))[0][0]
@@ -2861,7 +3050,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
     if type_plot == 'trace':
         if ax is None:
             ax = plt.subplot(111)
-        # ax.plot([-1, 6], [0, 0], color='k', zorder=-10, alpha=0.1)
+        ax.plot(time_axis, np.zeros(len(time_axis)), linestyle=':', c='grey', zorder=-10)
         ax.plot(time_axis, mean_arr, color=color_dict[i_col], label=label, linewidth=lw_mean)
         if plot_ci:
             ax.fill_between(time_axis, mean_arr - ci_arr, mean_arr + ci_arr,
@@ -2887,7 +3076,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         if absolute_vals:
             ax.set_ylim([ -0.06, 0.15])
         else:
-            ax.set_ylim(-0.06, 0.2)
+            ax.set_ylim(-0.06, 0.23)
             ax.set_yticks([0, 0.1, 0.2])
         if plot_legend:
             if absolute_vals:
@@ -3043,6 +3232,8 @@ def get_percentile_value(x_range, curve, p=0.5):
 
 def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
+    if ax is None:
+        ax = plt.subplot(111)
     x_axis = [5, 10, 20, 30, 40, 50, 150]
     y = np.concatenate(subset_dprimes)
     x = np.tile(x_axis, subset_dprimes.shape[0])
@@ -3053,21 +3244,19 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
     popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
 
     y = y + min_val
-    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
+    x_range = np.linspace(np.min(x_axis), np.max(x_axis) + 1, 10001)
 
     perr = np.sqrt(np.diag(pcov))
-    ci_95 = perr * 1.96
+    ci_95 = perr * 1.96 / np.sqrt(subset_dprimes.size)
     # The midpoint should be lower for the upper bound and higher for the lower bound
     ci_95[1] = ci_95[1] * -1
-
-    fig, ax = plt.subplots()
 
     fit = pof.pf(x_range, *popt) + min_val
     bound_upper = pof.pf(x_range, *(popt + ci_95)) + min_val
     bound_lower = pof.pf(x_range, *(popt - ci_95)) + min_val
 
-    plt.plot(x_range, fit, 'black')
-    plt.fill_between(x_range, bound_lower, bound_upper,
+    ax.plot(x_range, fit, 'black')
+    ax.fill_between(x_range, bound_lower, bound_upper,
                      color = 'grey', alpha = 0.5)
 
     for curve, color in zip([bound_lower, fit, bound_upper], ['grey', 'red', 'grey']):
