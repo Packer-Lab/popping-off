@@ -751,7 +751,7 @@ if __name__ == '__main__':
 
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
                                     folder_path=pkl_path, flu_flavour=flu_flavour,
-                                    pre_seconds=10,
+                                    pre_seconds=8,
                                     post_seconds=6)
 
     dt = datetime.datetime.now()
