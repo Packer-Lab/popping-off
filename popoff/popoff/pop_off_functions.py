@@ -1246,11 +1246,13 @@ def compute_prediction_time_array_average_per_mouse_split(sessions, time_array, 
             ps_pred_split_tt, ps_pred_split_tt_nstim, ps_pred_split_tt_covar)
 
 
-def get_acc_array(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
+def get_acc_array(pred_dict, decoder_name='hit/cr', covar_name=None, tt='hit', region='s1',
                   time_array=np.array([])):
     '''extract dataframe with accuracy array of dictionary (that is returned by dyn dec analysis)'''
     if decoder_name == 'NA':
         sub_dict = {k[:-3]: v for k, v in pred_dict[tt].items() if k[-2:] == region}
+    elif covar_name is not None:
+        sub_dict = {k[:-3]: v for k, v in pred_dict[decoder_name][covar_name][tt].items() if k[-2:] == region}
     else:
         sub_dict = {k[:-3]: v for k, v in pred_dict[decoder_name][tt].items() if k[-2:] == region}
 
@@ -1306,16 +1308,16 @@ def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
 
 def stat_test_dyn_dec_two_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1='hit', region_1='s1',
                                  pred_dict_2={}, decoder_name_2='hit/cr', tt_2='hit', region_2='s1',
-                                 time_array=np.array([]), frames_bin=2, th=0.05, 
+                                 time_array=np.array([]), frames_bin=2, th=0.05, covar_name=None,
                                  alternative='two-sided'):
     '''
     time array with time in seconds, should be same size as accuracy arrays 
     use nans to exclude (artefact) periods
 
     '''
-    _, df_pred_collapsed_1 = get_acc_array(pred_dict=pred_dict_1, time_array=time_array, 
+    _, df_pred_collapsed_1 = get_acc_array(pred_dict=pred_dict_1, time_array=time_array, covar_name=covar_name,
                                         decoder_name=decoder_name_1, tt=tt_1, region=region_1)
-    _, df_pred_collapsed_2 = get_acc_array(pred_dict=pred_dict_2, time_array=time_array, 
+    _, df_pred_collapsed_2 = get_acc_array(pred_dict=pred_dict_2, time_array=time_array, covar_name=covar_name,
                                         decoder_name=decoder_name_2, tt=tt_2, region=region_2)
 
     inds_non_nan = ~np.isnan(df_pred_collapsed_1['time_array'])
@@ -1346,7 +1348,7 @@ def stat_test_dyn_dec_two_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1='
 
             new_df = pd.merge(sub_df_1, sub_df_2,  how='left', left_on=['session','time_array'], 
                               right_on = ['session','time_array'], suffixes=('_1', '_2'))
-
+            new_df = new_df.dropna()# new_df.fillna(0.5)  # Nans mess up the wilcoxon test. occurs very rarely, but ruins the whole test. 
             # stat, pval = scipy.stats.wilcoxon(x=sub_df_1['accuracy'], y=sub_df_2['accuracy'], 
             #                                 alternative=alternative)
             stat, pval = scipy.stats.wilcoxon(x=new_df['accuracy_1'], y=new_df['accuracy_2'], 
@@ -1354,6 +1356,10 @@ def stat_test_dyn_dec_two_arrays(pred_dict_1={}, decoder_name_1='hit/cr', tt_1='
             if pval < th_bonf:
                 signif_array[start_frame:end_frame] = 1  # indicate significance
 
+
+        # if time_min > 0.5:
+        #     print(new_df)
+        #     assert False
     return df_pred_collapsed_1, df_pred_collapsed_2, signif_array
 
 
@@ -2226,7 +2232,9 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
         model = sm.GLM(hit_label, sm.add_constant(indep_var), family=sm.families.Binomial())
         results = model.fit() 
         if verbose:
+            print('Summary GLM:')
             print(results.summary())
+            print('P values:')
             print(results.pvalues)
     else:
         mean_mat_arr, ci_mat_arr = None, None 

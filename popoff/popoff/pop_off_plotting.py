@@ -238,6 +238,23 @@ def translate_session(session_name, number_only=False, capitalize=True):
         translation = translation.split(' ')[-1]
     return translation
 
+def weighted_mean(x, w):
+    """Weighted Mean"""
+    return np.sum(x * w) / np.sum(w)
+
+def weighted_covariance(x, y, w):
+    """Weighted Covariance"""
+    return np.sum(w * (x - weighted_mean(x, w)) * (y - weighted_mean(y, w))) / np.sum(w)
+
+def weighted_pearson_corr(x, y, w):
+    """Weighted Correlation, adapted from 
+    https://stackoverflow.com/questions/38641691/weighted-correlation-coefficient-with-pandas
+    https://en.wikipedia.org/wiki/Pearson_correlation_coefficient#Weighted_correlation_coefficient
+    https://files.eric.ed.gov/fulltext/ED585538.pdf
+    """
+    return weighted_covariance(x, y, w) / np.sqrt(weighted_covariance(x, x, w) * weighted_covariance(y, y, w))
+
+
 def plot_df_stats(df, xx, yy, hh, plot_line=True, xticklabels=None,
                   type_scatter='strip', ccolor='grey', aalpha=1, ax=None):
     """Plot predictions of a pd.Dataframe, with type specified in type_scatter.
@@ -2126,20 +2143,28 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
         fit_x = np.array(fit_x)
         fit_y = np.array(fit_y)
         if weighted_regression:
-            sklearn_wls_model = sklearn.linear_model.LinearRegression()
-            sklearn_wls_model.fit(fit_x.reshape(-1, 1), fit_y, sample_weight=wls_weights)
+            # sklearn_wls_model = sklearn.linear_model.LinearRegression()
+            # sklearn_wls_model.fit(fit_x.reshape(-1, 1), fit_y, sample_weight=wls_weights)
             # print(sklearn_wls_model.intercept_, sklearn_wls_model.coef_)
             fit_x_with_intercept = statsmodels.api.add_constant(fit_x)
             wls_model = statsmodels.regression.linear_model.WLS(fit_y, fit_x_with_intercept,
                                                     weights=wls_weights)
             results = wls_model.fit()
             intercept, slope = results.params
-            # print(results.summary())
-            # print('statsmodels:', intercept, slope)
+            if verbose:
+                print('weighted regression')
+                if verbose > 1:
+                    print(results.summary())
+                print('statsmodels intercept + slope:', intercept, slope)
+                print('p values', results.pvalues, 'r squard', results.tvalues)
+                print('weighted corr', weighted_pearson_corr(x=fit_x, y=fit_y, w=wls_weights))
+                print('linear corr', np.corrcoef(fit_x, fit_y)[1, 0])
+                print("\n")
         else:
             slope, intercept, r, p, se = scipy.stats.linregress(fit_x, fit_y)
             if verbose:
                 # print(label)
+                print('linear regression')
                 print(f'r={r}')
                 print(f'p={p}')
                 print('\n')
@@ -2206,7 +2231,7 @@ def plot_spont(msm, region='s1', direction='positive', ax=None):
 
 
 def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-trials', ax=None,
-                           plot_ps_artefact=False, art_150_included=True):
+                           plot_ps_artefact=False, art_150_included=True, verbose=1):
 
     if ax is None:
         ax = plt.subplot(111)
@@ -2247,6 +2272,13 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
 
     if region != 's2':
         ax.set_ylabel(r'$\Delta$F/F')
+
+    if verbose > 0:
+        ## find max:
+        ind_max = np.nanargmax(mean_flu)
+        print(outcome, region)
+        print('Grand average max value: ', mean_flu[ind_max], 'pm ', ci[ind_max], 'at time ', x_axis[ind_max])
+        print('---')
 
 def return_fraction_interval(min_lim=0, max_lim=1, frac=0.5):
     len_int = max_lim - min_lim 
@@ -2306,7 +2338,7 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
             for tt in tts_plot:
                 plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
                                 stack=stack, ax=ax_zoom[i_plot], plot_ps_artefact=(tt == 'hit'),
-                                art_150_included=(150 in n_cells))
+                                art_150_included=(150 in n_cells), verbose=0)
             # despine(ax_zoom[i_plot])
             ax_zoom[i_plot].set_ylim(zoom_ylims)
 
@@ -2772,9 +2804,37 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
                 tmp_ax.set_ylabel('')
             # tmp_ax.set_xlabel('Trial type')
             tmp_ax.set_xlabel('')
-            tmp_ax.set_ylim([-0.55 , 0.85])
+            tmp_ax.set_ylim([-0.63, 0.9])
             tmp_ax.tick_params(bottom=False)
             despine(tmp_ax)
+        elif plot_type == 'connecting_lines':
+            tmp_df = pd.DataFrame({'hit_zscore': all_hit,
+                                   'miss_zscore': all_miss})
+            print(tmp_df)
+            n_sessions = len(tmp_df)
+            tmp_df['hit_xcoord'] = np.random.randn(n_sessions) * 0.1 + 1
+            tmp_df['miss_xcoord'] = np.random.randn(n_sessions) * 0.1
+            for tt in ['hit', 'miss']:
+                tmp_ax.plot(tmp_df[f'{tt}_xcoord'], tmp_df[f'{tt}_zscore'], '.', 
+                            color='k',#('k' if bool_sign else 'grey'), 
+                            markersize=15)
+            for i_s in range(n_sessions):
+                tmp_ax.plot([tmp_df['miss_xcoord'][i_s], tmp_df['hit_xcoord'][i_s]],
+                            [tmp_df['miss_zscore'][i_s], tmp_df['hit_zscore'][i_s]],
+                            c='k', alpha=0.7) #alpha=(0.7 if bool_sign else 0.3))
+            if i_plot == 0:
+                tmp_ax.set_ylabel('Mean z-score')
+            else:
+                tmp_ax.set_ylabel('')
+            # tmp_ax.set_xlabel('Trial type')
+            tmp_ax.set_xlabel('')
+            tmp_ax.set_xlim([-0.5, 1.5])
+            tmp_ax.set_ylim([-0.63, 0.9])
+            tmp_ax.set_xticks([0, 1])
+            tmp_ax.set_xticklabels(['miss', 'hit'])
+            tmp_ax.tick_params(bottom=False)
+            despine(tmp_ax)
+
         if verbose > 0:
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
         tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
@@ -2975,13 +3035,13 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
             '.', markersize=4, color='k')
     pearson_r, pearson_p = scipy.stats.pearsonr(super_covar_df_dict['s1'][cov_name],
                                                 super_covar_df_dict['s2'][cov_name])
-    ax.annotate(s=f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
-                          xy=(0, 1.15), xycoords='axes fraction')
+    # ax.annotate(s=f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
+    #                       xy=(0, 1.15), xycoords='axes fraction')
 
     despine(ax)
     ax.set_xlabel(f'{covar_labels[cov_name]} S1')
     ax.set_ylabel(f'{covar_labels[cov_name]} S2')
-    # ax.set_title(f'S1 vs S2 {cov_name}\n')
+    ax.set_title(f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', 
                     n_stim_list=[5, 10, 20, 30, 40, 50],
@@ -3143,17 +3203,21 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
 
     return dict_auc
 
-def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
+def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_logspace=True,
+                              midpoint_fit=True, plot_labels=True):
     np.seterr(divide='ignore')  # Ugly division by 0 error
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
 
-    # x_axis = [7.5, 25, 45, 150]
-    x_axis = [5, 10, 20, 30, 40, 50, 150]
+    x_axis = np.array([5, 10, 20, 30, 40, 50, 150])
+    if fit_in_logspace:  # if fit is to be computed in logspace, transform x:
+        x_axis = np.log10(x_axis)
     all_dp = []
     n = 0
 
-    min_x = 5
+    min_x = np.min(x_axis)
+    max_x = np.max(x_axis)
+    
     for idx, dp in enumerate(subset_dprimes):
 
         all_dp.append(dp)
@@ -3162,71 +3226,76 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None):
         # back on later, to get the fit below 0 if required
         min_val = np.min(dp)
         dp = dp - min_val
-        popt, pcov = scipy.optimize.curve_fit(pof.pf, x_axis, dp, method='dogbox', p0=[np.max(dp), 50, 200])
-
+        if fit_in_logspace: # set initial parameter values based on logspace bool
+            init_param = [np.max(dp), 1.2, 1]
+        else:
+            init_param = [np.max(dp), 50, 200]
+        popt, pcov = scipy.optimize.curve_fit(pof.pf, x_axis, dp, method='dogbox', p0=init_param)
         dp = dp + min_val
 
         ax.plot(x_axis, dp, '.', color='grey', alpha=0.2)
-
-        ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
+        x_arr = np.linspace(min_x, max_x, 1000)
+        ax.plot(x_arr, pof.pf(x_arr, *popt) + min_val,
                 color='grey', alpha=0.3, label='Individual sessions')
-        ax.set_xscale('log')
 
     y = np.concatenate(all_dp)
     x = np.tile(x_axis, subset_dprimes.shape[0])
-
     min_val = np.min(y)
-
     y = y - min_val
-    popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=[np.max(y), 50, 200])
-
+    if fit_in_logspace:
+        init_param = [np.max(y), 1.2, 1]
+    else:
+        init_param = [np.max(y), 50, 200]
+    popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=init_param)
     y = y + min_val
 
-    x_range = np.linspace(np.min(x_axis), np.max(x_axis)+1, 10001)
-    fit = pof.pf(x_range, *popt) + min_val
-    # ax.plot(np.arange(min_x, np.max(x_axis)), pof.pf(np.arange(min_x, np.max(x_axis)), *popt) + min_val,
-            # color='red')
+    ## Compute error on midpoint:
+    p_std = np.sqrt(np.diag(pcov))  # standard deviations of each parameter fit
+    p_95ci = p_std / np.sqrt(len(x)) * 1.96  # convert to 95 ci
+    print('max_val, midpoint, growth:', popt, '95 ci of these', p_95ci)
 
+    x_range = np.linspace(min_x, max_x, 10001)
+    fit = pof.pf(x_range, *popt) + min_val
     ax.plot(x_range, fit, color='k', label='Average across sessions', linewidth=3)
-    ax.set_xscale('log')
     ax.set_ylabel('Behavioral accuracy (d\')')
     ax.set_xlabel('Number of cells targeted')
-
-
-    # Centre point of the rescaled sigmoid.
-    # Assumes sigmoid min is 0. Which is approx true here
-    # midpoint = (popt[0] + min_val) / 2
-
-    # # Empirically find the x-axis position matching the midpoint
-    # x_range = np.arange(min_x, np.max(x_axis))
-    # res = pof.pf(x_range, *popt) + min_val
-    # n_cells_mid = x_range[np.argmin(np.abs(res - midpoint))]
-
-    # # Line doesn't go far enough but just extend in illustrator
-    # ax.vlines(x=n_cells_mid, ymin=0, ymax=midpoint, color='red', ls=':')
-    # ax.hlines(y=midpoint, xmin=n_cells_mid, xmax=popt[1], color='red', ls=':')
-    
+   
     color_mean = 'k'
-    n_cells_mid, dprime_mid = get_percentile_value(x_range, fit)
+    if midpoint_fit:  # find midpoint of full fit (that can go beyond data range)
+        n_cells_mid = popt[1]
+        dprime_mid = pof.pf(n_cells_mid, *popt) + min_val
+    else:  # find midpoint of data range
+        n_cells_mid, dprime_mid = get_percentile_value(x_range, fit)
     print(n_cells_mid)
-    ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
-    ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
 
-    ax.set_xticks(ticks=[5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150],
-                  minor=True)
-    ax.set_xticks(ticks=[10, 100], minor=False)
-    ax.set_xticklabels([''] * 18, minor=True)
-    ax.set_xticklabels(['10', '100'])
-
+    if fit_in_logspace:
+        ax.set_xticks(ticks=np.log10([5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150]),
+                    minor=True)
+        ax.set_xticks(ticks=np.log10([10, 100]), minor=False)
+        ax.set_xticklabels([''] * 18, minor=True)
+        ax.set_xticklabels(['10', '100'])
+        ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
+        ax.hlines(y=dprime_mid, xmin=ax.get_xlim()[0], xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
+        ax.text(x=n_cells_mid + 0.1, y=-1, s=f'{round(10 ** n_cells_mid)} cells', color=color_mean) 
+    else:
+        ax.set_xscale('log')
+        ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
+        ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
+        ax.set_xticks(ticks=[5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150],
+                    minor=True)
+        ax.set_xticks(ticks=[10, 100], minor=False)
+        ax.set_xticklabels([''] * 18, minor=True)
+        ax.set_xticklabels(['10', '100'])
+        ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
+        if plot_labels:
+            ax.text(x=4.5, y=3.5, s='Individual sessions', color='grey', alpha=1)
+            ax.text(x=4.5, y=3.2, s='Average across sessions', color=color_mean)
     ax.set_yticks([-1, 0, 1, 2])
     despine(ax)
-    ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
-    ax.text(x=4.5, y=3.5, s='Individual sessions', color='grey', alpha=1)
-    ax.text(x=4.5, y=3.2, s='Average across sessions', color=color_mean)
     
 def get_percentile_value(x_range, curve, p=0.5):
 
-    y_point = min(curve) + ((max(curve) - min(curve)) * p)
+    y_point = np.min(curve) + ((np.max(curve) - np.min(curve)) * p)
     x_point = x_range[np.argmin(np.abs(curve - y_point))]
     return x_point, y_point
 
