@@ -3204,7 +3204,8 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
     return dict_auc
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_logspace=True,
-                              midpoint_fit=True, plot_labels=True):
+                              midpoint_fit=True, plot_labels=True, min_x=None, max_x=None,
+                              translate_to_min=False):
     np.seterr(divide='ignore')  # Ugly division by 0 error
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
@@ -3215,47 +3216,64 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_l
     all_dp = []
     n = 0
 
-    min_x = np.min(x_axis)
-    max_x = np.max(x_axis)
+    if min_x is None:
+        min_x = np.min(x_axis)
+    if max_x is None:
+        max_x = np.max(x_axis)
     
     for idx, dp in enumerate(subset_dprimes):
 
         all_dp.append(dp)
 
-        # Subtract the min val from the data and then add it
-        # back on later, to get the fit below 0 if required
-        min_val = np.min(dp)
-        dp = dp - min_val
+        if translate_to_min:
+            # Subtract the min val from the data and then add it
+            # back on later, to get the fit below 0 if required
+            min_val = np.min(dp)
+            dp = dp - min_val
         if fit_in_logspace: # set initial parameter values based on logspace bool
-            init_param = [np.max(dp), 1.2, 1]
+            init_param = [np.max(dp), 1.2, 0.01]
         else:
             init_param = [np.max(dp), 50, 200]
-        popt, pcov = scipy.optimize.curve_fit(pof.pf, x_axis, dp, method='dogbox', p0=init_param)
-        dp = dp + min_val
+        try:
+            popt, pcov = scipy.optimize.curve_fit(pof.pf, x_axis, dp, method='dogbox', p0=init_param)
+        except RuntimeError:
+            print('WARNING: an individual fit has not converged')
+            popt = init_param
+        x_arr = np.linspace(min_x, max_x, 1000)
+        if translate_to_min:
+            dp = dp + min_val
+            indiv_fit = pof.pf(x_arr, *popt) + min_val
+        else:
+            indiv_fit = pof.pf(x_arr, *popt)
 
         ax.plot(x_axis, dp, '.', color='grey', alpha=0.2)
-        x_arr = np.linspace(min_x, max_x, 1000)
-        ax.plot(x_arr, pof.pf(x_arr, *popt) + min_val,
+        ax.plot(x_arr, indiv_fit,
                 color='grey', alpha=0.3, label='Individual sessions')
 
     y = np.concatenate(all_dp)
     x = np.tile(x_axis, subset_dprimes.shape[0])
-    min_val = np.min(y)
-    y = y - min_val
+    if translate_to_min:
+        min_val = np.min(y)
+        y = y - min_val
     if fit_in_logspace:
-        init_param = [np.max(y), 1.2, 1]
+        init_param = [np.max(y), 1.2, 0.005]
     else:
         init_param = [np.max(y), 50, 200]
     popt, pcov = scipy.optimize.curve_fit(pof.pf, x, y, method='dogbox', p0=init_param)
-    y = y + min_val
-
+    if translate_to_min:
+        y = y + min_val
+        if verbose:
+            print('; min value: ', min_val)
     ## Compute error on midpoint:
     p_std = np.sqrt(np.diag(pcov))  # standard deviations of each parameter fit
     p_95ci = p_std / np.sqrt(len(x)) * 1.96  # convert to 95 ci
-    print('max_val, midpoint, growth:', popt, '95 ci of these', p_95ci)
+    if verbose:
+        print('max_val, midpoint, growth:', popt, '95 ci of these', p_95ci)
 
     x_range = np.linspace(min_x, max_x, 10001)
-    fit = pof.pf(x_range, *popt) + min_val
+    fit = pof.pf(x_range, *popt)
+    if translate_to_min:
+        fit += min_val
     ax.plot(x_range, fit, color='k', label='Average across sessions', linewidth=3)
     ax.set_ylabel('Behavioral accuracy (d\')')
     ax.set_xlabel('Number of cells targeted')
@@ -3263,11 +3281,16 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_l
     color_mean = 'k'
     if midpoint_fit:  # find midpoint of full fit (that can go beyond data range)
         n_cells_mid = popt[1]
-        dprime_mid = pof.pf(n_cells_mid, *popt) + min_val
+        if fit_in_logspace:
+            n_cells_mid_95ci = int(np.round(10 ** p_95ci[1]))
+        else:
+            n_cells_mid_95ci = int(np.round(p_95ci[1]))
+        dprime_mid = pof.pf(n_cells_mid, *popt)
+        if translate_to_min:
+            dprime_mid += min_val
     else:  # find midpoint of data range
         n_cells_mid, dprime_mid = get_percentile_value(x_range, fit)
-    print(n_cells_mid)
-
+    
     if fit_in_logspace:
         ax.set_xticks(ticks=np.log10([5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150]),
                     minor=True)
@@ -3276,20 +3299,28 @@ def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_l
         ax.set_xticklabels(['10', '100'])
         ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
         ax.hlines(y=dprime_mid, xmin=ax.get_xlim()[0], xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
-        ax.text(x=n_cells_mid + 0.1, y=-1, s=f'{round(10 ** n_cells_mid)} cells', color=color_mean) 
+        if midpoint_fit:
+            ax.text(x=n_cells_mid + 0.1, y=-1, s=f'{round(10 ** n_cells_mid)} ' + r"$\pm$" + f' {n_cells_mid_95ci} cells', color=color_mean) 
+        else:
+            ax.text(x=n_cells_mid + 0.1, y=-1, s=f'{round(10 ** n_cells_mid)} cells', color=color_mean) 
     else:
-        ax.set_xscale('log')
         ax.vlines(x=n_cells_mid, ymin=ax.get_ylim()[0], ymax=dprime_mid, color=color_mean, ls=':', lw=2)
         ax.hlines(y=dprime_mid, xmin=5, xmax=n_cells_mid, color=color_mean, ls=':', lw=2)
-        ax.set_xticks(ticks=[5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150],
-                    minor=True)
-        ax.set_xticks(ticks=[10, 100], minor=False)
-        ax.set_xticklabels([''] * 18, minor=True)
-        ax.set_xticklabels(['10', '100'])
-        ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
+        # ax.set_xscale('log')
+        # ax.set_xticks(ticks=[5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90, 110, 120, 130, 140, 150],
+        #             minor=True)
+        # ax.set_xticks(ticks=[10, 100], minor=False)
+        # ax.set_xticklabels([''] * 18, minor=True)
+        # ax.set_xticklabels(['10', '100'])
+        if midpoint_fit:
+            ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)}' + r"$\pm$" + f'{n_cells_mid_95ci} cells', color=color_mean)
+        else:
+            ax.text(x=n_cells_mid + 1, y=-1, s=f'{round(n_cells_mid)} cells', color=color_mean)
+  
         if plot_labels:
-            ax.text(x=4.5, y=3.5, s='Individual sessions', color='grey', alpha=1)
-            ax.text(x=4.5, y=3.2, s='Average across sessions', color=color_mean)
+            xcoord_labels = ax.get_xlim()[0]
+            ax.text(x=xcoord_labels, y=3.5, s='Individual sessions', color='grey', alpha=1)
+            ax.text(x=xcoord_labels, y=3.2, s='Average across sessions', color=color_mean)
     ax.set_yticks([-1, 0, 1, 2])
     despine(ax)
     
