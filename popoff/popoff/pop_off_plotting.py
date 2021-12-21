@@ -2810,7 +2810,6 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
         elif plot_type == 'connecting_lines':
             tmp_df = pd.DataFrame({'hit_zscore': all_hit,
                                    'miss_zscore': all_miss})
-            print(tmp_df)
             n_sessions = len(tmp_df)
             tmp_df['hit_xcoord'] = np.random.randn(n_sessions) * 0.1 + 1
             tmp_df['miss_xcoord'] = np.random.randn(n_sessions) * 0.1
