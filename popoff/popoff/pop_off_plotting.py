@@ -2151,16 +2151,20 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
                                                     weights=wls_weights)
             results = wls_model.fit()
             intercept, slope = results.params
+            pval_slope_wls = results.pvalues[1]
+            wpc = weighted_pearson_corr(x=fit_x, y=fit_y, w=wls_weights)
+            
             if verbose:
                 print('weighted regression')
                 if verbose > 1:
                     print(results.summary())
                 print('statsmodels intercept + slope:', intercept, slope)
-                print('p values', results.pvalues, 'r squard', results.tvalues)
-                print('weighted corr', weighted_pearson_corr(x=fit_x, y=fit_y, w=wls_weights))
+                print('p values', results.pvalues, 'r squard', results.rsquared)
+                print('weighted corr', wpc)
                 print('linear corr', np.corrcoef(fit_x, fit_y)[1, 0])
                 print("\n")
         else:
+            print('WARNING: using linear (non-weighted) regression')
             slope, intercept, r, p, se = scipy.stats.linregress(fit_x, fit_y)
             if verbose:
                 # print(label)
@@ -2169,6 +2173,13 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
                 print(f'p={p}')
                 print('\n')
         ax.plot(fit_x, fit_x * slope + intercept, color=color, linewidth=2)
+        if weighted_regression:
+            x_r = 0.05
+            y_r = 1.05
+            if label == 'miss':
+                y_r -= 0.1
+            ax.annotate(s=f'r={np.round(wpc, 2)} {asterisk_p(pval_slope_wls)}', 
+                        xy=(x_r, y_r), xycoords='axes fraction', c=color, clip_on=False)
        
     if indicate_spont_ci:
         ax.text(s='R.O. 95% CI', x=72, y=3)
@@ -2177,7 +2188,8 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
         ax.set_xscale('log')
     ax.set_xlabel('Number of cells targeted')
 
-def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', plot_legend=True, verbose=0):
+def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit', 
+                              plot_legend=True, verbose=0):
     if ax_s1 is None or ax_s2 is None:
         fig, (ax_s1, ax_s2) = plt.subplots(1, 2, figsize=(8, 3), gridspec_kw={'wspace': 0.4})
 
@@ -2199,17 +2211,16 @@ def plot_scatter_balance_stim(dict_activ_full, ax_s1=None, ax_s2=None, tt='hit',
             ax_dict[reg].scatter(arr_exc, arr_inh, color=color_tt[tt], s=np.power(n_stim, 0.7), label=int(n_stim))
         ax_dict[reg].set_xlabel('Fraction excited (%)')
         ax_dict[reg].set_ylabel('Fraction inhibited (%)')
-        # ax_dict[reg].set_title(f'E/I balance in {reg.upper()} on {tt} trials')
         despine(ax_dict[reg])
         equal_xy_lims(ax=ax_dict[reg], start_zero=True)
         pearson_r, pearson_p = scipy.stats.pearsonr(full_arr_exc[reg], full_arr_inh[reg])
         if verbose > 0:
             print(reg, pearson_r, pearson_p)
-        # ax_dict[reg].annotate(s=f'Pearson r = {np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}',
-        #                   xy=(0.05, 0.91), xycoords='axes fraction')  # top
-        # xy = (0.51, 0.045) if tt == 'miss' and reg == 's2' else (0.585, 0.045)
-        xy = (1.1, 0.045)
-        ax_dict[reg].annotate(s='r={:.2f}'.format(np.round(pearson_r, 2)) + f'\np < {readable_p(pearson_p)}',
+        # xy = (1.1, 0.045)
+        # ax_dict[reg].annotate(s='r={:.2f}'.format(np.round(pearson_r, 2)) + f'\np < {readable_p(pearson_p)}',
+        #                   xy=xy, xycoords='axes fraction', ha='right')
+        xy = (1, 0.045)
+        ax_dict[reg].annotate(s='r={:.2f}'.format(np.round(pearson_r, 2)) + f' {asterisk_p(pearson_p)}',
                           xy=xy, xycoords='axes fraction', ha='right')
     if plot_legend:
         ax_dict['s2'].annotate(s='Cells\ntargeted:', xy=(1.25, 0.77), xycoords='axes fraction')
@@ -2228,7 +2239,6 @@ def plot_spont(msm, region='s1', direction='positive', ax=None):
     ci = np.std(n_responders) / np.sqrt(len(n_responders)) * 1.96
     ax.fill_between([5, 150], [meaned - ci, meaned - ci], [meaned + ci, meaned + ci],
                      color=color_tt['spont'], alpha=0.2)
-
 
 def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-trials', ax=None,
                            plot_ps_artefact=False, art_150_included=True, verbose=1):

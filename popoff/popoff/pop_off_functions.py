@@ -1996,7 +1996,43 @@ def get_data_dict(lm_list, region, tt_plot=['hit', 'miss', 'cr', 'fp', 'spont'])
     
     return {k:np.array(v) for k, v in data_dict.items()}
     
-    
+def interdep_corr_balance(dict_activ_hit, dict_activ_miss, reg='s2'):
+    dict_activ_dict = {'hit': dict_activ_hit, 'miss': dict_activ_miss}
+    dict_exc, dict_inh = {}, {}
+    full_arr_all = {xx: {x: np.array([]) for x in ['hit', 'miss']} for xx in ['exc', 'inh']}
+    for tt in ['hit', 'miss']:
+        dict_exc[tt] = dict_activ_dict[tt][reg]['positive']
+        dict_inh[tt] = dict_activ_dict[tt][reg]['negative']
+        assert (dict_exc[tt].keys() == dict_inh[tt].keys())
+        list_nstim = list(dict_exc[tt].keys())
+
+    for n_stim in list_nstim:
+        arr_exc, arr_inh = {}, {}
+        for tt in ['hit', 'miss']:
+            arr_exc[tt] = 1
+            arr_exc[tt] = dict_exc[tt][n_stim].copy()
+            arr_inh[tt] = dict_inh[tt][n_stim].copy()
+        nn = np.where(np.logical_and(~np.isnan(arr_inh['hit']), ~np.isnan(arr_inh['miss'])))  # filter nans (when no trial present)
+        
+        for tt in ['hit', 'miss']:
+            arr_exc[tt] = arr_exc[tt][nn]
+            arr_inh[tt] = arr_inh[tt][nn]
+            full_arr_all['exc'][tt] = np.concatenate((full_arr_all['exc'][tt], arr_exc[tt].copy()))
+            full_arr_all['inh'][tt] = np.concatenate((full_arr_all['inh'][tt], arr_inh[tt].copy()))
+
+    corr_dict = {}
+    list_combi_tuples = [('hit', 'exc'), ('hit', 'inh'), ('miss', 'exc'), ('miss', 'inh')]
+    for i_tup_1 in range(4):
+        for i_tup_2 in range(i_tup_1, 4):
+            tup_1 = list_combi_tuples[i_tup_1]
+            tup_2 = list_combi_tuples[i_tup_2]
+            tt_1, res_1 = tup_1
+            tt_2, res_2 = tup_2
+            corr_dict[f'{tt_1}_{res_1} vs {tt_2}_{res_2}'] = np.corrcoef(full_arr_all[res_1][tt_1], 
+                                                                         full_arr_all[res_2][tt_2])[1, 0]
+
+    return corr_dict
+
 
 def transfer_dict(msm, region, direction='positive'):
     '''For each session, compute how many responding cells [in direction] there are 
