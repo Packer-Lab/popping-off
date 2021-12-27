@@ -202,6 +202,27 @@ def readable_p(p_val):
                 read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
     return read_p
 
+def readable_p_significance_statement(p_val, n_bonf=None):
+    if type(p_val) != float:
+        p_val = float(p_val)
+    if n_bonf is None:
+        n_bonf = 1
+
+    if p_val < 0.001 / n_bonf:
+        str_p = 'p < 0.001'
+        str_short = '***'
+    elif p_val < 0.01 / n_bonf:
+        str_p = 'p < 0.01'
+        str_short = '**'
+    elif p_val < 0.05 / n_bonf:
+        str_p = 'p < 0.05'
+        str_short = '*'
+    else:
+        str_p = f'p = {np.round(p_val, 2)}'
+        str_short = 'n.s.'
+
+    return str_p, str_short
+
 def asterisk_p(p_val, bonf_correction=1):
     if type(p_val) == str:
         p_val = float(p_val)
@@ -2846,7 +2867,8 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
 
         if verbose > 0:
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
-        tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
+        # tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
+        tmp_ax.set_title(f'{covar_labels[cov_name]}\n{readable_p_significance_statement(p_val, n_bonf=bonf_n_tests)[0]}')
 
 def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='mean_pre', 
                                         n_bonferoni=3,
@@ -3166,7 +3188,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         assert False, 'plot type not recognised'
     
 def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True, 
-                          ax=None, color_dict=None, plot_legend=True):
+                          ax=None, color_dict=None, plot_legend=True, add_p=True):
     n_sessions = len(lm_list)
     bar_names = ['targets_s1', 'nontargets_s1', 'nontargets_s2']
     if dict_auc == None:
@@ -3188,6 +3210,7 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
 
     mean_arr = np.array([np.mean(dict_auc[bar_name]) for bar_name in bar_names])
     std_arr = np.array([np.std(dict_auc[bar_name]) for bar_name in bar_names])
+    p_val_arr = np.array([scipy.stats.wilcoxon(dict_auc[bar_name])[1] for bar_name in bar_names])
     ci_arr = std_arr * 1.96 / np.sqrt(n_sessions)
 
     if ax is None:
@@ -3209,6 +3232,8 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
         for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
             ax.text(s=tt, x=0.6, va='top',
                     y=start_y - idx * 1.75, fontdict={'color': color_dict[idx]})
+            ax.text(s=readable_p_significance_statement(p_val=p_val_arr[idx], n_bonf=3)[1],
+                    x=idx + 0.02, y=-5, fontdict={'ha': 'center'})
 
     return dict_auc
 
