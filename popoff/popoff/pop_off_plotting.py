@@ -2826,7 +2826,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
             for tt in ['hit', 'miss']:
                 tmp_ax.plot(tmp_df[f'{tt}_xcoord'], tmp_df[f'{tt}_zscore'], '.', 
                             color='k',#('k' if bool_sign else 'grey'), 
-                            markersize=15)
+                            markersize=10)
             for i_s in range(n_sessions):
                 tmp_ax.plot([tmp_df['miss_xcoord'][i_s], tmp_df['hit_xcoord'][i_s]],
                             [tmp_df['miss_zscore'][i_s], tmp_df['hit_zscore'][i_s]],
