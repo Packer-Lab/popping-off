@@ -181,7 +181,6 @@ def readable_p(p_val):
         assert len(p_val) == 6 and p_val[1:3] == 'e-', p_val 
         exponent = p_val[-3:]
         read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
-    
     else:
         if p_val == '1e+00' or p_val == '1e-00':
             read_p = '1.0'
@@ -200,6 +199,39 @@ def readable_p(p_val):
                 else:
                     exponent = p_val[-2:]
                 read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+    return read_p
+
+def readable_p_exact(p_val):
+    if type(p_val) !=  float:
+        p_val = float(p_val)
+
+    if p_val >= 0.01:
+        read_p = str(np.round(p_val, 2))
+    elif p_val >= 0.001: 
+        read_p = str(np.round(p_val, 3))
+    else:
+        tmp = np.format_float_scientific(p_val, precision=0)  # round to nearest
+        p_val = tmp[0] + tmp[2:]  # skip dot
+        if p_val[2] == 'e':
+            assert p_val[:4] == '10e-', p_val
+            tmp_exp = int(p_val[-2:])
+            p_val = f'1e-{str(tmp_exp - 1).zfill(2)}'
+
+        if len(p_val) > 5:
+            assert len(p_val) == 6 and p_val[1:3] == 'e-', p_val 
+            exponent = p_val[-3:]
+            read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+        else:
+            assert p_val[2] == '-', f'p value is greater than 1, p val: {p_val}'
+
+            if int(p_val[-2:]) < 10:
+                exponent = p_val[-1]
+            else:
+                exponent = p_val[-2:]
+            read_p = f'{p_val[0]}x' + r"$10^{{-{tmp}}}$".format(tmp=exponent)  # for curly brackets explanation see https://stackoverflow.com/questions/53781815/superscript-format-in-matplotlib-plot-legend
+
+            if read_p == '1x$10^{-3}$':  # can happen from rounding up fronm eg 0.0099 
+                read_p = '0.001'
     return read_p
 
 def readable_p_significance_statement(p_val, n_bonf=None):
@@ -2868,7 +2900,7 @@ def scatter_plots_covariates(cov_dicts, ax_dict=None, lims=(-0.6, 0.6),
         if verbose > 0:
             print(cov_name, p_val, readable_p(p_val), np.sum(all_hit > all_miss))
         # tmp_ax.set_title(f'{covar_labels[cov_name]}\np < {readable_p(p_val)}')
-        tmp_ax.set_title(f'{covar_labels[cov_name]}\n{readable_p_significance_statement(p_val, n_bonf=bonf_n_tests)[0]}')
+        tmp_ax.set_title(f'{covar_labels[cov_name]}\np = {readable_p_exact(p_val)}')
 
 def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='mean_pre', 
                                         n_bonferoni=3,
@@ -2903,7 +2935,7 @@ def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='me
     ax.plot(arr_1, arr_2, '.', c=c_dots, markersize=5)
     ax.set_xlabel(covar_labels[covar_1])
     ax.set_ylabel(covar_labels[covar_2])
-    ax.set_title(f'r={np.round(corr_coef, 2)}, p < {readable_p(p_val)}')
+    ax.set_title(f'r={np.round(corr_coef, 2)}, p = {readable_p_exact(p_val)}')
     despine(ax)
     
 def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=False,
