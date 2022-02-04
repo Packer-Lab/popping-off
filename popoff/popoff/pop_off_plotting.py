@@ -2196,9 +2196,6 @@ def plot_transfer_function(dict_activ, label=None, ax=None, verbose=0, plot_logs
         fit_x = np.array(fit_x)
         fit_y = np.array(fit_y)
         if weighted_regression:
-            # sklearn_wls_model = sklearn.linear_model.LinearRegression()
-            # sklearn_wls_model.fit(fit_x.reshape(-1, 1), fit_y, sample_weight=wls_weights)
-            # print(sklearn_wls_model.intercept_, sklearn_wls_model.coef_)
             fit_x_with_intercept = statsmodels.api.add_constant(fit_x)
             wls_model = statsmodels.regression.linear_model.WLS(fit_y, fit_x_with_intercept,
                                                     weights=wls_weights)
