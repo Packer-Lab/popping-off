@@ -7,7 +7,7 @@ Code for analysis of neural data obtained in Packer lab, Oxford.
 - Clone repository
 - To install the correct Python packages, please build a conda environment from the `pope.yml` file.
 - Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
-- Add a profile to `data_paths.json`, with links to your local paths. 
+- Add a profile to `data_paths.json`, with links to your local paths. (`base_path` should be the path that the `.pkl` data is in. `Vape_path` should be the directory the Vape repository is in. The other two are not needed for data analysis (only for pre-processing).
 - Install pop-off by going to /popping-off/popoff/ and running `python setup.py develop`
 
 ## Data:
