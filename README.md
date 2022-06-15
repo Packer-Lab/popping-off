@@ -1,14 +1,21 @@
 # Photostimulation Of Population Obviously Fuels Firing
 
-Code for analysis of neural data obtained in Packer lab, Oxford. 
+Code for analysis of all-optical neural data obtained in Packer lab, Oxford. 
+This is the data of the following preprint:
 
-## Instructions:
+https://www.biorxiv.org/content/10.1101/2021.12.28.474343v1
+
+
+## Instructions for installation repo:
 
 - Clone repository
 - To install the correct Python packages, please build a conda environment from the `pope.yml` file.
 - Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
 - Add a profile to `data_paths.json`, with links to your local paths. (`base_path` should be the path that the `.pkl` data is in. `Vape_path` should be the directory the Vape repository is in. The other two are not needed for data analysis (only for pre-processing).
 - Install pop-off by going to /popping-off/popoff/ and running `python setup.py develop`
+
+
+# Additional detail (not necessary for getting started)
 
 ## Data:
 - To build sessions.pkl files run 'python Session.py' from command line and enter flu_flavour through cli. A new .pkl file will be built for each flu_flavour
