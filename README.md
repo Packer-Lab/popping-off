@@ -44,12 +44,9 @@ One requires the repo VAPE for data pre-processing. Furthermore, some routines i
 
 -------------
 
-To use OASIS for spike deconvolution, one needs to install their package. To do so, clone this repo: 
+To use OASIS for spike deconvolution in some places, one needs to install their package. To do so, clone this repo: 
 https://github.com/j-friedrich/OASIS
 and follow their python installation instructions.
+(Not necessary for the majority of analyses)
 
-------------
-
-To use demixing PCA, one must install their package. To do so, clone this repo: https://github.com/machenslab/dPCA/tree/master/python/
-and follow their python installation instructions..
 
