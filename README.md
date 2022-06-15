@@ -8,7 +8,8 @@ https://www.biorxiv.org/content/10.1101/2021.12.28.474343v1
 
 ## Instructions for installation repo:
 
-- Clone this repository
+- Clone or fork this repository
+- Clone the dependence `Vape`: https://github.com/Packer-Lab/Vape
 - To install the correct Python packages, please build a conda environment from the `pope.yml` file, using the following terminal command `conda env create -f pope.yml`.
 - Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
 - Add a profile to `popping-off/data_paths.json`, with links to your local paths. (`base_path` should be the path that the `.pkl` data set is in. `Vape_path` should be the directory the Vape repository (also from Packer-Lab Github) is in. The other two entries are not needed for data analysis (only for pre-processing).
