@@ -13,7 +13,7 @@ https://www.biorxiv.org/content/10.1101/2021.12.28.474343v1
 - Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
 - Add a profile to `popping-off/data_paths.json`, with links to your local paths. (`base_path` should be the path that the `.pkl` data set is in. `Vape_path` should be the directory the Vape repository (also from Packer-Lab Github) is in. The other two entries are not needed for data analysis (only for pre-processing).
 - Install pop-off by going to your local repo path `/popping-off/popoff/` and running `python setup.py develop`
-
+- Get started by opening the data-loading routine and short tutorial on data structure, available in `popping-off/notebooks/Example notebook to load data.ipynb`
 
 # Additional detail (not necessary for getting started)
 
