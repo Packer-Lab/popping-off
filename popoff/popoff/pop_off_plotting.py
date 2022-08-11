@@ -3433,8 +3433,56 @@ def plot_accuracy_n_cells_stim_CI(ax=None, subset_dprimes=None):
 
     ax.set_xscale('log')
 
+def get_first_lick_spont(lick_time_array, reward_delivery_array, verbose=0):
+    lick_time_array = copy.deepcopy(lick_time_array)
+    first_lick_array = np.zeros_like(reward_delivery_array, dtype=np.float)
+
+    for i_rew, rew_time in enumerate(reward_delivery_array):
+        diff_lick_time = lick_time_array - rew_time 
+
+        ## while loop to avoid picking negative values
+        first_lick_relative = -1  # start value
+        first_lick_indices = np.argsort(np.abs(diff_lick_time))
+        i_ind = -1
+        while first_lick_relative <= 0:
+            i_ind += 1
+            first_lick_index = first_lick_indices[i_ind]
+            first_lick = lick_time_array[first_lick_index]
+            if np.isin(first_lick, reward_delivery_array):  # something fishy here
+                continue
+            first_lick_relative = first_lick - rew_time
+        if verbose > 1:
+            print([lick_time_array[x] for x in first_lick_indices[:5]], i_ind, rew_time)
+        if verbose > 0:
+            print(f'Reward at {rew_time}, first lick at {first_lick} or {first_lick_relative}')
+        first_lick_array[i_rew] = first_lick_relative
+
+        ## exception clausules for no lick:
+        if i_rew == len(reward_delivery_array) - 1:  # last reward 
+            if first_lick < rew_time: # no licks apparently after reward
+                assert False, 'double check - no licks after final reward time'
+                ## I'll just put an assert here - don't expect this to ever occur so might be something wrong with data if it would happen
+        else:
+            if first_lick > reward_delivery_array[i_rew + 1]:  # if first lick actually occurs after next reward
+                print('double check - no licks associated with this reward delivery')
+                first_lick_array[i_rew] = np.nan  # no lick => nan
+                ## also don't expect this to happen 
+
+    return first_lick_array
+
 def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
-                          tt_plot_list=['hit', 'miss', 'fp', 'cr', 'too_', 'urh', 'arm']):
+                          tt_plot_list=['hit', 'miss', 'fp', 'cr', 'too_', 'urh', 'arm', 'spont']):
+    '''Plot histogram of time of first lick of each trial'''
+
+    include_spont = 'spont' in tt_plot_list 
+    if include_spont:
+        for i_lm, lm in enumerate(lms):
+            if hasattr(lm.session, 'run'):
+                continue 
+            else:
+                include_spont = False 
+                break 
+
     arr_first_lick_total = np.array([])
     arr_outcome_total = np.array([])
     arr_session_total = np.array([])
@@ -3442,28 +3490,49 @@ def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
     dict_count_greater_cutoff = {x: 0 for x in tt_plot_list}
     for i_lm, lm in enumerate(lms):
         session = lm.session
-        binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]
+        binned_licks = np.array(session.spiral_lick)[lm.session.nonnan_trials]  # list of lick times (in array) per trial
         trial_subsets = session.trial_subsets
         outcome = session.outcome
         assert len(binned_licks) == len(outcome)
         assert len(binned_licks) == len(trial_subsets)
+
+        ## all regular trial types:
         for tt in np.unique(outcome):
             inds_tt = np.where(outcome == tt)[0]
             arr_tt = binned_licks[inds_tt]  # array of trials; for each trial an array of lick times
-            arr_first_lick = np.array([(x[0] if len(x) > 0 else np.nan) for x in arr_tt])
-            n_no_lick = np.sum(np.array([len(x) for x in arr_tt]) == 0)
-            n_greater_cutoff = np.sum(arr_first_lick > cutoff_time)
+            arr_first_lick = np.array([(x[0] if len(x) > 0 else np.nan) for x in arr_tt])  # array of first licks of all trials of this outcome
+            n_no_lick = np.sum(np.array([len(x) for x in arr_tt]) == 0)  # number of no licks
+            n_greater_cutoff = np.sum(arr_first_lick > cutoff_time)  # n licks greater than hist plot cutoff
             if tt in tt_plot_list:  # add no licks trials and greater than cutoff
                 dict_count_no_lick[tt] += n_no_lick
                 dict_count_greater_cutoff[tt] += n_greater_cutoff
                 if tt == 'hit' and n_no_lick > 0:
                     print(lm.session, tt, n_no_lick, np.sum(lm.session.first_lick[inds_tt] == None))
-                    # return arr_tt
             arr_outcome = outcome[inds_tt]
             arr_session = [session.name] * len(arr_outcome)
             arr_first_lick_total = np.concatenate((arr_first_lick_total, arr_first_lick))
             arr_outcome_total = np.concatenate((arr_outcome_total, arr_outcome))
             arr_session_total = np.concatenate((arr_session_total, arr_session))
+        
+        ## spont:
+        if include_spont:
+            tt = 'spont'
+            first_lick_array = get_first_lick_spont(lick_time_array=session.run.pre_licks, 
+                                                    reward_delivery_array=session.run.pre_reward)
+            ## no lick, greater cutoff 
+            n_no_lick = np.sum(np.isnan(first_lick_array))  # number of no licks
+            n_greater_cutoff = np.sum(first_lick_array > cutoff_time)  # n licks greater than hist plot cutoff
+            print(n_no_lick, n_greater_cutoff, session)
+            dict_count_no_lick[tt] += n_no_lick
+            dict_count_greater_cutoff[tt] += n_greater_cutoff
+        
+            n_spont = len(first_lick_array)
+            arr_outcome = ['spont'] * n_spont
+            arr_session = [session.name] * len(arr_outcome)
+            arr_first_lick_total = np.concatenate((arr_first_lick_total, first_lick_array))
+            arr_outcome_total = np.concatenate((arr_outcome_total, arr_outcome))
+            arr_session_total = np.concatenate((arr_session_total, arr_session))
+
     df = pd.DataFrame({'session': arr_session_total,
                        'first_lick': arr_first_lick_total,
                        'outcome': arr_outcome_total})    
@@ -3503,6 +3572,24 @@ def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
         ax_extra.set_xlim([0.2, 1.8])
         ax_extra.set_xticklabels(['>2000 ms', 'No lick'], rotation=30, ha='right')
     return df
+
+def plot_density_lick_times(df_licktimes, ax=None, tt_list=['hit', 'spont'],
+                            min_time=0, max_time=2000):
+    if ax is None:
+        fig, ax = plt.subplots(1, 2, figsize=(10, 4), gridspec_kw={'wspace': 0.5})
+
+    bins = np.linspace(min_time, max_time, 100)
+    for i_tt, tt in enumerate(tt_list):
+        arr = np.array(df_licktimes[df_licktimes['outcome'] == tt]['first_lick'])
+        tmp = ax[0].hist(arr, bins=bins, density=True, histtype='step', label=tt, linewidth=2, edgecolor=color_tt[tt])
+        ax[1].plot(tmp[1], np.concatenate((np.array([0]), np.cumsum(tmp[0]))) * np.mean(np.diff(tmp[1])), c=color_tt[tt], linewidth=2)
+    ax[0].legend(frameon=False)
+    for ii in range(2):
+        despine(ax[ii])
+        ax[ii].set_xlabel('First lick (ms)')
+    ax[0].set_ylabel('PDF')
+    ax[1].set_ylabel('CDF')
+    return tmp
 
 def lick_raster(lm, fig=None, trial_schematic=False):
     CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
