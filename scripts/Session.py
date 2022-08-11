@@ -163,7 +163,7 @@ def build_flu_array_single(run, use_spks=False, use_comps=False, use_pupil=False
 
 class Session:
     """Class containing all info and data of 1 imaging session, as saved in a run.pkl file."""
-    def __init__(self, mouse, run_number, pkl_path, remove_nan_trials=True,
+    def __init__(self, mouse, run_number, pkl_path, flu_flavour='flu', remove_nan_trials=True,
                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
                 verbose=1, filter_threshold=10):
         """Initialize parameters and call all Class methods (except shuffle_labels()) to construct attributes.
@@ -203,6 +203,9 @@ class Session:
         self.verbose = verbose  # 1: only important info (i.e. user end); 2: all info (debug end)
         self.shuffled_s1s2_labels_indicator = False
         self.shuffled_trial_labels_indicator = False
+
+        assert flu_flavour == 'flu', 'Only flu implemented as flu_flavour for Session object. See SessionLite for how to incorporate other values such as raw and denoised flu.'
+        self.flu_flavour = flu_flavour  # otherwise not used, but added for backwards compability with SessionLite 
 
         self.load_data(vverbose=self.verbose)  # load data from pkl path
 
@@ -575,8 +578,7 @@ class Session:
 
         
 class SessionLite(Session):
-    ''' Does the same job as Session, using inheritence out of laziness to not combine 
-        todo -- combine classes '''
+    ''' Does the same job as Session, using inheritence, but removes large-size objects run and flu for memory effiency '''
 
     def __init__(self, mouse, run_number, pkl_path, flu_flavour, remove_nan_trials=True,
                 pre_seconds=4, post_seconds=6, pre_gap_seconds=0.2, post_gap_seconds=0.6,
@@ -676,9 +678,10 @@ def only_numerics(seq):
     return seq_type().join(filter(seq_type.isdigit, seq))
 
 def load_files(save_dict, data_dict, folder_path, flu_flavour,
-               pre_seconds=4, post_seconds=6):
+               pre_seconds=4, post_seconds=6, session_type='lite'):
     total_ds = 0
     debug = False
+    assert session_type in ['full', 'lite']
     for mouse in data_dict.keys():
         
         if mouse in ['J048', 'RL048']:  # Drop the 5Hz data for now
@@ -691,11 +694,19 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour,
                 continue
 
             try:
-                session = SessionLite(mouse, run_number, folder_path, 
-                                      flu_flavour=flu_flavour, pre_gap_seconds=0,
-                                      post_gap_seconds=0, pre_seconds=pre_seconds, 
-                                      post_seconds=post_seconds, 
-                                      filter_threshold=10)
+                if session_type == 'full':
+                    session = Session(mouse=mouse, run_number=run_number, pkl_path=folder_path, 
+                                        flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                        post_gap_seconds=0, pre_seconds=pre_seconds, 
+                                        post_seconds=post_seconds, 
+                                        filter_threshold=10)
+
+                elif session_type == 'lite':
+                    session = SessionLite(mouse=mouse, run_number=run_number, pkl_path=folder_path, 
+                                        flu_flavour=flu_flavour, pre_gap_seconds=0,
+                                        post_gap_seconds=0, pre_seconds=pre_seconds, 
+                                        post_seconds=post_seconds, 
+                                        filter_threshold=10)
 
                 save_dict[total_ds] = session
                 total_ds += 1
@@ -707,20 +718,26 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour,
 
 if __name__ == '__main__':
 
-    flu_flavour = input('Enter a flu_flavour, valid entries are: [dff, raw, denoised, spks]\n\n')
+    session_type = input('Enter session type: [full, lite]. Full will include original run and flu files and therefore have larger memory footprint')
+    assert session_type in ['full', 'lite'], f'session type {session_type} not recognised'
 
-    if flu_flavour == 'dff':
+    if session_type == 'full':
         flu_flavour = 'flu'
-    elif flu_flavour == 'denoised':
-        flu_flavour = 'denoised_flu'
-    elif flu_flavour == 'raw':
-        flu_flavour = 'flu_raw'
-    elif flu_flavour == 'spks':
-        flu_flavour = 'spks'
-    else:
-        print('Invalid flu_flavour')
-        time.sleep(2)
-        raise ValueError
+    elif session_type == 'lite':    
+        flu_flavour = input('Enter a flu_flavour, valid entries are: [dff, raw, denoised, spks]\n\n')
+
+        if flu_flavour == 'dff':
+            flu_flavour = 'flu'
+        elif flu_flavour == 'denoised':
+            flu_flavour = 'denoised_flu'
+        elif flu_flavour == 'raw':
+            flu_flavour = 'flu_raw'
+        elif flu_flavour == 'spks':
+            flu_flavour = 'spks'
+        else:
+            print('Invalid flu_flavour')
+            time.sleep(2)
+            raise ValueError
 
     pkl_path = USER_PATHS_DICT['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
 
@@ -751,13 +768,13 @@ if __name__ == '__main__':
 
     sessions, total_ds = load_files(save_dict=sessions, data_dict=run_dict,
                                     folder_path=pkl_path, flu_flavour=flu_flavour,
-                                    pre_seconds=8,
-                                    post_seconds=6)
+                                    pre_seconds=8, post_seconds=6, 
+                                    session_type=session_type)
 
     dt = datetime.datetime.now()
     timestamp = str(dt.date())# + '-' + str(dt.hour).zfill(2) + str(dt.minute).zfill(2)      
 
-    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_lite_{flu_flavour}_{timestamp}.pkl')
+    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_{session_type}_{flu_flavour}_{timestamp}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
