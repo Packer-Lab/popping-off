@@ -782,7 +782,8 @@ if __name__ == '__main__':
     if save_option == 'local':
         dir_path = USER_PATHS_DICT['base_path']
     elif save_option == 'qnap':
-        dir_path = USER_PATHS_DICT['pkl_path']
+        # dir_path = USER_PATHS_DICT['pkl_path']  # no writing permissions to qnap_Root
+        dir_path = "/mnt/qnap_share/" 
     save_path = os.path.expanduser(f'{dir_path}/sessions_{session_type}_{flu_flavour}_{timestamp}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
