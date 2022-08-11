@@ -14,6 +14,14 @@
       "oasis_path": "~/repos/OASIS"
               }
     },
+    "root": 
+    {"paths": {
+      "base_path": "/home/tplas/data/mice",
+      "vape_path": "/home/tplas/repos/Vape",
+      "pkl_path":  "/mnt/qnap_Root/jrowland/run_pkls",
+      "oasis_path": "/home/tplas/repos/OASIS"
+              }
+    },
   "thijs": 
     {"paths": {
       "base_path": "~/data_jimmy",
