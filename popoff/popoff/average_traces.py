@@ -12,7 +12,7 @@ from scipy import stats
 from statsmodels.stats import multitest
 
 
-from Session import SessionLite
+from Session import SessionLite, Session
 from loadpaths import loadpaths
 
 ## Wes Anderson color palette
@@ -78,17 +78,18 @@ class AverageTraces():
     def load_sessions(self, ts='2021-10-22'):
 
         base_path = self.user_paths['base_path']
-        if self.flu_flavour == 'denoised_flu':
-            sessions_file = f'sessions_lite_denoised_flu_{ts}.pkl'
-        elif self.flu_flavour == 'dff':
-            sessions_file = f'sessions_lite_flu_{ts}.pkl'
-        elif self.flu_flavour == 'spks':
-            sessions_file = f'sessions_lite_spks_{ts}.pkl'
-        elif self.flu_flavour == 'raw':
-            sessions_file = f'sessions_lite_flu_raw_{ts}.pkl'
-        else:
-            raise ValueError('flu_flavour not recognised')
+        # if self.flu_flavour == 'denoised_flu':
+        #     sessions_file = f'sessions_lite_denoised_flu_{ts}.pkl'
+        # elif self.flu_flavour == 'dff':
+        #     sessions_file = f'sessions_lite_flu_{ts}.pkl'
+        # elif self.flu_flavour == 'spks':
+        #     sessions_file = f'sessions_lite_spks_{ts}.pkl'
+        # elif self.flu_flavour == 'raw':
+        #     sessions_file = f'sessions_lite_flu_raw_{ts}.pkl'
+        # else:
+        #     raise ValueError('flu_flavour not recognised')
             
+        sessions_file = 'sessions_full_flu_2022-08-11.pkl'
         sessions_path = os.path.join(base_path, sessions_file)
                                  
         with open(sessions_path, 'rb') as f:
