@@ -616,7 +616,8 @@ class Session:
                     print('double check - no licks associated with this reward delivery')
                     first_lick_array[i_rew] = np.nan  # no lick => nan (= None in np arrays)
                     ## also don't expect this to happen 
-
+        self.first_lick_spont = first_lick_array
+        
         if store_spont_licks:
             self.pre_licks = self.run.pre_licks 
             self.pre_reward = self.run.pre_reward
