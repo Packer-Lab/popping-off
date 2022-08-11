@@ -328,6 +328,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             if equalize_n_trials_per_tt:
                 # print('start', len(trial_inds))#, session.outcome[trial_inds])
                 dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
+                dict_firstlick_per_tt = {x: session.first_lick[trial_inds][dict_trials_per_tt[x]] for x in list_tt_training if x is not 'spont'}
+                dict_firstlick_per_tt['spont'] = session.first_lick_spont  # add manually
                 if 'spont' not in list_tt_training:
                     if hard_set_10_trials is False:
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
@@ -344,7 +346,14 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 new_trial_inds = np.array([], dtype='int')
                 for tt, v in dict_trials_per_tt.items():
                     # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
-                    new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
+                    sample_according_to_spont_lick_time_distr = False
+                    if sample_according_to_spont_lick_time_distr:
+                        sorted_v, new_density_v = pop.pop.subsample_lick_times(truth_lick_times=dict_firstlick_per_tt['spont'],
+                                                                               sampled_lick_times=dict_firstlick_per_tt[tt],
+                                                                               sampled_data=v, n_bins=5)
+                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=sorted_v, size=min_n_trials, replace=False, p=new_density_v)))  # random subsample of trials
+                    else:
+                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
                 trial_inds = trial_inds[new_trial_inds]
                 # print('end', len(trial_inds))#, session.outcome[trial_inds])
             
