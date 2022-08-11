@@ -222,7 +222,8 @@ class Session:
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
         self.get_targets()
 
-        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
+        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan trials
+        self.get_first_lick_spont()
         delattr(self.run, 'x_galvo_uncaging')   # to free memory
 
     def __str__(self):
@@ -556,7 +557,6 @@ class Session:
         self.s2_bool = np.logical_not(self.s1_bool)
         self.shuffled_s1s2_labels_indicator = True
 
-
     def get_targets(self):
         
         gt = rf.GetTargets(self.run)
@@ -577,6 +577,53 @@ class Session:
                     # print("S1 CHECK FAILED")
                     # print(self.run.stat[n]['original_index'])
             # n += 1
+
+    def get_first_lick_spont(self, lick_time_array=None, reward_delivery_array=None, 
+                             verbose=0, store_spont_licks=True):
+        if lick_time_array is None:
+            lick_time_array = self.run.pre_licks 
+        if reward_delivery_array is None:
+            reward_delivery_array = self.run.pre_reward
+
+        lick_time_array = copy.deepcopy(lick_time_array)
+        first_lick_array = np.zeros_like(reward_delivery_array, dtype=np.float)
+
+        for i_rew, rew_time in enumerate(reward_delivery_array):
+            diff_lick_time = lick_time_array - rew_time 
+
+            ## while loop to avoid picking negative values
+            first_lick_relative = -1  # start value
+            first_lick_indices = np.argsort(np.abs(diff_lick_time))
+            i_ind = -1
+            while first_lick_relative <= 0:
+                i_ind += 1
+                first_lick_index = first_lick_indices[i_ind]
+                first_lick = lick_time_array[first_lick_index]
+                if np.isin(first_lick, reward_delivery_array):  # something fishy here
+                    continue
+                first_lick_relative = first_lick - rew_time
+            if verbose > 1:
+                print([lick_time_array[x] for x in first_lick_indices[:5]], i_ind, rew_time)
+            if verbose > 0:
+                print(f'Reward at {rew_time}, first lick at {first_lick} or {first_lick_relative}')
+            first_lick_array[i_rew] = first_lick_relative
+
+            ## exception clausules for no lick:
+            if i_rew == len(reward_delivery_array) - 1:  # last reward 
+                if first_lick < rew_time: # no licks apparently after reward
+                    assert False, 'double check - no licks after final reward time'
+                    ## I'll just put an assert here - don't expect this to ever occur so might be something wrong with data if it would happen
+            else:
+                if first_lick > reward_delivery_array[i_rew + 1]:  # if first lick actually occurs after next reward
+                    print('double check - no licks associated with this reward delivery')
+                    first_lick_array[i_rew] = np.nan  # no lick => nan (= None in np arrays)
+                    ## also don't expect this to happen 
+
+        if store_spont_licks:
+            self.pre_licks = self.run.pre_licks 
+            self.pre_reward = self.run.pre_reward
+
+        return first_lick_array
 
         
 class SessionLite(Session):
@@ -633,7 +680,8 @@ class SessionLite(Session):
         self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)  
         self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.get_targets()
-        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan traisl
+        self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan trials
+        self.get_first_lick_spont()
         self.clean_obj()
 
     # def filter_neurons(self, vverbose=1, abs_threshold_df=10, abs_threshold_spks=1):
