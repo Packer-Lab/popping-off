@@ -220,6 +220,8 @@ class Session:
         self.filter_neurons(vverbose=self.verbose, abs_threshold=filter_threshold)  #filter neurons based on mean abs values
         self.define_s1_s2()   # label s1 and s2 identity of neurons
         self.label_trials(vverbose=self.verbose)  # label trial outcomes
+        self.get_targets()
+
         self.remove_nan_trials_inplace(vverbose=self.verbose)  # remove nan trials
         self.get_first_lick_spont()
         delattr(self.run, 'x_galvo_uncaging')   # to free memory
@@ -767,7 +769,7 @@ def load_files(save_dict, data_dict, folder_path, flu_flavour,
 
 if __name__ == '__main__':
 
-    session_type = input('Enter session type: [full, lite]. Full will include original run and flu files and therefore have larger memory footprint')
+    session_type = input('Enter session type: [full, lite]. Full will include original run and flu files and therefore have larger memory footprint.\n\n')
     assert session_type in ['full', 'lite'], f'session type {session_type} not recognised'
 
     if session_type == 'full':
@@ -787,6 +789,9 @@ if __name__ == '__main__':
             print('Invalid flu_flavour')
             time.sleep(2)
             raise ValueError
+
+    save_option = input('Save locally (base path) or on qnap? [local, qnap]\n\n')
+    assert save_option in ['local', 'qnap']
 
     pkl_path = USER_PATHS_DICT['pkl_path']  #'/home/jrowland/Documents/code/Vape/run_pkls'
 
@@ -823,7 +828,12 @@ if __name__ == '__main__':
     dt = datetime.datetime.now()
     timestamp = str(dt.date())# + '-' + str(dt.hour).zfill(2) + str(dt.minute).zfill(2)      
 
-    save_path = os.path.expanduser(f'{USER_PATHS_DICT["base_path"]}/sessions_{session_type}_{flu_flavour}_{timestamp}.pkl')
+    if save_option == 'local':
+        dir_path = USER_PATHS_DICT['base_path']
+    elif save_option == 'qnap':
+        # dir_path = USER_PATHS_DICT['pkl_path']  # no writing permissions to qnap_Root
+        dir_path = "/mnt/qnap_share/" 
+    save_path = os.path.expanduser(f'{dir_path}/sessions_{session_type}_{flu_flavour}_{timestamp}.pkl')
     # dd.io.save(save_path, sessions)
     with open(save_path, 'wb') as f:
         pickle.dump(sessions, f)
