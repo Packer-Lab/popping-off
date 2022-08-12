@@ -3638,7 +3638,7 @@ def subsample_lick_times(truth_lick_times, sampled_lick_times, sampled_data,
 
     sorted_unw_dens_other = sorted_unw_dens_other / np.sum(sorted_unw_dens_other)  # normalise
 
-    sorted_sampled_data = sorted_sampled_data.astype('float')
+    sorted_sampled_data = sorted_sampled_data.astype('int')
     sorted_unw_dens_other = np.array(sorted_unw_dens_other).astype('float')
     # so now you can sample using np.random.choice(a=sorted_sample_data, p=sorted_unw_dens_other)
     return sorted_sampled_data, sorted_unw_dens_other  # the (sorted) sample data, and its new density

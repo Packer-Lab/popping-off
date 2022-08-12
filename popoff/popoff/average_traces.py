@@ -89,7 +89,7 @@ class AverageTraces():
         # else:
         #     raise ValueError('flu_flavour not recognised')
             
-        sessions_file = 'sessions_full_flu_2022-08-11.pkl'
+        sessions_file = 'sessions_lite_flu_2022-08-11.pkl'
         sessions_path = os.path.join(base_path, sessions_file)
                                  
         with open(sessions_path, 'rb') as f:
