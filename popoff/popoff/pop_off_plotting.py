@@ -3573,13 +3573,13 @@ def plot_density_hist_licktimes(df_licktimes, ax=None, tt_list=['hit', 'spont'],
     dict_licktimes = {}
     for i_tt, tt in enumerate(tt_list):
         dict_licktimes[tt] = np.array(df_licktimes[df_licktimes['outcome'] == tt]['first_lick'])
-           
+        print(tt, np.sum(dict_licktimes[tt] > max_time), len(dict_licktimes[tt]))
     ax.hist([dict_licktimes[tt] for tt in tt_list], bins=bins, density=True,
-            label=tt_list, linewidth=2, c=[color_tt[tt] for tt in tt_list])
-    ax.legend(frameon=False)
+            label=tt_list, color=[color_tt[tt] for tt in tt_list])
+    # ax.legend(frameon=False)
     despine(ax)
-    ax.set_xlabel('First lick (ms)')
-    ax.set_ylabel('PDF')
+    ax.set_xlabel('Response time (ms)')
+    ax.set_ylabel('Density')
     
 
 def plot_density_lick_times(df_licktimes, ax=None, tt_list=['hit', 'spont'],
