@@ -165,7 +165,7 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different',
                             concatenate_sessions_per_mouse=True, hard_set_10_trials=False,
-                            list_save_covs=[]):
+                            list_save_covs=[], equalize_n_trials_per_tt=True):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
     are folded n_split times (stratified over session.outcome), new decoders
@@ -219,6 +219,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     else:
         spont_used_for_training = False
 
+    if hard_set_10_trials and False:
+        print('WARNING: only using 10 trials per trial type!!')
+
     ## If trial types used for training are all of the same response type for either stim or dec, do not train that decoder
     dict_response_matrix = {'hit': [1, 1], 'miss': [1, 0], 'fp': [0, 1], 'cr': [0, 0], 'spont': [0, 1]}
     stim_response_list, dec_response_list = [], []
@@ -249,6 +252,14 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
         mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
     else:
         mouse_list = [ss.signature for ss in sessions.values()]    
+
+    if equalize_n_trials_per_tt:
+        ## Computing distr of lick times of reward only trials across all mice
+        ## Can be used later when sub sampling if hard_set_10_trials == True
+        all_spont_lick_times = np.array([])  # will be distr of all lickt times of reward only trials
+        for ss in sessions.values():
+            all_spont_lick_times = np.concatenate((all_spont_lick_times, ss.first_lick_spont))
+        assert len(all_spont_lick_times) == (len(sessions) * 10)
     
     angle_decoders = np.zeros((len(sessions), n_split))
     for mouse in mouse_list:
@@ -324,18 +335,18 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             else:
                 print('WARNING: too early not excluded!')
 
-            equalize_n_trials_per_tt = True
             if equalize_n_trials_per_tt:
                 # print('start', len(trial_inds))#, session.outcome[trial_inds])
                 dict_trials_per_tt = {x: np.where(session.outcome[trial_inds] == x)[0] for x in list_tt_training if x is not 'spont'}
                 dict_firstlick_per_tt = {x: session.first_lick[trial_inds][dict_trials_per_tt[x]] for x in list_tt_training if x is not 'spont'}
-                dict_firstlick_per_tt['spont'] = session.first_lick_spont  # add manually
+                # dict_firstlick_per_tt['spont'] = session.first_lick_spont  # add manually
+
                 if 'spont' not in list_tt_training:
                     if hard_set_10_trials is False:
                         min_n_trials = np.min([len(v) for v in dict_trials_per_tt.values()])
                     elif hard_set_10_trials:
                         min_n_trials = 10  # use to control for n_trials of spont
-                        print('only using 10 trials per trial type!!')  # always give warning
+                        # print('only using 10 trials per trial type!!')  # always give warning
                 elif 'spont' in list_tt_training and 'hit' in list_tt_training and len(list_tt_training) == 2:
                     min_n_trials = 10
                 else:
@@ -344,14 +355,19 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                     if min_n_trials != 10:
                         print(f'{min_n_trials} trials')
                 new_trial_inds = np.array([], dtype='int')
-                for tt, v in dict_trials_per_tt.items():
+                for tt, v in dict_trials_per_tt.items():  # loop through trial type + all corresponding trial inds
                     # new_trial_inds = np.concatenate((new_trial_inds, v[-min_n_trials:]))  # late trials subsampe (or early with :min_n_trials)
-                    sample_according_to_spont_lick_time_distr = False
+                    if tt == 'hit':
+                        sample_according_to_spont_lick_time_distr = True
+                    else:  # no need to match for CR etc
+                        sample_according_to_spont_lick_time_distr = False
+
                     if sample_according_to_spont_lick_time_distr:
-                        sorted_v, new_density_v = pop.pop.subsample_lick_times(truth_lick_times=dict_firstlick_per_tt['spont'],
-                                                                               sampled_lick_times=dict_firstlick_per_tt[tt],
-                                                                               sampled_data=v, n_bins=5)
-                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=sorted_v, size=min_n_trials, replace=False, p=new_density_v)))  # random subsample of trials
+                        sorted_v, new_density_v = pop.subsample_lick_times(truth_lick_times=all_spont_lick_times,  # use distr across all mice to get better distr (because of low number of reward-only trials per recording, which can lead to large zero-density gaps in distr)
+                                                                            # truth_lick_times=dict_firstlick_per_tt['spont'],  # alternative; only use lick times of this recording
+                                                                            sampled_lick_times=dict_firstlick_per_tt[tt],
+                                                                            sampled_data=v, n_bins=5)
+                        new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=sorted_v, size=min_n_trials, replace=False, p=new_density_v)))  # random subsample of trials, using density of spont lick times
                     else:
                         new_trial_inds = np.concatenate((new_trial_inds, np.random.choice(a=v, size=min_n_trials, replace=False)))  # random subsample of trials
                 trial_inds = trial_inds[new_trial_inds]
@@ -990,13 +1006,18 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
         lick_acc_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
         lick_pred_split = {x: {mouse: np.zeros((n_timepoints, 2)) for mouse in mouse_s_list} for x in tt_list}  # split per tt
     angle_dec = {mouse: np.zeros(n_timepoints) for mouse in mouse_s_list}
-    decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
-                       's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()},
-                       's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), len(time_array))) for _, session in sessions.items()},
-                       's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), len(time_array))) for _, session in sessions.items()}}
+    decoder_weights = {'s1_stim': {session.signature: np.zeros((np.sum(session.s1_bool), n_timepoints)) for _, session in sessions.items()},
+                       's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), n_timepoints)) for _, session in sessions.items()},
+                       's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), n_timepoints)) for _, session in sessions.items()},
+                       's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), n_timepoints)) for _, session in sessions.items()}}
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
         for reg in region_list:
-            df_prediction_train, df_prediction_test, dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=np.array([tp]),
+            if type(tp) == np.ndarray:
+                use_tp = tp 
+            else:
+                assert type(tp) == np.float64
+                use_tp = np.array([tp])
+            df_prediction_train, df_prediction_test, dec_w, _ = train_test_all_sessions(sessions=sessions, trial_times_use=use_tp,
                                                                                         verbose=0, include_150=False, list_tt_training=list_tt_training,
                                                                                         include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                                                         train_projected=projected_data, return_decoder_weights=True,
@@ -1310,6 +1331,10 @@ def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
 
             stat, pval = scipy.stats.wilcoxon(x=sub_df['accuracy'], y=sub_df['chance_level'], 
                                             alternative='two-sided')
+            
+            # print(th_bonf, pval, i_bin, tt, region)
+            # if i_bin == 1:
+                # print(sub_df)
             if pval < th_bonf:
                 signif_array[start_frame:end_frame] = 1  # indicate significance
 

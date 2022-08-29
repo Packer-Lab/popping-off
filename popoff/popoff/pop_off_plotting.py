@@ -110,11 +110,14 @@ def add_ps_artefact(ax, time_axis, y_min=0, y_max=1):
     ## plot box over artefact
     color_box = color_tt['photostim']
     alpha_box = 0.3
-    start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0])- 1] + 1 / 30
-    end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0]) + 1] - 1 / 30
-    # print(start_box, end_box)
-    ax.axvspan(start_box, end_box, ymin=y_min, ymax=y_max,
-                alpha=alpha_box, color=color_box)
+    if np.sum(np.isnan(time_axis)) > 0:
+        start_box = time_axis[np.min(np.where(np.isnan(time_axis))[0])- 1] + 1 / 30
+        end_box = time_axis[np.max(np.where(np.isnan(time_axis))[0]) + 1] - 1 / 30
+        # print(start_box, end_box)
+        ax.axvspan(start_box, end_box, ymin=y_min, ymax=y_max,
+                    alpha=alpha_box, color=color_box)
+    else:
+        print('WARNING; no nans were found to create ps artefact with')
 
 def equal_xy_lims(ax, start_zero=False):
     xlims = ax.get_xlim()
@@ -504,7 +507,7 @@ def plot_interrupted_trace(ax, time_array, plot_array, llabel='',
 
 
 def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel='',
-            plot_laser=True, ccolor='grey', plot_indiv=False,
+            plot_laser=True, ccolor='grey', plot_indiv=False, linest = {'s1': '-', 's2': '-'},
             plot_groupav=True, individual_mouse_list=None, plot_errorbar=False,
             plot_std_area=False, region_list=['s1', 's2'], time_breakpoint=1, time_breakpoint_postnan=None,
             plot_diff_s1s2=False, freq=30, running_average_smooth=True, one_sided_window_size=1):
@@ -562,7 +565,6 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
         assert len(region_list) == 2
     if individual_mouse_list is None:
         individual_mouse_list = mouse_list
-    linest = {'s1': '-', 's2': '-'}
     average_mean = {x: np.zeros(plot_array[mouse_list[0]].shape[0]) for x in region_list}
     all_means = {x: np.zeros((int(len(mouse_list) / 2), plot_array[mouse_list[0]].shape[0])) for x in region_list}  # mouse_list / 2 beacuse of separate entries for s1 and s2
     count_means = {x: 0 for x in region_list}
@@ -610,12 +612,12 @@ def plot_interrupted_trace_average_per_mouse(ax, time_array, plot_array, llabel=
                         ax.plot(time_1, av_mean[:time_breakpoint],  linewidth=4, linestyle=linest[rr],
                                         markersize=12, color=ccolor, label=llabel, alpha=0.9)# + f' {rr.upper()}'
                         ax.plot(time_2, av_mean[time_breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
+                                    markersize=42, color=ccolor, alpha=0.9, label=None)
                     elif plot_errorbar is True:  # plot group means with error bars
-                        ax.errorbar(time_1, av_mean[:time_breakpoint], yerr=std_means[:time_breakpoint], linewidth=4, linestyle=linest[rr],
-                                        markersize=12, color=ccolor, label=llabel + f' {rr.upper()}', alpha=0.9)
-                        ax.errorbar(time_2, av_mean[time_breakpoint:], yerr=std_means[time_breakpoint:], linewidth=4, linestyle=linest[rr],
-                                    markersize=12, color=ccolor, alpha=0.9, label=None)
+                        ax.errorbar(time_1, av_mean[:time_breakpoint], yerr=std_means[:time_breakpoint], linewidth=2, linestyle=linest[rr],
+                                        markersize=10, color=ccolor, label=llabel + f' {rr.upper()}', alpha=1, marker='.')
+                        ax.errorbar(time_2, av_mean[time_breakpoint:], yerr=std_means[time_breakpoint:], linewidth=2, linestyle=linest[rr],
+                                    markersize=10, color=ccolor, alpha=1, label=None, marker='.')
                     if plot_std_area:  # plot std area
 #                         if len(region_list) == 1:
 #                         std_label = f'Std {llabel} {rr.upper()}'
@@ -1562,28 +1564,42 @@ def plot_single_session_single_tp_decoding_performance(session, time_frame=1.2, 
 
 def plot_dynamic_decoding_panel(time_array, ps_acc_split, reg='s1', ax=None,
                                 smooth_traces=False, one_sided_window_size=1,
-                                plot_indiv=False, plot_std_area=True, plot_mean=True):
+                                plot_indiv=False, plot_std_area=True, plot_mean=True,
+                                plot_indiv_data_points_error_bars=False, time_array_chance=None):
     if ax is None:
         ax = plt.subplot(111)
+    
+    if plot_indiv_data_points_error_bars:
+        plot_std_area = False 
+        linest = {'s1': ' ', 's2': ''}
+        plot_errorbar = True
+    else:
+        plot_errorbar = False
+        linest = {'s1': '-', 's2': '-'}
+        
+    if time_array_chance is None:  # to provide option of providing higher resolution time array for chance
+        time_array_chance = time_array
+    else:
+        assert plot_indiv_data_points_error_bars, 'different time arrays but no indiv data points. double check this code to make sure it doesnt look weird and computation of nans of time array is ok'
+        ## else; in the below, the nan check should happen separately for time_array and time_array_chance. 
 
-    if np.sum(np.isnan(time_array)) > 0:
-        arr_nan = np.where(np.isnan(time_array))[0]
+    if np.sum(np.isnan(time_array_chance)) > 0:
+        arr_nan = np.where(np.isnan(time_array_chance))[0]
         assert len(np.unique(np.diff(arr_nan))) == 1 and np.diff(arr_nan)[0] == 1
         time_breakpoint = arr_nan[0]
         time_breakpoint_postnan = arr_nan[-1]
     else:
-        time_breakpoint = 1
+        time_breakpoint = 0
         time_breakpoint_postnan = None
 
-    plot_interrupted_trace_simple(ax=ax, time_array=time_array,
-                                    plot_array=np.zeros_like(time_array) + 0.5,
+    plot_interrupted_trace_simple(ax=ax, time_array=time_array_chance,
+                                    plot_array=np.zeros_like(time_array_chance) + 0.5,
                                     ccolor='k', aalpha=0.6, llinewidth=3, linest=':')
     for i_lick, dict_part in ps_acc_split.items():  # PS accuracy split per lick /no lick trials
-        # print(i_lick)
         plot_interrupted_trace_average_per_mouse(ax=ax, time_array=time_array, plot_array=dict_part, llabel=label_split[i_lick],
                             ccolor=colors_plot[reg][i_lick], plot_indiv=plot_indiv, plot_groupav=plot_mean,
-                             plot_laser=False, #i_lick,
-                            plot_errorbar=False, plot_std_area=plot_std_area, region_list=[reg],
+                             plot_laser=False, linest=linest,
+                            plot_errorbar=plot_errorbar, plot_std_area=plot_std_area, region_list=[reg],
                             running_average_smooth=smooth_traces, one_sided_window_size=one_sided_window_size,
                             time_breakpoint=time_breakpoint, time_breakpoint_postnan=time_breakpoint_postnan)
     ax.set_xlabel('Time (s)'); ax.set_ylabel('Accuracy')
@@ -1613,7 +1629,8 @@ def plot_dynamic_decoding_region_difference_panel(time_array, ps_acc_split, ax=N
 def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, yaxis_type='accuracy',
                                       smooth_traces=True, one_sided_window_size=1, ax_acc_ps=None,
                                       plot_std_area=True, plot_indiv=False, title_lick_dec=False, plot_legend=True,
-                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit', xlims=[-3, 4], plot_mean=True):
+                                      fn_suffix='',bottom_yax_tt='CR', top_yax_tt='Hit', xlims=[-3, 4], plot_mean=True,
+                                      plot_indiv_data_points_error_bars=False, time_array_chance=None):
 
     if ax_acc_ps is None:
         fig = plt.figure(constrained_layout=False, figsize=(12, 4))
@@ -1624,7 +1641,9 @@ def plot_dynamic_decoding_two_regions(time_array, ps_acc_split, save_fig=False, 
         _ = plot_dynamic_decoding_panel(time_array=time_array, ps_acc_split=ps_acc_split,
                                     reg=reg, ax=ax_acc_ps[reg], smooth_traces=smooth_traces,
                                     one_sided_window_size=one_sided_window_size, plot_indiv=plot_indiv,
-                                    plot_std_area=plot_std_area, plot_mean=plot_mean)
+                                    plot_std_area=plot_std_area, plot_mean=plot_mean, 
+                                    plot_indiv_data_points_error_bars=plot_indiv_data_points_error_bars, 
+                                    time_array_chance=time_array_chance)
 
         if yaxis_type == 'accuracy':
             ax_acc_ps[reg].set_ylabel('Prediction accuracy')
@@ -1684,7 +1703,9 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                               one_sided_window_size=2, plot_indiv=False, plot_legend=True,
                                               indicate_spont=False, indicate_fp=False, xlims=[-3, 4],
                                               plot_ci=True, plot_mean=True,
-                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=1):
+                                              plot_artefact=True, plot_significance=True, bottom_sign_bar=1,
+                                              plot_significance_individually=False,
+                                              plot_indiv_data_points_error_bars=False, time_array_chance=None):
     ## Plot:
     if decoder_key == 'spont/cr':
         plot_dict_split = {x: lick_pred_split[decoder_key][x] for x in plot_tt} # separated by lick condition
@@ -1721,12 +1742,14 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                         plot_legend=plot_legend,
                                         plot_std_area=plot_ci,
                                         xlims=xlims,
-                                        plot_mean=plot_mean)
+                                        plot_mean=plot_mean,
+                                        plot_indiv_data_points_error_bars=plot_indiv_data_points_error_bars, 
+                                        time_array_chance=time_array_chance)
 
     if ax_acc_ps is not None:
         for reg in ['s1', 's2']:
             if plot_artefact:
-                add_ps_artefact(ax_acc_ps[reg], time_axis=time_array)
+                add_ps_artefact(ax_acc_ps[reg], time_axis=(time_array_chance if time_array_chance is not None else time_array))
             ax_acc_ps[reg].set_xlim(xlims)
             names_tt = [label_tt[x] for x in decoder_key.split("/")]
             ax_acc_ps[reg].set_title(f'Dynamic {names_tt[0]}/{names_tt[1]} encoding in {reg.upper()}', 
@@ -1737,14 +1760,18 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
             if plot_significance:
                 for i_tt, tt in enumerate(plot_tt):
                     _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
-                                                        time_array=time_array, tt=tt, region=reg)
-                    ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
-                                    linewidth=2, c=color_tt[tt], clip_on=False) 
+                                                        time_array=time_array, tt=tt, region=reg, frames_bin=1)
+                    if plot_significance_individually:
+                        ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.07) if x == 1 else np.nan for x in signif_arr],
+                                        linestyle='', markersize=6, marker='*', c=color_tt[tt], clip_on=False) 
+                    else:
+                        ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
+                                        linewidth=2, c=color_tt[tt], clip_on=False) 
             if decoder_key == 'hit/cr 10 trials':
                 ax_acc_ps[reg].set_ylabel('Hit vs CR classification\nusing 10 trials only')
 
         if indicate_spont:
-            ax_acc_ps['s1'].text(s='Reward only', x=4, y=0.3,
+            ax_acc_ps['s1'].text(s='Reward only', x=4, y=(0.24 if plot_significance_individually else 0.3),
                                 fontdict={'weight': 'bold', 'color': color_tt['spont'], 'ha': 'right'})
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
@@ -3510,7 +3537,7 @@ def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
     for i_tt, tt in enumerate(tt_plot_list):
         for patch in patches[i_tt]:
             patch.set_facecolor(color_tt[tt])
-        ax.annotate(s=label_tt[tt], xy=(0.8, 0.9 - 0.08 * i_tt),
+        ax.annotate(s=label_tt[tt], xy=(0.75, 0.9 - 0.08 * i_tt),
                     xycoords='axes fraction', color=color_tt[tt],
                     weight='bold')
 
@@ -3535,6 +3562,25 @@ def lick_hist_all_sessions(lms, ax=None, ax_extra=None, cutoff_time=2000,
         ax_extra.set_xlim([0.2, 1.8])
         ax_extra.set_xticklabels(['>2000 ms', 'No lick'], rotation=30, ha='right')
     return df
+
+def plot_density_hist_licktimes(df_licktimes, ax=None, tt_list=['hit', 'spont'], 
+                                min_time=0, max_time=2000, n_bins=10):
+
+    if ax is None:
+        ax = plt.subplot(111)
+
+    bins = np.linspace(min_time, max_time, n_bins + 1)
+    dict_licktimes = {}
+    for i_tt, tt in enumerate(tt_list):
+        dict_licktimes[tt] = np.array(df_licktimes[df_licktimes['outcome'] == tt]['first_lick'])
+           
+    ax.hist([dict_licktimes[tt] for tt in tt_list], bins=bins, density=True,
+            label=tt_list, linewidth=2, c=[color_tt[tt] for tt in tt_list])
+    ax.legend(frameon=False)
+    despine(ax)
+    ax.set_xlabel('First lick (ms)')
+    ax.set_ylabel('PDF')
+    
 
 def plot_density_lick_times(df_licktimes, ax=None, tt_list=['hit', 'spont'],
                             min_time=0, max_time=2000):
