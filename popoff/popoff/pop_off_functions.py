@@ -1,32 +1,41 @@
 ## general imports (also for subsequent analysis notebooks)
-import sys
 import os
+import sys
+
 import loadpaths
+
 user_paths_dict = loadpaths.loadpaths()
 path_to_vape = user_paths_dict['vape_path']
 sys.path.append(str(path_to_vape))
 sys.path.append(str(os.path.join(path_to_vape, 'jupyter')))
 sys.path.append(str(os.path.join(path_to_vape, 'utils')))
 sys.path.append(user_paths_dict['base_path'])
-import numpy as np
-import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
-import seaborn as sns
+import cmath
+import copy
+import math
 # import utils_funcs as utils
 # import run_functions as rf
 # from subsets_analysis import Subsets
-import pickle, copy
-import sklearn.decomposition, sklearn.discriminant_analysis
-from cycler import cycler
+import pickle
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import math, cmath
-from tqdm import tqdm
-import scipy.stats, scipy.spatial
-from statsmodels.stats import multitest
+import scipy.spatial
+import scipy.stats
+# from mpl_toolkits.mplot3d import Axes3D
+import seaborn as sns
+import sklearn.decomposition
+import sklearn.discriminant_analysis
 import statsmodels.api as sm
-from Session import Session  # class that holds all data per session
-import pop_off_plotting as pop
 import utils  # from Vape
+from cycler import cycler
+from Session import Session  # class that holds all data per session
+from statsmodels.stats import multitest
+from tqdm import tqdm
+
+import pop_off_plotting as pop
+
 plt.rcParams['axes.prop_cycle'] = cycler(color=sns.color_palette('colorblind'))
 
 def save_figure(name, base_path='/home/jrowland/mnt/qnap/Figures/bois'):
@@ -2280,6 +2289,7 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
                                             (super_covar_df[cov_name] > lower_cov) &
                                             (super_covar_df[cov_name] <= upper_cov)]      
                 # print('part', np.mean(sub_df['y']), len(sub_df['y']))
+                # sub_df['diag_index'] = i_diag_index  # in case you want to regress against position on SNR axis
                 if collapsed_df is None:  # concat bins into 1 df
                     collapsed_df = sub_df
                 else:
@@ -2298,14 +2308,31 @@ def compute_density_hit_miss_covar(super_covar_df, cov_name='variance_cell_rates
             else:
                 total_df = pd.concat([total_df, collapsed_df])
         hit_label = total_df['y']
-        indep_var = total_df[cov_name]
-        model = sm.GLM(hit_label, sm.add_constant(indep_var), family=sm.families.Binomial())
+        ## Uncomment below to change regressors (to be tidied up as function args)
+        # indep_var = total_df[['n_cells_stimmed']]
+        # indep_var = total_df[[cov_name]]
+        indep_var = total_df[[cov_name, 'n_cells_stimmed']]
+        # indep_var = total_df[['diag_index']]
+        
+        model = sm.GLM(hit_label, sm.add_constant(indep_var), family=sm.families.Binomial())  # equivalent to sklearn.linear_model.LogisticRegression(), but provides p values for coefs
+        ## NB: sklearn LogReg can use balanced weights. Results are almost the same. But SM has p values, and computing R2 in code below takes into account class imbalance (by naive LLH). 
+        ## NB: sm calculates predictions using the logistic function (ie, soft predictions/probabilistic) rather than binarizing (ie, hard predictions). Principally this is better, but using sklearn it seems like hard predictions yielded a higher score
+        ## Explainer on the R2 calculation: https://www.youtube.com/watch?v=xxFYro8QuXA
         results = model.fit() 
+        ## Compute R2:
+        n_hit = np.sum(total_df['y'] == 1)
+        n_miss = np.sum(total_df['y'] == 0)
+        assert n_hit + n_miss == len(total_df)
+        fraction_hitmiss = n_hit / (n_hit + n_miss)
+        ll_naive = n_hit * np.log(fraction_hitmiss) + n_miss * np.log(1 - fraction_hitmiss)
+        r2_glm = (ll_naive - results.llf) / ll_naive
+
         if verbose:
             print('Summary GLM:')
             print(results.summary())
             print('P values:')
             print(results.pvalues)
+            print(f'R^2: {r2_glm}')
     else:
         mean_mat_arr, ci_mat_arr = None, None 
 
