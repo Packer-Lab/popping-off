@@ -1341,7 +1341,7 @@ def stat_test_dyn_dec(pred_dict, decoder_name='hit/cr', tt='hit', region='s1',
             stat, pval = scipy.stats.wilcoxon(x=sub_df['accuracy'], y=sub_df['chance_level'], 
                                             alternative='two-sided')
             
-            # print(th_bonf, pval, i_bin, tt, region)
+            # print(th, n_bins, frames_bin, th_bonf, pval, i_bin, tt, region)
             # if i_bin == 1:
                 # print(sub_df)
             if pval < th_bonf:

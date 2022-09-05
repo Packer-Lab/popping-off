@@ -1747,6 +1747,10 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                         time_array_chance=time_array_chance)
 
     if ax_acc_ps is not None:
+        if plot_significance_individually:
+            frames_bin = 1
+        else:
+            frames_bin = 2
         for reg in ['s1', 's2']:
             if plot_artefact:
                 add_ps_artefact(ax_acc_ps[reg], time_axis=(time_array_chance if time_array_chance is not None else time_array))
@@ -1756,14 +1760,15 @@ def plot_dynamic_decoding_two_regions_wrapper(ps_pred_split, lick_pred_split, de
                                      fontdict={'weight': 'bold'}, y=1.15)
             ax_acc_ps[reg].set_xticks([-2, -1, 0, 1, 2, 3, 4])
             ax_acc_ps[reg].set_yticks([0, 0.5, 1])
-            
+
             if plot_significance:
                 for i_tt, tt in enumerate(plot_tt):
                     _, signif_arr = pof.stat_test_dyn_dec(pred_dict=plot_dict_split, decoder_name='NA',
-                                                        time_array=time_array, tt=tt, region=reg, frames_bin=1)
+                                                        time_array=time_array, tt=tt, region=reg, frames_bin=frames_bin)
                     if plot_significance_individually:
                         ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.07) if x == 1 else np.nan for x in signif_arr],
-                                        linestyle='', markersize=6, marker='*', c=color_tt[tt], clip_on=False) 
+                                        linestyle='', markersize=6, marker=(6, 2, 0),  # code for an asterisk
+                                        c=color_tt[tt], clip_on=False) 
                     else:
                         ax_acc_ps[reg].plot(time_array, [bottom_sign_bar + (i_tt  *0.03) if x == 1 else np.nan for x in signif_arr],
                                         linewidth=2, c=color_tt[tt], clip_on=False) 
@@ -3059,6 +3064,7 @@ def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
         ax.text(s='SNR axis', x=3, y=2.5, rotation=-45, fontdict={'weight': 'bold'})
         ax.text(s='0%', x=5.75, y=1.00, rotation=-45, fontdict={'weight': 'bold'})
         ax.text(s='100%', x=1.0, y=5.2, rotation=-45, fontdict={'weight': 'bold'})
+    return (mat_fraction, median_cov_perc_arr, n_stim_arr)
 
 def plot_collapsed_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                             covar_name='variance_cell_rates', #zscored_covar=True,
@@ -3580,7 +3586,12 @@ def plot_density_hist_licktimes(df_licktimes, ax=None, tt_list=['hit', 'spont'],
     despine(ax)
     ax.set_xlabel('Response time (ms)')
     ax.set_ylabel('Density')
-    
+    print(f'\nMedians of response time distributions of {dict_licktimes.keys()}:')
+    median_dict = {tt: np.round(np.nanmedian(lt), 1) for tt, lt in dict_licktimes.items()}
+    print(f'Median response times in ms: {median_dict}')
+    median_test = scipy.stats.median_test(dict_licktimes['hit'], dict_licktimes['spont'], nan_policy='omit')
+    print(f'Moods median test p value: {median_test[1]}')
+    # return dict_licktimes
 
 def plot_density_lick_times(df_licktimes, ax=None, tt_list=['hit', 'spont'],
                             min_time=0, max_time=2000):
