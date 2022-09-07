@@ -174,7 +174,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                             neurons_selection='all', include_too_early=False,
                             C_value=0.2, reg_type='l2', train_projected=False, proj_dir='different',
                             concatenate_sessions_per_mouse=True, hard_set_10_trials=False,
-                            list_save_covs=[], equalize_n_trials_per_tt=True):
+                            list_save_covs=[], equalize_n_trials_per_tt=True,
+                            include_lick_times=False):
     """Major function that trains the decoders. It trains the decoders specified in
     list_test, for the time trial_times_use, for all sessions in sessions. The trials
     are folded n_split times (stratified over session.outcome), new decoders
@@ -273,6 +274,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
     angle_decoders = np.zeros((len(sessions), n_split))
     for mouse in mouse_list:
         dict_predictions_train, dict_predictions_test = create_dict_pred(nl=name_list, train_proj=train_projected, lt=list_test)
+        if include_lick_times:
+            dict_predictions_train['first_lick_train'] = np.array([])
+            dict_predictions_test['first_lick_test'] = np.array([])
         dict_predictions_test['used_for_training'] = np.array([])
         if concatenate_sessions_per_mouse:  # get sessions that correspond to this mouse identity 
             curr_sessions = {i_session: session for i_session, session in sessions.items() if session.mouse == mouse}
@@ -433,6 +437,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 rewarded_trials[autorewarded] = True
                 unrewarded_hits = np.concatenate((session.unrewarded_hits[trial_inds], np.zeros(n_spont_trials, dtype='bool')))
                 rewarded_trials[unrewarded_hits] = False
+                if include_lick_times:
+                    first_lick = np.concatenate((session.first_lick[trial_inds], session.first_lick_spont))
                 if len(list_save_covs) > 0:
                     for name_cov in list_save_covs:
                         cov_dict[name_cov] = np.concatenate((session.cov_dict[name_cov][trial_inds], session.cov_dict_reward_only[name_cov]))
@@ -446,6 +452,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 rewarded_trials[autorewarded] = True
                 unrewarded_hits = session.unrewarded_hits[trial_inds]
                 rewarded_trials[unrewarded_hits] = False
+                if include_lick_times:
+                    first_lick = session.first_lick[trial_inds]
                 if len(list_save_covs) > 0:
                     for name_cov in list_save_covs:
                         cov_dict[name_cov] = session.cov_dict[name_cov][trial_inds]
@@ -574,6 +582,9 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], unrewarded_hits[test_inds]))
                 dict_predictions_train['true_dec_train'] = np.concatenate((dict_predictions_train['true_dec_train'], train_labels['dec']))
                 dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], test_labels['dec']))
+                if include_lick_times:
+                    dict_predictions_train['first_lick_train'] = np.concatenate((dict_predictions_train['first_lick_train'], first_lick[train_inds]))
+                    dict_predictions_test['first_lick_test'] = np.concatenate((dict_predictions_test['first_lick_test'], first_lick[test_inds]))
                 dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.ones(len(test_inds))))
                 if len(list_save_covs) > 0:
                     for name_cov in list_save_covs:
@@ -598,6 +609,8 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
             dict_predictions_test['autorewarded_miss_test'] = np.concatenate((dict_predictions_test['autorewarded_miss_test'], session.autorewarded[eval_only_inds]))
             dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], session.unrewarded_hits[eval_only_inds]))
             dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], session.decision[eval_only_inds]))
+            if include_lick_times:
+                dict_predictions_test['first_lick_test'] = np.concatenate((dict_predictions_test['first_lick_test'], session.first_lick[eval_only_inds]))
             dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(len(eval_only_inds))))
             if len(list_save_covs) > 0:
                 for name_cov in list_save_covs:
@@ -616,6 +629,15 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 dict_predictions_test['autorewarded_miss_test'] = np.concatenate((dict_predictions_test['autorewarded_miss_test'], np.zeros(n_spont_trials)))
                 dict_predictions_test['unrewarded_hit_test'] = np.concatenate((dict_predictions_test['unrewarded_hit_test'], np.zeros(n_spont_trials)))
                 dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], np.ones(n_spont_trials)))
+                if include_lick_times:
+                    if n_spont_trials != len(session.first_lick_spont):
+                        print(n_spont_trials, len(session.first_lick_spont))
+                        print(session)
+                        print(session.first_lick_spont)
+                        spont_lick_times = session.first_lick_spont[1:]
+                    else:
+                        spont_lick_times = session.first_lick_spont
+                    dict_predictions_test['first_lick_test'] = np.concatenate((dict_predictions_test['first_lick_test'], spont_lick_times))
                 dict_predictions_test['used_for_training'] = np.concatenate((dict_predictions_test['used_for_training'], np.zeros(n_spont_trials)))
                 if len(list_save_covs) > 0:
                     for name_cov in list_save_covs:
@@ -949,7 +971,8 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                   region_list=['s1', 's2'], regularizer=0.02, projected_data=False, split_fourway=False,
                                                   list_tt_training=['hit', 'miss', 'fp', 'cr', 'spont'],
                                                   tt_list=['hit', 'fp', 'miss', 'cr', 'arm', 'urh', 'spont'],
-                                                  concatenate_sessions_per_mouse=True, hard_set_10_trials=False):
+                                                  concatenate_sessions_per_mouse=True, hard_set_10_trials=False,
+                                                  return_full_dfs=False, include_lick_times=False):
     """Compute accuracy of decoders for all time steps in time_array, for all sessions (concatenated per mouse)
 
     Parameters
@@ -1031,7 +1054,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                                                         include_autoreward=False, C_value=regularizer, reg_type=reg_type,
                                                                                         train_projected=projected_data, return_decoder_weights=True,
                                                                                         neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse,
-                                                                                        hard_set_10_trials=hard_set_10_trials)
+                                                                                        hard_set_10_trials=hard_set_10_trials, include_lick_times=include_lick_times)
             for xx in dec_w.keys():
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
@@ -1090,7 +1113,11 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
 
                 if 'angle_decoders' in df_prediction_train[mouse].columns:
                     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
-    return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
+
+    if return_full_dfs:
+        return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights), (df_prediction_train, df_prediction_test)
+    else:
+        return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
 
 ## Main function to compute accuracy of decoders per time point
 def compute_prediction_time_array_average_per_mouse_split(sessions, time_array, average_fun=class_av_mean_accuracy, reg_type='l2',
