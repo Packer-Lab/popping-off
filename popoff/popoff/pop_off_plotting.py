@@ -3590,8 +3590,11 @@ def plot_density_hist_licktimes(df_licktimes, ax=None, tt_list=['hit', 'spont'],
     median_dict = {tt: np.round(np.nanmedian(lt), 1) for tt, lt in dict_licktimes.items()}
     print(f'Median response times in ms: {median_dict}')
     median_test = scipy.stats.median_test(dict_licktimes['hit'], dict_licktimes['spont'], nan_policy='omit')
-    print(f'Moods median test p value: {median_test[1]}')
-    # return dict_licktimes
+    print(f'Moods median test p value: {median_test[1]}')    
+    for i_tt, tt in enumerate(tt_list):
+        nn_lt = dict_licktimes[tt][~np.isnan(dict_licktimes[tt])]
+        print(f'IQR {tt} response times: {np.round(np.percentile(nn_lt, 25), 1)}ms to {np.round(np.percentile(nn_lt, 75), 1)}ms')
+    return dict_licktimes
 
 def plot_density_lick_times(df_licktimes, ax=None, tt_list=['hit', 'spont'],
                             min_time=0, max_time=2000):
