@@ -631,10 +631,13 @@ def train_test_all_sessions(sessions, trial_times_use=None, verbose=2, list_test
                 dict_predictions_test['true_dec_test'] = np.concatenate((dict_predictions_test['true_dec_test'], np.ones(n_spont_trials)))
                 if include_lick_times:
                     if n_spont_trials != len(session.first_lick_spont):
-                        print(n_spont_trials, len(session.first_lick_spont))
-                        print(session)
-                        print(session.first_lick_spont)
-                        spont_lick_times = session.first_lick_spont[1:]
+                        ## All sessions have 10 spont trials (and associated first_lick_spont), but for 2 sessions we only have imaging data of 9 trials. We think this is because imaging was not ready/corrupted for the first trial (as it was start of experiment), so selecting [1:] lick times to match the df/f data should be right. However, to be sure, check session.build_trials_multi() where pre-reward trials that only contains NaNs are filtered, these must be the missing ones (OR alternatively we could match frame times of reward delivery and imaging). For now we don't need this anyway, so this is for future ref
+                        ## See explanation above: I'll put the lick times to nan for now
+                        # print(n_spont_trials, len(session.first_lick_spont))
+                        # print(session)
+                        # print(session.first_lick_spont)
+                        # spont_lick_times = session.first_lick_spont[1:]
+                        spont_lick_times = np.zeros(n_spont_trials) + np.nan
                     else:
                         spont_lick_times = session.first_lick_spont
                     dict_predictions_test['first_lick_test'] = np.concatenate((dict_predictions_test['first_lick_test'], spont_lick_times))
@@ -1042,8 +1045,14 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                        's2_stim': {session.signature: np.zeros((np.sum(session.s2_bool), n_timepoints)) for _, session in sessions.items()},
                        's1_dec': {session.signature: np.zeros((np.sum(session.s1_bool), n_timepoints)) for _, session in sessions.items()},
                        's2_dec': {session.signature: np.zeros((np.sum(session.s2_bool), n_timepoints)) for _, session in sessions.items()}}
+    if return_full_dfs:
+        dict_full_dfs = {}
     for i_tp, tp in tqdm(enumerate(time_array)):  # time array IN SECONDS
+        if return_full_dfs:
+            dict_full_dfs[i_tp] = {}
         for reg in region_list:
+            if return_full_dfs:
+                dict_full_dfs[i_tp][reg] = {}
             if type(tp) == np.ndarray:
                 use_tp = tp 
             else:
@@ -1055,6 +1064,9 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                                                                                         train_projected=projected_data, return_decoder_weights=True,
                                                                                         neurons_selection=reg, concatenate_sessions_per_mouse=concatenate_sessions_per_mouse,
                                                                                         hard_set_10_trials=hard_set_10_trials, include_lick_times=include_lick_times)
+            if return_full_dfs:
+                dict_full_dfs[i_tp][reg]['train'] = df_prediction_train
+                dict_full_dfs[i_tp][reg]['test'] = df_prediction_test
             for xx in dec_w.keys():
                 for signat in signature_list:
                     decoder_weights[f'{reg}_{xx}'][signat][:, i_tp] = np.mean(dec_w[xx][signat], 0)
@@ -1115,7 +1127,7 @@ def compute_accuracy_time_array_average_per_mouse(sessions, time_array, average_
                     angle_dec[mouse + '_' + reg][i_tp] = np.mean(df_prediction_train[mouse]['angle_decoders'])
 
     if return_full_dfs:
-        return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights), (df_prediction_train, df_prediction_test)
+        return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights), dict_full_dfs
     else:
         return (lick_acc, lick_acc_split, lick_pred_split, ps_acc, ps_acc_split, ps_pred_split, lick_half, angle_dec, decoder_weights)
 
