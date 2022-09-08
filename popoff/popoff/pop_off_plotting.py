@@ -818,7 +818,7 @@ def sort_data_matrix(data, session=None, reg=None, sorting_method='euclidean'):
         sorting = np.argsort(sum_data)[::-1]
     return sorting
 
-def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, end_time=4,
+def normalise_raster_data(session, start_time=-2, start_baseline_time=-2.1, end_time=4.1,
                           pre_stim_window=-0.07, post_stim_window=None, filter_150_stim=False,
                           sorting_method='euclidean', sort_tt_list=['hit', 'miss', 'spont'],
                           sort_neurons=True, baseline_by_prestim=True):
@@ -837,7 +837,7 @@ def normalise_raster_data(session, start_time=-2.1, start_baseline_time=-2.1, en
     time_axis = session.filter_ps_time[start_frame:end_frame]
     n_time_ticks = int(np.floor((session.filter_ps_time[end_frame] - session.filter_ps_time[start_frame]) / 2) + 1)
     time_ticks = np.arange(n_time_ticks) * 2 * session.frequency
-    time_tick_labels = [str(np.round(x)) for x in session.filter_ps_time[start_frame:][time_ticks]]
+    time_tick_labels = [str(np.round(x, 1)) for x in session.filter_ps_time[start_frame:][time_ticks]]
     # print(start_frame, start_baseline_frame, pre_stim_frame, pre_stim_frame - start_frame, post_stim_frame)
 
     ## Sort neurons by pearosn corr of post-stim response of sort_tt_list
@@ -1022,7 +1022,7 @@ def plot_single_raster_plot(data_mat, session, ax=None, cax=None, reg='S1', tt='
 
 def plot_raster_plots_trial_types_one_session(session, c_lim=0.2, sort_tt_list=['hit'],
                                               plot_averages=False, post_stim_window=0.35,
-                                              start_time=-2.1, filter_150_stim=False,
+                                              start_time=-2, filter_150_stim=False,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean',
                                               s1_lim=None, s2_lim=None,
@@ -1309,7 +1309,7 @@ def plot_raster_plots_all_trials_one_session(session,  tt_plot='hit', c_lim=0.2,
 
 def plot_raster_plots_input_trial_types_one_session(session, ax_dict={'s1': {}, 's2': {}}, c_lim=0.2, sort_tt_list=['hit'],
                                               plot_averages=False, post_stim_window=0.35, cax=None, bool_cb=True,
-                                              start_time=-1.1, end_time=2, filter_150_stim=False,
+                                              start_time=-1, end_time=2.1, filter_150_stim=False,
                                               imshow_interpolation='nearest',  # nearest: true pixel values; bilinear: default anti-aliasing
                                               sorting_method='euclidean', cbar_pad=1.02,
                                               s1_lim=None, s2_lim=None):
@@ -3155,8 +3155,8 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
         mask = lm.session.is_target
 
     (data_use_mat_norm, data_use_mat_norm_s1, data_use_mat_norm_s2, data_spont_mat_norm, ol_neurons_s1, ol_neurons_s2, outcome_arr,
-        time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session, #start_time=-1,
-                                    filter_150_stim=False, # start_baseline_time=-2.1,
+        time_ticks, time_tick_labels, time_axis) = normalise_raster_data(session=lm.session,
+                                    filter_150_stim=False, 
                                     sort_neurons=False, end_time=6, baseline_by_prestim=baseline_by_prestim)
 
     mask = mask[lm.region_map[region], :, :]
