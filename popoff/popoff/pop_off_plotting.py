@@ -1,4 +1,5 @@
 import sys, os, copy
+from time import time
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -1857,6 +1858,99 @@ def plot_dynamic_decoding_two_regions_wrapper_split(ps_pred_split, lick_pred_spl
         if indicate_fp:
             ax_acc_ps['s1'].text(s='FP', x=1.4, y=0.62,
                                 fontdict={'weight': 'bold', 'color': color_tt['fp']})
+
+def plot_correlation_response_time_decoding_accuracy(df_decoder_results, time_array_this_window=None,
+                                        tt_show='hit', reg=None, show_av_window=False,
+                                        ax=None, show_all_sessions=True, example_ss=None,
+                                        time_array_plot_original=None, show_ps=False,
+                                        bonf_corr=True):
+
+    if ax is None:
+        if show_all_sessions:
+            fig, ax = plt.subplots(3, 4, figsize=(18, 12), gridspec_kw={'hspace': 0.4, 'wspace': 0.4})
+        else:
+            fig, ax = plt.subplots(1, 2, figsize=(9, 4), gridspec_kw={'hspace': 0.4, 'wspace': 0.4})
+        
+    list_sessions = list(df_decoder_results.keys())
+    corr_arr = np.zeros((len(list_sessions), 2))
+    i_col, i_row = 0, 0
+    for ii, ss in enumerate(list_sessions):
+        tmp_df = df_decoder_results[ss][df_decoder_results[ss]['outcome_test'] == tt_show]
+        lick_times_hit = tmp_df['first_lick_test']
+        pred_hit = tmp_df['pred_stim_test']
+        is_float_bools = np.array([isinstance(x, float) for x in lick_times_hit])
+        if is_float_bools.all() == False:
+            lick_times_hit = lick_times_hit[is_float_bools]
+            pred_hit = pred_hit[is_float_bools]
+            print(f'{np.sum(is_float_bools == False)} non-floats found in lick times in {ss}')
+        # assert(len(pred_hit) == np.sum(sessions[ii].outcome == tt_show)), (len(pred_hit), np.sum(sessions[ii].outcome == tt_show))
+        r_full, p = scipy.stats.pearsonr(lick_times_hit.values, pred_hit.values)
+        corr_arr[ii, :] = (r_full, p)
+        r = np.round(r_full, 2)
+
+        if show_all_sessions:
+            curr_ax = ax[i_row, i_col]
+            plot_session = True 
+        else:
+            if ss == example_ss:
+                curr_ax = ax[0]
+                plot_session = True 
+            else:
+                plot_session = False 
+        if plot_session:
+            curr_ax.plot([0, 1000], [0.5, 0.5], c='grey', linestyle=':')
+            curr_ax.scatter(lick_times_hit, pred_hit, s=10, c=color_tt[tt_show])
+            # curr_ax.set_xlim([0, 1000])
+            curr_ax.set_ylim([0, 1.05])
+            curr_ax.set_title(f'{ss} {reg.upper()}')
+            curr_ax.set_xlabel('Response time (ms)')
+            if i_row == 0 and i_col == 0:
+                curr_ax.set_ylabel('Hit vs CR classification\n(Predicted prob. of hit trial)')
+            else:
+                curr_ax.set_ylabel('Hit vs CR classification')
+
+            if show_av_window and time_array_this_window is not None:
+                start_tp = time_array_this_window[0]
+                end_tp = time_array_this_window[-1]
+                y_wind = 0.03
+                y_end = 0.05
+                curr_ax.plot([start_tp, end_tp], [y_wind, y_wind], linewidth=1.25, c='k', clip_on=False)
+                curr_ax.plot([start_tp, start_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
+                curr_ax.plot([end_tp, end_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
+
+            curr_ax.text(s=f'r = {r}', x=curr_ax.get_xlim()[1], y=0.07, ha='right', weight='bold')
+            if show_ps and time_array_plot_original is not None:
+                add_ps_artefact(ax=curr_ax, time_axis=time_array_plot_original * 1000)
+            despine(curr_ax)
+
+            i_col += 1
+            if i_col == 4:
+                i_col = 0 
+                i_row += 1
+
+    jitter = np.random.rand(len(list_sessions)) - 0.5
+    th_sign = 0.05 
+    if bonf_corr:
+        sign_label = f'p < {copy.deepcopy(th_sign)} (Bonf. corr.)'
+        th_sign = th_sign / len(list_sessions)
+    else:
+        sign_label = f'p < {th_sign}'
+    bool_sign = corr_arr[:, 1] < th_sign
+
+    if show_all_sessions:
+        curr_ax = ax[i_row, i_col]
+    else:
+        curr_ax = ax[1]
+    curr_ax.scatter(jitter[~bool_sign], corr_arr[:, 0][~bool_sign], c='grey', label=f'n.s.')
+    if np.sum(bool_sign) > 0:
+        curr_ax.scatter(jitter[bool_sign], corr_arr[:, 0][bool_sign], c='k', label=sign_label)
+    curr_ax.set_xlim([-1, 8])
+    curr_ax.set_ylim([-1, 1])
+    despine(curr_ax)
+    curr_ax.set_xticks([])
+    curr_ax.spines['bottom'].set_visible(False)
+    curr_ax.set_ylabel('Pearson correlation r')
+    curr_ax.legend(frameon=True, loc='lower right', bbox_to_anchor=(1, -0.05))
 
 def plot_regularisation_optimisation(all_data_dict, time_array_plot=None, decoder_key='hit/cr', 
                                      tt_pos='hit', tt_neg='cr', reg='s1', ax=None, c='k'):
@@ -3907,8 +4001,6 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         #              xycoords='data', ha='left', va='center', annotation_clip=False)
         # ax0.annotate('Response times', xy=(left_end, main_ylims[1] + 3), weight='bold', 
         #              xycoords='data', ha='left', va='bottom', annotation_clip=False)
-
-
 
 def percent_responding_tts(lm_list, axes=None, verbose=1, 
                             p_val_significant=0.05, bonf_correction=4):

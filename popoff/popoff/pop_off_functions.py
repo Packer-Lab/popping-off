@@ -2481,3 +2481,41 @@ def log_reg_covars(covar_dict, list_x_var=['mean_pre', 'corr_pre', 'variance_cel
             # var_pred_dict[x_var][i_s] = np.var(pred_arr)
             
     return mean_pred_dict, var_pred_dict
+
+def create_large_time_windows_for_decoders(tp_dict, n_window=60, min_time = -2.5, max_time=None,   
+                                           pre_stim_art_time=-0.07, post_stim_art_time=0.35,
+                                           verbose=0):
+    '''
+    min_time = -2.5, max_time = 4.5 for 3 2sec windows
+    min_time = 0 max_time=None for 1 window
+        - n_window = 15 for 500ms window
+        - n_window = 20 for 660ms window (which goes from end of PS to 1000ms)
+    '''
+    freq = 30
+    ## Create new time dicts:
+    assert 'decoders' in tp_dict.keys(), 'decoders not in tp_dict, which is used to create new time arrays'
+    half_window = int(n_window / 2)
+    window_size_in_sec = np.mean(np.diff(tp_dict['decoders'])) * n_window
+
+    assert pre_stim_art_time == -0.07, 'pre stim time not as expected'
+    assert post_stim_art_time == 0.35, 'post stim time not as expected'
+    if max_time is None:       
+        max_time = post_stim_art_time + (n_window + 1) / freq
+    time_arr_use = tp_dict['mutual']                
+    frames_post_stim = np.where(np.logical_and(time_arr_use >= post_stim_art_time,
+                                               time_arr_use < max_time))[0]
+    start_windows_post_stim = frames_post_stim[::n_window][:-1]  # remove last one because window is not == n_window
+    frames_pre_stim = np.where(np.logical_and(time_arr_use < pre_stim_art_time,
+                                              time_arr_use > min_time))[0]
+    start_windows_pre_stim = np.sort(frames_pre_stim[::-n_window][1:] + 1)  # select starting from the end going backwards, skip the last one because its just before stim & move everything by 1 to correct
+    start_windows_all = np.concatenate((start_windows_pre_stim, start_windows_post_stim))
+    if verbose > 0:
+        print(start_windows_all)
+    tp_dict['decoders_merged_tp'] = [time_arr_use[tp:tp + n_window] for tp in start_windows_all]
+
+    time_array_plot_merged = np.array([x[half_window] for x in tp_dict['decoders_merged_tp']])
+        
+    if verbose > 0:
+        print(time_array_plot_merged)
+
+    return tp_dict, time_array_plot_merged, window_size_in_sec
