@@ -1918,7 +1918,8 @@ def plot_correlation_response_time_decoding_accuracy(df_decoder_results, time_ar
                 curr_ax.plot([start_tp, start_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
                 curr_ax.plot([end_tp, end_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
 
-            curr_ax.text(s=f'r = {r}, p={np.round(p, 3)}', x=curr_ax.get_xlim()[1], y=0.07, ha='right', weight='bold')
+            curr_ax.text(s=f'r = {r}, p={np.round(p, 3)}', x=curr_ax.get_xlim()[1], y=0.07 if show_av_window else 0.01, 
+                        ha='right', weight='bold')
             if show_ps and time_array_plot_original is not None:
                 add_ps_artefact(ax=curr_ax, time_axis=time_array_plot_original * 1000)
             despine(curr_ax)
@@ -2135,6 +2136,89 @@ def plot_dyn_lick_decoding_compiled_summary_figure(violin_df_test, time_array, l
     sns.despine()
     # plt.savefig('figures/decoding_licks.pdf', bbox_inches='tight')
 
+def plot_angle_between_decoders(decoder_weights_angle, tp_dict, 
+                                reg='s1', dec_1='hit/cr', dec_2='spont/cr',
+                                show_heatmap=True, ax_hm=None, ax_angle_trace=None):
+    n_tp = decoder_weights_angle['hit/cr']['s1_stim']['J064_R10'].shape[1]
+
+    # list_ss = [ss.signature for i_ss, ss in sessions.items()]
+    list_ss = list(decoder_weights_angle['hit/cr']['s1_stim'].keys())
+    dec_type_dict = {'hit/cr': 'stim', 'spont/cr': 'dec', 'miss/cr': 'stim'}
+
+    angle_arr = np.zeros((len(list_ss), n_tp))
+    for i_ss, ss_sign in enumerate(list_ss):
+        for i_tp in range(n_tp):
+            dec_w_1 = decoder_weights_angle[dec_1][f'{reg}_{dec_type_dict[dec_1]}'][ss_sign][:, i_tp]
+            dec_w_2 = decoder_weights_angle[dec_2][f'{reg}_{dec_type_dict[dec_2]}'][ss_sign][:, i_tp]
+            angle = pof.angle_vecs(dec_w_1, dec_w_2)
+            angle_arr[i_ss, i_tp] = angle
+
+    if (ax_hm is None and show_heatmap) or ax_angle_trace is None:
+        if show_heatmap:
+            fig, ax = plt.subplots(1, 2, figsize=(10, 3), gridspec_kw={'wspace': 0.5})
+            ax_hm = ax[0]
+            ax_angle_trace = ax[1]
+        else:
+            ax_angle_trace = plt.subplot(111)
+    time_axis = tp_dict['decoders']
+
+    if show_heatmap:
+        xtick_hm = np.arange(0, 180, 30).astype('int')
+        sns.heatmap(angle_arr, vmin=45, vmax=90, ax=ax_hm,      
+                    cbar_kws={'label': 'Angle (deg)'})
+        ax_hm.set_xlabel('Time')
+        ax_hm.set_ylabel('Session id')
+        ax_hm.set_xticks(xtick_hm)
+        ax_hm.set_xticklabels([np.round(time_axis[xx], 1) for xx in xtick_hm])
+        ax_hm.set_title('Angle of each session')
+
+    angle_ci = angle_arr.std(0) / np.sqrt(len(list_ss)) * 1.96
+    ax_angle_trace.plot(time_axis, angle_arr.mean(0), label=f'Angle between {dec_1} and {dec_2}')
+    ax_angle_trace.fill_between(x=time_axis, y1=angle_arr.mean(0) - angle_ci, 
+                        y2=angle_arr.mean(0) + angle_ci, alpha=0.2)
+    ax_angle_trace.set_ylim([45, 90])
+    ax_angle_trace.set_xlabel('Time')
+    ax_angle_trace.set_ylabel('Angle (deg)')
+    ax_angle_trace.set_title('Average angle ' + r'$\pm 95\%$' + f' c.i. across sessions in {reg.upper()}')
+    ax_angle_trace.legend(loc='lower left')
+
+def plot_dynamic_angle_between_decoders(decoder_weights_angle, tp_dict, 
+                                reg='s1', dec_1='hit/cr', dec_2='spont/cr',
+                                ax_hm=None):
+    n_tp = decoder_weights_angle['hit/cr']['s1_stim']['J064_R10'].shape[1]
+
+    # list_ss = [ss.signature for i_ss, ss in sessions.items()]
+    list_ss = list(decoder_weights_angle['hit/cr']['s1_stim'].keys())
+    dec_type_dict = {'hit/cr': 'stim', 'spont/cr': 'dec', 'miss/cr': 'stim'}
+
+    angle_mat = np.zeros((len(list_ss), n_tp, n_tp))
+    for i_tp1 in range(n_tp):
+        for i_tp2 in range(n_tp):
+            for i_ss, ss_sign in enumerate(list_ss):
+            
+                dec_w_1 = decoder_weights_angle[dec_1][f'{reg}_{dec_type_dict[dec_1]}'][ss_sign][:, i_tp1]
+                dec_w_2 = decoder_weights_angle[dec_2][f'{reg}_{dec_type_dict[dec_2]}'][ss_sign][:, i_tp2]
+                angle = pof.angle_vecs(dec_w_1, dec_w_2)
+                angle_mat[i_ss, i_tp1, i_tp2] = angle
+
+    if ax_hm is None:
+        ax_hm = plt.subplot(111)
+    time_axis = tp_dict['decoders']
+    xtick_hm = np.arange(0, 180, 30).astype('int')
+    mean_angle_mat = np.mean(angle_mat, 0)
+
+    sns.heatmap(mean_angle_mat, vmin=30, vmax=90, ax=ax_hm,      
+                cbar_kws={'label': 'Angle (deg)'})
+    ax_hm.set_xlabel('Time')
+    ax_hm.set_ylabel('Time')
+    ax_hm.set_xticks(xtick_hm)
+    ax_hm.set_xticklabels([np.round(time_axis[xx], 1) for xx in xtick_hm])
+    ax_hm.set_yticks(xtick_hm)
+    ax_hm.set_yticklabels([np.round(time_axis[xx], 1) for xx in xtick_hm])
+    ax_hm.set_title(f'Cross-temporal mean angle between {dec_1} and {dec_2} in {reg.upper()}')
+    ax_hm.invert_yaxis()
+
+   
 def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
     ## Averages of all sessions:
     mouse_list = np.unique([ss.mouse for _, ss in sessions.items()])
