@@ -1918,7 +1918,7 @@ def plot_correlation_response_time_decoding_accuracy(df_decoder_results, time_ar
                 curr_ax.plot([start_tp, start_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
                 curr_ax.plot([end_tp, end_tp], [y_end, y_wind], linewidth=1.25, c='k', clip_on=False)
 
-            curr_ax.text(s=f'r = {r}, p={np.round(p, 3)}', x=curr_ax.get_xlim()[1], y=0.07 if show_av_window else 0.01, 
+            curr_ax.text(s=f'r = {r}\np={np.round(p, 3)}', x=curr_ax.get_xlim()[1], y=0.07 if show_av_window else 0.05, 
                         ha='right', weight='bold')
             if show_ps and time_array_plot_original is not None:
                 add_ps_artefact(ax=curr_ax, time_axis=time_array_plot_original * 1000)
