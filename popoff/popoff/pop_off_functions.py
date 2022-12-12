@@ -98,7 +98,7 @@ def fun_return_2d(data):  # possibly add fancy stuff
     """
     return np.mean(data, 2)
 
-def angle_vecs(v1, v2):
+def angle_vecs(v1, v2, shuffle_vectors=True):
     """Compute angle between two vectors with cosine similarity.
 
     Parameters
@@ -115,6 +115,9 @@ def angle_vecs(v1, v2):
 
     """
     assert v1.shape == v2.shape
+    if shuffle_vectors:
+        np.random.shuffle(v1)
+        np.random.shuffle(v2)
     v1, v2 = np.squeeze(v1), np.squeeze(v2)
     tmp = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
     rad = np.arccos(tmp)

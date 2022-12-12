@@ -2181,6 +2181,7 @@ def plot_angle_between_decoders(decoder_weights_angle, tp_dict,
     ax_angle_trace.set_ylabel('Angle (deg)')
     ax_angle_trace.set_title('Average angle ' + r'$\pm 95\%$' + f' c.i. across sessions in {reg.upper()}')
     ax_angle_trace.legend(loc='lower left')
+    return angle_arr
 
 def plot_dynamic_angle_between_decoders(decoder_weights_angle, tp_dict, 
                                 reg='s1', dec_1='hit/cr', dec_2='spont/cr',
@@ -2207,7 +2208,7 @@ def plot_dynamic_angle_between_decoders(decoder_weights_angle, tp_dict,
     xtick_hm = np.arange(0, 180, 30).astype('int')
     mean_angle_mat = np.mean(angle_mat, 0)
 
-    sns.heatmap(mean_angle_mat, vmin=30, vmax=90, ax=ax_hm,      
+    sns.heatmap(mean_angle_mat, vmin=50, vmax=90, ax=ax_hm,      
                 cbar_kws={'label': 'Angle (deg)'})
     ax_hm.set_xlabel('Time')
     ax_hm.set_ylabel('Time')
@@ -2217,6 +2218,7 @@ def plot_dynamic_angle_between_decoders(decoder_weights_angle, tp_dict,
     ax_hm.set_yticklabels([np.round(time_axis[xx], 1) for xx in xtick_hm])
     ax_hm.set_title(f'Cross-temporal mean angle between {dec_1} and {dec_2} in {reg.upper()}')
     ax_hm.invert_yaxis()
+    return mean_angle_mat
 
    
 def plot_average_ps_traces_per_mouse(sessions, save_fig=False):
