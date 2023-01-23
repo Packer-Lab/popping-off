@@ -1,7 +1,6 @@
 # Photostimulation Of Population Obviously Fuels Firing
 
-Code for analysis of all-optical neural data obtained in Packer lab, Oxford. 
-This is the data of the following preprint:
+Code for analysis of all-optical neural data obtained in Packer lab, Oxford. Figures were generated in whole by code, using notebooks in `popping-off/notebooks/Paper Figures/`. This is the code of the following preprint:
 
 https://www.biorxiv.org/content/10.1101/2021.12.28.474343v1
 
