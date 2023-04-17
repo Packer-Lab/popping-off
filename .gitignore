@@ -6,6 +6,7 @@
 **.pyc
 **.orig
 **.pkl
+**.code-workspace
 
 photo-stim/data_paths.json
 
