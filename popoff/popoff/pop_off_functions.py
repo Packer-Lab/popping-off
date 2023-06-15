@@ -2187,6 +2187,7 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
     flu = flu[lm.region_map[region], :, :]
 
     # Mean across cells
+    n_cells = flu.shape[0]
     flu = np.mean(flu, 0)
     
     # if subtract_baseline:
@@ -2196,7 +2197,7 @@ def session_flu(lm, region, outcome, frames, n_cells, subtract_baseline=True):
     if frames != 'all':
         flu = flu[:, lm.frames_map[frames]]
     
-    return flu, time_axis
+    return flu, time_axis, n_cells
 
 def select_cells_and_frames(lm, region='s1', frames='pre'):
     flu = lm.flu

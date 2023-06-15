@@ -2504,20 +2504,24 @@ def plot_spont(msm, region='s1', direction='positive', ax=None):
 
 def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-trials', ax=None,
                            plot_ps_artefact=False, art_150_included=True, verbose=1):
-
+    assert stack == 'all-trials', 'if not all-trials, the N data points count is not correct'
     if ax is None:
         ax = plt.subplot(111)
 
     flu = []
+    n_datapoints_per_session = []
     for lm in msm.linear_models:
-        sf, time_axis = pof.session_flu(lm, region=region, outcome=outcome, frames=frames,
+        sf, time_axis, n_cells = pof.session_flu(lm, region=region, outcome=outcome, frames=frames,
                          n_cells=n_cells)
+        n_datapoints_per_session.append(sf.shape[0] * n_cells)
         if stack == 'all-trials':
             flu.append(sf)  # stack every trial from every session in a big array
         else:
             flu.append(np.mean(sf, 0))  # stack the session mean into a big array
     x_axis = copy.deepcopy(time_axis)  # use last session, they are all the same
     flu = np.vstack(flu)  # Go from list of 2D arrays (trials x time points) to stacked 2D (along trial axis)
+    assert flu.ndim == 2, f'flu.ndim = {flu.ndim}'
+    n_datapoints = np.sum(n_datapoints_per_session)
     mean_flu = np.mean(flu, 0)  # average across trials
     z = 1.96  # 95% confidence interval value
     ci = z * (np.std(flu, 0) / np.sqrt(flu.shape[0]))
@@ -2552,6 +2556,8 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
         print('Grand average max value: ', mean_flu[ind_max], 'pm ', ci[ind_max], 'at time ', x_axis[ind_max])
         print('---')
 
+    return n_datapoints
+
 def return_fraction_interval(min_lim=0, max_lim=1, frac=0.5):
     len_int = max_lim - min_lim 
     frac_relative = frac  * len_int 
@@ -2566,14 +2572,21 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
 
     ## S1 plot
     ax_list = [ax_s1, ax_s2]
+    list_y_coords_n = [0.9, 0.77, 0.64, 0.3, 0.17]
+    assert len(list_y_coords_n) == len(tts_plot), 'list_y_coords_n and tts_plot must have the same length (expecting 5 tts)'
     for i_plot, reg in enumerate(['s1', 's2']):
+        n_datapoints = {}
         for tt in tts_plot:
-            plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
+            n_datapoints[tt] = plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
                             stack=stack, ax=ax_list[i_plot], plot_ps_artefact=(tt == 'hit'),
                             art_150_included=(150 in n_cells))
         ax_list[i_plot].set_title(f'Average activity {reg.upper()}', y=1.1)
         ax_list[i_plot].set_ylim(main_ylims)
         ax_list[i_plot].set_xlabel('Time (s)')
+        for i_tt, tt in enumerate(tts_plot):
+            ax_list[i_plot].annotate(f'N={n_datapoints[tt]}', xy=(0.05, list_y_coords_n[i_tt]), 
+                                     xycoords='axes fraction',
+                                     color=color_tt[tt])
         despine(ax_list[i_plot])
     ax_list[0].set_ylabel('Average ' + r'$\Delta$F/F')
     ax_list[1].set_yticklabels(['' for x in ax_list[1].get_yticks()])
@@ -2608,7 +2621,7 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
             x_box_max, y_box_max = x_box_min + x_box_len, y_box_min + y_box_len
             ax_zoom[i_plot] = ax_list[i_plot].inset_axes([x_box_min, y_box_min, x_box_len, y_box_len])
             for tt in tts_plot:
-                plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
+                _ = plot_multisesssion_flu(msm, region=reg, outcome=tt, frames=frames, n_cells=n_cells,
                                 stack=stack, ax=ax_zoom[i_plot], plot_ps_artefact=(tt == 'hit'),
                                 art_150_included=(150 in n_cells), verbose=0)
             # despine(ax_zoom[i_plot])
@@ -3362,6 +3375,7 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
     x_axis = time_axis 
     label = 'Targets S1' if targets else f'Non Targets {region.upper()}'
 
+    n_datapoints = flu.shape[0] * flu.shape[1]
     if absolute_vals:
         flu = np.abs(flu)
     mean_arr = np.mean(flu, (0, 1))
@@ -3421,8 +3435,9 @@ def get_plot_trace(lm, ax=None, targets=False, region='s1',
                             y=start_y - idx * 0.025, fontdict={'color': color_dict[idx]})
                 # legend = ax.legend(bbox_to_anchor=(1.4, 1.3), frameon=False, loc='upper left')
         despine(ax)
+        return n_datapoints
     elif type_plot == 'return_mean':
-        return (time_axis, mean_arr)  
+        return (time_axis, mean_arr, n_datapoints)  
     elif type_plot == 'return_bar':
         post_stim_sum = np.sum(mean_arr[np.max(np.where(np.isnan(time_axis))[0]):])  # sum from last nan value of time axis onwards
         return post_stim_sum
