@@ -3475,7 +3475,10 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
 
     ax.bar(np.arange(len(bar_names)), mean_arr, width=0.8, 
            color=[color_dict[ii] for ii in range(len(bar_names))],
-           yerr=ci_arr)
+           yerr=ci_arr, zorder=0)
+    for i_bar, bar_name in enumerate(bar_names):
+        ax.scatter([i_bar] * len(dict_auc[bar_name])+ np.random.random(len(dict_auc[bar_name])) * 0.1  - 0.3, 
+                   dict_auc[bar_name], c='k', s=10, alpha=1, zorder=10)
 
     # ax.set_ylabel('AUC')
     ax.set_ylabel('Total ' + r"$\Delta F/F$" + ' response\npost-stimulus (AUC)')
@@ -3485,13 +3488,19 @@ def plot_bar_plot_targets(lm_list, dict_auc=None, baseline_by_prestim=True,
     despine(ax)
 
     if plot_legend:
-        start_y = mean_arr[0]
+        # start_y = mean_arr[0]
+        start_y = dict_auc[bar_names[0]].max()
         for idx, tt in enumerate(['Targets', 'Non-targets S1', 'Non-targets S2']):
             ax.text(s=tt, x=0.6, va='top',
-                    y=start_y - idx * 1.75, fontdict={'color': color_dict[idx]})
-            ax.text(s=readable_p_significance_statement(p_val=p_val_arr[idx], n_bonf=3)[1],
-                    x=idx + 0.02, y=-5, fontdict={'ha': 'center'})
-
+                    y=start_y - idx * 3, #1.75, 
+                    fontdict={'color': color_dict[idx]})
+            # ax.text(s=readable_p_significance_statement(p_val=p_val_arr[idx], n_bonf=3)[1],
+            #         x=idx + 0.02, y=-8, fontdict={'ha': 'center'})
+            bonf_corr_p  = np.minimum(1, p_val_arr[idx] * 3)
+            ax.text(s=f'{readable_p_exact(p_val=bonf_corr_p)}',
+                    x=idx + 0.02, y=-10, fontdict={'ha': 'center', 'rotation': 60})
+            ax.text(s=f'p =', x=-1.1, y=-10.5, fontdict={'rotation': 0})
+    print(p_val_arr)
     return dict_auc
 
 def plot_accuracy_n_cells_stim(ax=None, subset_dprimes=None, verbose=0, fit_in_logspace=True,
@@ -4104,7 +4113,8 @@ def lick_raster(lm, fig=None, trial_schematic=False):
         #              xycoords='data', ha='left', va='bottom', annotation_clip=False)
 
 def percent_responding_tts(lm_list, axes=None, verbose=1, 
-                            p_val_significant=0.05, bonf_correction=4):
+                            p_val_significant=0.05, bonf_correction=4,
+                            alternative_hypothesis='two-sided'):
     
     if axes is None:
         _, axes = plt.subplots(1,2)
@@ -4138,7 +4148,8 @@ def percent_responding_tts(lm_list, axes=None, verbose=1,
             if tt_against == 'Hit':
                 continue
 
-            _, p = scipy.stats.wilcoxon(data_dict['Hit'], data_dict[tt_against])
+            _, p = scipy.stats.wilcoxon(data_dict['Hit'], data_dict[tt_against], 
+                                        alternative=alternative_hypothesis)
 
             s = f'Hit vs {tt_against}, p = {p}, significant = {p < alpha}'
             if verbose > 0:
