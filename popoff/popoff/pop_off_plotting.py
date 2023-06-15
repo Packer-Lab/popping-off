@@ -4159,7 +4159,8 @@ def percent_responding_tts(lm_list, axes=None, verbose=1,
             s = f'Hit vs {tt_against}, p = {p}, significant = {p < alpha}'
             if verbose > 0:
                 print(s)
-            label_sign = asterisk_p(p_val=p, bonf_correction=bonf_correction)
+            # label_sign = asterisk_p(p_val=p, bonf_correction=bonf_correction)
+            label_sign = f'p = \n{readable_p_exact(p_val=np.minimum(1, p * bonf_correction))}'
             ax.text(s=label_sign, x=x_coord_tt, y=y_coord_tt, ha='center', va='center')
             x_coord_tt += 1
         ax.tick_params(bottom=False)
