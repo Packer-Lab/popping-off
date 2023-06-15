@@ -3198,7 +3198,11 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         label = ' '
         if slope < 0 and corr_coef < 0:
             bonf_correction = 2 * n_sessions  # multiply by 2 for one-sided p val & bonferroni
-            label = asterisk_p(p_val=p_val, bonf_correction=bonf_correction)
+            # label = asterisk_p(p_val=p_val, bonf_correction=bonf_correction)
+            label = readable_p_exact(p_val=p_val / bonf_correction)
+        else:
+            label = '1.0 (n.s.)'
+            # print(f'Warning: slope {slope} and corr_coef {corr_coef} have same sign.')
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
         ax.plot(av_vcr_arr, av_y_arr, label=label, linewidth=3, alpha=0.7, c=color_dict_stand[i_ss])
@@ -3214,7 +3218,8 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     despine(ax)
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-    ax.text(s=f'{n_sessions} sessions:\n***: p < 0.001', x=2.1, y=0.81)
+    # ax.text(s=f'{n_sessions} sessions:\n***: p < 0.001', x=2.1, y=0.81)
+    ax.text(s=f'p values of {n_sessions} sessions:', x=2.1, y=1.0)
     ax.legend(bbox_to_anchor=(1.1, -0.25), loc='lower left', frameon=False, ncol=2)
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
@@ -3327,7 +3332,7 @@ def scatter_covar_s1s2(super_covar_df_dict, cov_name='variance_cell_rates', ax=N
     despine(ax)
     ax.set_xlabel(f'{covar_labels[cov_name]} S1')
     ax.set_ylabel(f'{covar_labels[cov_name]} S2')
-    ax.set_title(f'r={np.round(pearson_r, 2)}, p < {readable_p(pearson_p)}')
+    ax.set_title(f'r={np.round(pearson_r, 2)}, p = {readable_p_exact(pearson_p)}')
 
 def get_plot_trace(lm, ax=None, targets=False, region='s1', 
                     n_stim_list=[5, 10, 20, 30, 40, 50],
