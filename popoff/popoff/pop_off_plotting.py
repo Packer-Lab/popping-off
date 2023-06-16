@@ -3140,6 +3140,9 @@ def plot_scatter_all_trials_two_covars(super_covar_df_dict, ax=None, covar_1='me
 
     result_lr = scipy.stats.linregress(x=arr_1, y=arr_2)
     slope, _, corr_coef, p_val, __ = result_lr
+    pearson_r, pearson_p = scipy.stats.pearsonr(arr_1, arr_2)
+    assert np.isclose(corr_coef, pearson_r)
+    assert np.isclose(p_val, pearson_p)
     if verbose > 0:
         print(slope, corr_coef, p_val)
 
@@ -3196,6 +3199,10 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         result_lr = scipy.stats.linregress(x=av_vcr_arr, y=av_y_arr)
         slope, _, corr_coef, p_val, __ = result_lr
         label = ' '
+        pearson_r, pearson_p = scipy.stats.pearsonr(x=av_vcr_arr, y=av_y_arr)
+        assert np.isclose(pearson_r, corr_coef)
+        assert np.isclose(pearson_p, p_val)
+        # print(f'Pearson r = {pearson_r},, corr_coef = {corr_coef}, p = {pearson_p}: p_val = {p_val}')
         if slope < 0 and corr_coef < 0:
             bonf_correction = 2 * n_sessions  # multiply by 2 for one-sided p val & bonferroni
             # label = asterisk_p(p_val=p_val, bonf_correction=bonf_correction)
@@ -3219,8 +3226,9 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
     ax.set_ylim([0, 1])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
     # ax.text(s=f'{n_sessions} sessions:\n***: p < 0.001', x=2.1, y=0.81)
-    ax.text(s=f'p values of {n_sessions} sessions:', x=2.1, y=1.0)
-    ax.legend(bbox_to_anchor=(1.1, -0.25), loc='lower left', frameon=False, ncol=2)
+    ax.text(s=f'One-sided ' +r'$(\downarrow)$' + ' p values:' , x=2.1, y=1.0)
+    ax.legend(bbox_to_anchor=(1.1, -0.25), loc='lower left', 
+              handlelength=0.2, frameon=False, ncol=2)    
 
 def plot_density_hit_miss_covar(super_covar_df, n_bins_covar=7, ax=None,
                                 covar_name='variance_cell_rates', zscored_covar=True,
