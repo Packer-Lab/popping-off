@@ -2511,9 +2511,9 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     flu = []
     n_datapoints_per_session = []
     for lm in msm.linear_models:
-        sf, time_axis, n_cells = pof.session_flu(lm, region=region, outcome=outcome, frames=frames,
+        sf, time_axis, n_cells_inferred = pof.session_flu(lm, region=region, outcome=outcome, frames=frames,
                          n_cells=n_cells)
-        n_datapoints_per_session.append(sf.shape[0] * n_cells)
+        n_datapoints_per_session.append(sf.shape[0] * n_cells_inferred)
         if stack == 'all-trials':
             flu.append(sf)  # stack every trial from every session in a big array
         else:
@@ -2525,6 +2525,7 @@ def plot_multisesssion_flu(msm, region, outcome, frames, n_cells, stack='all-tri
     mean_flu = np.mean(flu, 0)  # average across trials
     z = 1.96  # 95% confidence interval value
     ci = z * (np.std(flu, 0) / np.sqrt(flu.shape[0]))
+    # ci = z * (np.std(flu, 0) / np.sqrt(n_datapoints))
 
     # Remove the artifact
     if art_150_included:
@@ -2584,7 +2585,7 @@ def plot_average_tt_s1_s2(msm, n_cells, ax_s1=None, ax_s2=None, save_fig=False, 
         ax_list[i_plot].set_ylim(main_ylims)
         ax_list[i_plot].set_xlabel('Time (s)')
         for i_tt, tt in enumerate(tts_plot):
-            ax_list[i_plot].annotate(f'N={n_datapoints[tt]}', xy=(0.05, list_y_coords_n[i_tt]), 
+            ax_list[i_plot].annotate(f'N={n_datapoints[tt]}', xy=(0.025, list_y_coords_n[i_tt]), 
                                      xycoords='axes fraction',
                                      color=color_tt[tt])
         despine(ax_list[i_plot])
