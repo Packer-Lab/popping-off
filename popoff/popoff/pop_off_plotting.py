@@ -1944,7 +1944,9 @@ def plot_correlation_response_time_decoding_accuracy(df_decoder_results, time_ar
         curr_ax = ax[1]
     curr_ax.scatter(jitter[~bool_sign], corr_arr[:, 0][~bool_sign], c='grey', label=f'n.s.')
     if np.sum(bool_sign) > 0:
+        print('Significant sessions found')
         curr_ax.scatter(jitter[bool_sign], corr_arr[:, 0][bool_sign], c='k', label=sign_label)
+    print(f'Min and max corr: {np.min(corr_arr[:, 0])}, {np.max(corr_arr[:, 0])}')
     curr_ax.set_xlim([-1, 8])
     curr_ax.set_ylim([-1, 1])
     despine(curr_ax)
