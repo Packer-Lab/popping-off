@@ -3204,12 +3204,15 @@ def plot_accuracy_covar(cov_dicts, cov_name='variance_cell_rates', zscore_covar=
         assert np.isclose(pearson_r, corr_coef)
         assert np.isclose(pearson_p, p_val)
         # print(f'Pearson r = {pearson_r},, corr_coef = {corr_coef}, p = {pearson_p}: p_val = {p_val}')
+        bonf_correction = n_sessions / 2 # divide by 2 for one-sided p val & bonferroni
         if slope < 0 and corr_coef < 0:
-            bonf_correction = 2 * n_sessions  # multiply by 2 for one-sided p val & bonferroni
             # label = asterisk_p(p_val=p_val, bonf_correction=bonf_correction)
-            label = readable_p_exact(p_val=p_val / bonf_correction)
+            label = readable_p_exact(p_val=p_val * bonf_correction)
         else:
-            label = '1.0 (n.s.)'
+            # label = '1.0 (n.s.)'
+            one_sided_p_opposite_dir = (1 - p_val * bonf_correction) # 1 - P/2 for one-sided p val
+            print(f'r: {corr_coef}, p: {p_val}, pearson_r: {pearson_r}, pearson_p: {pearson_p}, bonf_correction: {bonf_correction}, one_sided_p_opposite_dir: {one_sided_p_opposite_dir}')
+            label = readable_p_exact(p_val=one_sided_p_opposite_dir)  
             # print(f'Warning: slope {slope} and corr_coef {corr_coef} have same sign.')
         if verbose > 0:
             print(f'Session {i_ss}, {result_lr}')
