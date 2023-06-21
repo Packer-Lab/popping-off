@@ -1,14 +1,14 @@
-# Photostimulation Of Population Obviously Fuels Firing
+# Code for Rowland, van der Plas, Loidolt et al.
 
 Code for analysis of all-optical neural data obtained in Packer lab, Oxford. Figures were generated in whole by code, using notebooks in `popping-off/notebooks/Paper Figures/`. This is the code of the following preprint:
 
-https://www.biorxiv.org/content/10.1101/2021.12.28.474343v1
+[https://www.biorxiv.org/content/10.1101/2021.12.28.474343v2](https://www.biorxiv.org/content/10.1101/2021.12.28.474343v2)
 
 
 ## Instructions for installation repo:
 
-- Clone or fork this repository
-- Clone the dependence `Vape`: https://github.com/Packer-Lab/Vape
+- Clone or fork this repository ([https://github.com/Packer-Lab/popping-off/](https://github.com/Packer-Lab/popping-off/))
+- Clone the dependence `Vape`: [https://github.com/Packer-Lab/Vape](https://github.com/Packer-Lab/Vape)
 - To install the correct Python packages, please build a conda environment from the `pope.yml` file, using the following terminal command `conda env create -f pope.yml`.
 - Additionally; run `pip install google-api-python-client` and `pip install google-auth-oauthlib`
 - Add a profile to `popping-off/data_paths.json`, with links to your local paths. (`base_path` should be the path that the `.pkl` data set is in. `Vape_path` should be the directory the Vape repository (also from Packer-Lab Github) is in. The other two entries are not needed for data analysis (only for pre-processing).
